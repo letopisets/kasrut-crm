@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KashrutCRM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body,#root{background:#0F1117!important;min-height:100vh;color:#E8E8EE;}
+  body{font-family:'IBM Plex Sans','Segoe UI',sans-serif;}
+  select option{background:#1A1D2E;color:#ddd;}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:#0F1117;}
+  ::-webkit-scrollbar-thumb{background:#2A2D3E;border-radius:3px;}
+  ::-webkit-scrollbar-thumb:hover{background:#3A3D4E;}
+  button{font-family:inherit;}
+  input,select,textarea{font-family:inherit;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+
+
+// ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
+const T = {
+  en: {
+    appName:"KashrutCRM", appSub:"Kashrut Management System",
+    nav:{ dashboard:"Dashboard", restaurants:"Establishments", inspections:"Inspections", mashgichim:"Mashgichim", hechsherim:"Hechsherim", documents:"Documents", rabbanuts:"Rabbanuts", users:"Users" },
+    roles:{ owner:"Owner", rabbanut:"Rabbanut", mashgiach:"Mashgiach" },
+    roleDesc:{ owner:"Full system access", rabbanut:"Manage your organization", mashgiach:"Your assignments only" },
+    dashboard:{ title:"Overview", sub:"Live system status" },
+    stats:["Active Certificates","Expiring in 30 days","Inspections this week","Pending Documents"],
+    statsSub:["+12 this month","Need attention","8 unassigned","Awaiting signature"],
+    expiring:"⏳ Expiring Certificates", upcoming:"🔍 Upcoming Inspections",
+    days:"d.", today:"Today", in:"In",
+    status:{ ok:"Active", warning:"Expiring", critical:"Urgent" },
+    back:"← Back",
+    restaurants:{ title:"Establishments", sub:"Restaurants and food businesses", add:"+ Add", filters:["All","✓ Active","⚠ Expiring","🔴 Urgent"], cols:{ level:"Level", hechsher:"Hechsher", mashgiach:"Mashgiach", expires:"Expires" }, actions:"Actions", actionList:["Schedule Inspection","Renew Certificate","Send Reminder","Suspend Kashrut"] },
+    addRest:{ title:"Add Establishment", name:"Name", address:"Address", city:"City", level:"Kashrut Level", hechsher:"Hechsher Org.", mashgiach:"Mashgiach", kitniyot:"Kitniyot", expires:"Expiry Date", notes:"Notes", save:"Save", cancel:"Cancel" },
+    inspections:{ title:"Inspections", sub:"Mashgiach visit schedule", add:"+ New", planned:"Planned", urgent:"Urgent", addTitle:"Schedule Inspection", restaurant:"Establishment", date:"Date", type:"Type", assign:"Mashgiach", notes:"Notes", result:{ pending:"Pending", open:"Open", pass:"✓ Pass", fail:"✗ Fail" }, save:"Save", cancel:"Cancel" },
+    mashgichim:{ title:"Mashgichim", sub:"Staff management", add:"+ Add", phone:"Phone", email:"Email", area:"Area", hechsherim:"Hechsherim", assigned:"Assigned", active:"Active", inactive:"Inactive", addTitle:"Add Mashgiach", name:"Full Name", save:"Save", cancel:"Cancel", remove:"Remove", confirmRemove:"Remove this mashgiach?", noHechsher:"No hechsher" },
+    hechsherim:{ title:"Hechsher Orgs.", sub:"Certifying bodies", add:"+ Add", addTitle:"Add Hechsher", name:"Name", shortName:"Short Name", city:"City", contact:"Contact", phone:"Phone", email:"Email", type:"Type", types:["Rabbanut","Badatz","Mehadrin","Private"], save:"Save", cancel:"Cancel", remove:"Remove", confirmRemove:"Remove hechsher?", establishments:"Est.", mashgichim:"Mashg." },
+    documents:{ title:"Documents", sub:"Instructions & regulations", add:"+ Upload", categories:["All","Instructions","Forms","Regulations","Pesach"], view:"View", download:"↓" },
+    rabbanuts:{ title:"Rabbanut Organizations", sub:"Manage all rabbanut orgs", add:"+ Add Rabbanut", name:"Name", city:"City", contact:"Contact", phone:"Phone", email:"Email", save:"Save", cancel:"Cancel", remove:"Remove", confirmRemove:"Remove this rabbanut?", establishments:"Est.", mashgichim:"Mashg.", active:"Active", inactive:"Inactive" },
+    users:{ title:"Users & Access", sub:"Manage system users", add:"+ Add User", role:"Role", org:"Organization", status:"Status", lastLogin:"Last Login" },
+    noAccess:"You don't have access to this section.",
+    myEstablishments:"My Establishments", myInspections:"My Inspections",
+    ownerBanner:"Owner — full system access",
+    allRabbanuts:"All Rabbanuts",
+  },
+  ru: {
+    appName:"KashrutCRM", appSub:"Система управления кашрутом",
+    nav:{ dashboard:"Дашборд", restaurants:"Заведения", inspections:"Инспекции", mashgichim:"Машгиахи", hechsherim:"Гекшерим", documents:"Документы", rabbanuts:"Рабануты", users:"Пользователи" },
+    roles:{ owner:"Owner", rabbanut:"Рабанут", mashgiach:"Машгиах" },
+    roleDesc:{ owner:"Полный доступ к системе", rabbanut:"Управление своей организацией", mashgiach:"Только свои назначения" },
+    dashboard:{ title:"Обзор", sub:"Статус системы" },
+    stats:["Активных сертификатов","Истекают в 30 дней","Инспекций на неделе","Документов ожидают"],
+    statsSub:["+12 за месяц","Требуют внимания","8 не назначено","Ожидают подписи"],
+    expiring:"⏳ Истекающие сертификаты", upcoming:"🔍 Ближайшие инспекции",
+    days:"дн.", today:"Сегодня", in:"Через",
+    status:{ ok:"Активен", warning:"Истекает", critical:"Срочно" },
+    back:"← Назад",
+    restaurants:{ title:"Заведения", sub:"Рестораны и точки питания", add:"+ Добавить", filters:["Все","✓ Активные","⚠ Истекают","🔴 Срочно"], cols:{ level:"Уровень", hechsher:"Гекшер", mashgiach:"Машгиах", expires:"Истекает" }, actions:"Действия", actionList:["Назначить инспекцию","Продлить сертификат","Отправить напоминание","Приостановить кашрут"] },
+    addRest:{ title:"Добавить заведение", name:"Название", address:"Адрес", city:"Город", level:"Уровень кашрута", hechsher:"Организация гекшера", mashgiach:"Машгиах", kitniyot:"Китниёт", expires:"Срок действия", notes:"Примечания", save:"Сохранить", cancel:"Отмена" },
+    inspections:{ title:"Инспекции", sub:"Расписание визитов машгиахов", add:"+ Новая", planned:"Плановая", urgent:"Срочная", addTitle:"Назначить инспекцию", restaurant:"Заведение", date:"Дата", type:"Тип", assign:"Машгиах", notes:"Примечания", result:{ pending:"Ожидает", open:"Открыта", pass:"✓ Пройдена", fail:"✗ Нарушения" }, save:"Сохранить", cancel:"Отмена" },
+    mashgichim:{ title:"Машгиахи", sub:"Управление сотрудниками", add:"+ Добавить", phone:"Телефон", email:"Email", area:"Район", hechsherim:"Гекшерим", assigned:"Заведений", active:"Активен", inactive:"Неактивен", addTitle:"Добавить машгиаха", name:"Полное имя", save:"Сохранить", cancel:"Отмена", remove:"Удалить", confirmRemove:"Удалить машгиаха?", noHechsher:"Нет гекшера" },
+    hechsherim:{ title:"Организации гекшера", sub:"Сертифицирующие органы", add:"+ Добавить", addTitle:"Добавить гекшер", name:"Название", shortName:"Аббревиатура", city:"Город", contact:"Контакт", phone:"Телефон", email:"Email", type:"Тип", types:["Рабанут","Бадац","Мехадрин","Частный"], save:"Сохранить", cancel:"Отмена", remove:"Удалить", confirmRemove:"Удалить гекшер?", establishments:"Завед.", mashgichim:"Машг." },
+    documents:{ title:"Документы", sub:"Инструкции и нормативы", add:"+ Загрузить", categories:["Все","Инструкции","Формы","Нормативы","Песах"], view:"Просмотр", download:"↓" },
+    rabbanuts:{ title:"Организации рабанут", sub:"Управление всеми рабанутами", add:"+ Добавить рабанут", name:"Название", city:"Город", contact:"Контакт", phone:"Телефон", email:"Email", save:"Сохранить", cancel:"Отмена", remove:"Удалить", confirmRemove:"Удалить рабанут?", establishments:"Завед.", mashgichim:"Машг.", active:"Активен", inactive:"Неактивен" },
+    users:{ title:"Пользователи и доступы", sub:"Управление пользователями системы", add:"+ Добавить", role:"Роль", org:"Организация", status:"Статус", lastLogin:"Последний вход" },
+    noAccess:"У вас нет доступа к этому разделу.",
+    myEstablishments:"Мои заведения", myInspections:"Мои инспекции",
+    ownerBanner:"Owner — полный доступ к системе",
+    allRabbanuts:"Все рабануты",
+  },
+  he: {
+    appName:"KashrutCRM", appSub:"מערכת ניהול כשרות",
+    nav:{ dashboard:"לוח בקרה", restaurants:"עסקים", inspections:"ביקורות", mashgichim:"משגיחים", hechsherim:"הכשרים", documents:"מסמכים", rabbanuts:"רבנויות", users:"משתמשים" },
+    roles:{ owner:"Owner", rabbanut:"רבנות", mashgiach:"משגיח" },
+    roleDesc:{ owner:"גישה מלאה למערכת", rabbanut:"ניהול הארגון שלך", mashgiach:"השיוכים שלי בלבד" },
+    dashboard:{ title:"סקירה כללית", sub:"מצב המערכת" },
+    stats:["תעודות פעילות","פגות תוקף ב-30 יום","ביקורות השבוע","מסמכים ממתינים"],
+    statsSub:["+12 החודש","דורשים טיפול","8 לא שובצו","ממתינים לחתימה"],
+    expiring:"⏳ תעודות פגות תוקף", upcoming:"🔍 ביקורות קרובות",
+    days:"יום", today:"היום", in:"בעוד",
+    status:{ ok:"פעיל", warning:"פוגת תוקף", critical:"דחוף" },
+    back:"→ חזרה",
+    restaurants:{ title:"עסקים", sub:"מסעדות ובתי אוכל", add:"+ הוסף", filters:["הכל","✓ פעיל","⚠ פוגת תוקף","🔴 דחוף"], cols:{ level:"רמה", hechsher:"הכשר", mashgiach:"משגיח", expires:"תוקף" }, actions:"פעולות", actionList:["קבוע ביקורת","חדש תעודה","שלח תזכורת","השהה כשרות"] },
+    addRest:{ title:"הוסף עסק", name:"שם", address:"כתובת", city:"עיר", level:"רמת כשרות", hechsher:"גוף מכשיר", mashgiach:"משגיח", kitniyot:"קטניות", expires:"תוקף תעודה", notes:"הערות", save:"שמור", cancel:"בטל" },
+    inspections:{ title:"ביקורות", sub:"לוח ביקורות", add:"+ חדשה", planned:"מתוכננת", urgent:"דחופה", addTitle:"קבע ביקורת", restaurant:"עסק", date:"תאריך", type:"סוג", assign:"משגיח", notes:"הערות", result:{ pending:"ממתין", open:"פתוחה", pass:"✓ עברה", fail:"✗ ליקויים" }, save:"שמור", cancel:"בטל" },
+    mashgichim:{ title:"משגיחים", sub:"ניהול צוות", add:"+ הוסף", phone:"טלפון", email:"אימייל", area:"אזור", hechsherim:"הכשרים", assigned:"עסקים", active:"פעיל", inactive:"לא פעיל", addTitle:"הוסף משגיח", name:"שם מלא", save:"שמור", cancel:"בטל", remove:"הסר", confirmRemove:"להסיר משגיח?", noHechsher:"ללא הכשר" },
+    hechsherim:{ title:"גופים מכשירים", sub:"ניהול הכשרים", add:"+ הוסף", addTitle:"הוסף גוף מכשיר", name:"שם", shortName:"ר\"ת", city:"עיר", contact:"איש קשר", phone:"טלפון", email:"אימייל", type:"סוג", types:["רבנות","בד\"ץ","מהדרין","פרטי"], save:"שמור", cancel:"בטל", remove:"הסר", confirmRemove:"להסיר הכשר?", establishments:"עסקים", mashgichim:"משגיחים" },
+    documents:{ title:"מסמכים", sub:"הוראות ונהלים", add:"+ העלה", categories:["הכל","הוראות","טפסים","נהלים","פסח"], view:"צפה", download:"↓" },
+    rabbanuts:{ title:"ארגוני רבנות", sub:"ניהול כל הרבנויות", add:"+ הוסף רבנות", name:"שם", city:"עיר", contact:"איש קשר", phone:"טלפון", email:"אימייל", save:"שמור", cancel:"בטל", remove:"הסר", confirmRemove:"להסיר רבנות?", establishments:"עסקים", mashgichim:"משגיחים", active:"פעיל", inactive:"לא פעיל" },
+    users:{ title:"משתמשים וגישות", sub:"ניהול משתמשי המערכת", add:"+ הוסף", role:"תפקיד", org:"ארגון", status:"סטטוס", lastLogin:"כניסה אחרונה" },
+    noAccess:"אין לך גישה לקטע זה.",
+    myEstablishments:"העסקים שלי", myInspections:"הביקורות שלי",
+    ownerBanner:"Owner — גישה מלאה למערכת",
+    allRabbanuts:"כל הרבנויות",
+  },
+};
+
+// ─── ROLE PERMISSIONS ─────────────────────────────────────────────────────────
+const PERMS = {
+  owner:    { tabs:["dashboard","restaurants","inspections","mashgichim","hechsherim","documents","rabbanuts","users"], canEdit:true, seeAll:true,  isOwner:true },
+  rabbanut: { tabs:["dashboard","restaurants","inspections","mashgichim","hechsherim","documents"],                    canEdit:true, seeAll:false, isOwner:false },
+  mashgiach:{ tabs:["dashboard","restaurants","inspections","documents"],                                               canEdit:false,seeAll:false, isOwner:false },
+};
+
+const ROLE_COLOR = { owner:"#E8C96D", rabbanut:"#3498DB", mashgiach:"#2ECC71" };
+const SC = { ok:"#2ECC71", warning:"#F39C12", critical:"#E74C3C" };
+const CAT_COLOR = { Instructions:"#3498DB", Forms:"#9B59B6", Regulations:"#E67E22", Pesach:"#E8C96D" };
+const CAT_MAP = { "Инструкции":"Instructions","Формы":"Forms","Нормативы":"Regulations","Песах":"Pesach","הוראות":"Instructions","טפסים":"Forms","נהלים":"Regulations","פסח":"Pesach","Все":"All","הכל":"All" };
+const daysUntil = d => Math.ceil((new Date(d)-new Date())/86400000);
+
+// ─── SEED DATA ────────────────────────────────────────────────────────────────
+const initRabbanuts = [
+  { id:"rb1", name:"Rabbanut Jerusalem", city:"Jerusalem", contact:"Rav Goldberg", phone:"02-6700100", email:"kashrut@jer.il", active:true, color:"#3498DB" },
+  { id:"rb2", name:"Rabbanut Haifa", city:"Haifa", contact:"Rav Cohen", phone:"04-8867000", email:"kashrut@haifa.il", active:true, color:"#2ECC71" },
+  { id:"rb3", name:"Rabbanut Tel Aviv", city:"Tel Aviv", contact:"Rav Levi", phone:"03-5551234", email:"kashrut@tlv.il", active:false, color:"#9B59B6" },
+];
+const initHechsherim = [
+  { id:"h1", name:"Rabbanut Jerusalem", shortName:"רבנות י-ם", city:"Jerusalem", contact:"Rav Goldberg", phone:"02-6700100", email:"kashrut@jer.il", type:"Rabbanut", color:"#3498DB", rabbanutId:"rb1" },
+  { id:"h2", name:"Badatz Eda Hacharedit", shortName:"בד\"ץ העדה", city:"Jerusalem", contact:"Rav Weiss", phone:"02-6700200", email:"vaad@edah.il", type:"Badatz", color:"#E74C3C", rabbanutId:"rb1" },
+  { id:"h3", name:"Rabbanut Haifa", shortName:"רבנות חיפה", city:"Haifa", contact:"Rav Cohen", phone:"04-8867000", email:"kashrut@haifa.il", type:"Rabbanut", color:"#2ECC71", rabbanutId:"rb2" },
+  { id:"h4", name:"Badatz Beit Yosef", shortName:"בד\"ץ ב\"י", city:"Jerusalem", contact:"Rav Yosef", phone:"02-5382832", email:"info@beityosef.il", type:"Badatz", color:"#9B59B6", rabbanutId:"rb1" },
+  { id:"h5", name:"Chief Rabbinate", shortName:"הרה\"ר", city:"Jerusalem", contact:"Rav Adiriya", phone:"02-9705149", email:"adiryap@rab.gov.il", type:"Rabbanut", color:"#E8C96D", rabbanutId:"rb1" },
+];
+const initMashgichim = [
+  { id:"m1", name:"Р. Коэн", phone:"050-1234567", email:"cohen@rabbanut.il", area:"Jerusalem Center", hechsherimIds:["h1","h5"], assigned:["r1","r4"], active:true, rabbanutId:"rb1" },
+  { id:"m2", name:"Р. Леви", phone:"052-9876543", email:"levi@rabbanut.il", area:"Jerusalem North", hechsherimIds:["h1"], assigned:["r2","r6"], active:true, rabbanutId:"rb1" },
+  { id:"m3", name:"Р. Фридман", phone:"054-5551234", email:"fridman@haifa.il", area:"Haifa", hechsherimIds:["h3","h4"], assigned:["r3"], active:true, rabbanutId:"rb2" },
+  { id:"m4", name:"Р. Берг", phone:"058-7774321", email:"berg@jer.il", area:"North District", hechsherimIds:["h2"], assigned:["r5"], active:false, rabbanutId:"rb1" },
+];
+const initRestaurants = [
+  { id:"r1", name:"מסעדת הגורמה", address:"רח' יפו 42", city:"Jerusalem", level:"Mehadrin", hechsherId:"h1", mashgiachId:"m1", kitniyot:"ללא חשש קטניות", expires:"2026-03-15", status:"warning", lastInspection:"2026-01-20", notes:"", rabbanutId:"rb1" },
+  { id:"r2", name:"בית האוכל המרכזי", address:"רח' בן יהודה 18", city:"Jerusalem", level:"Regular", hechsherId:"h2", mashgiachId:"m2", kitniyot:"מכיל קטניות", expires:"2026-06-30", status:"ok", lastInspection:"2026-02-01", notes:"", rabbanutId:"rb1" },
+  { id:"r3", name:"מסעדת צפון", address:"שד' הרצל 55", city:"Haifa", level:"Mehadrin", hechsherId:"h4", mashgiachId:"m3", kitniyot:"ללא חשש קטניות", expires:"2026-02-28", status:"critical", lastInspection:"2025-12-15", notes:"Requires attention", rabbanutId:"rb2" },
+  { id:"r4", name:"פיצה שמש", address:"רח' גאולה 31", city:"Haifa", level:"Regular", hechsherId:"h3", mashgiachId:"m1", kitniyot:"מכיל קטניות", expires:"2026-08-10", status:"ok", lastInspection:"2026-01-30", notes:"", rabbanutId:"rb2" },
+  { id:"r5", name:"המאפייה העתיקה", address:"רח' ירושלים 17", city:"Tzfat", level:"Mehadrin", hechsherId:"h5", mashgiachId:"m4", kitniyot:"ללא חשש קטניות", expires:"2026-04-01", status:"warning", lastInspection:"2026-01-10", notes:"", rabbanutId:"rb1" },
+  { id:"r6", name:"מלון כנרות", address:"רח' זיידל 9", city:"Tiberias", level:"Mehadrin", hechsherId:"h1", mashgiachId:"m2", kitniyot:"ללא חשש קטניות", expires:"2026-09-20", status:"ok", lastInspection:"2026-02-05", notes:"", rabbanutId:"rb1" },
+];
+const initInspections = [
+  { id:"i1", restaurantId:"r1", date:"2026-03-08", mashgiachId:"m1", type:"planned", notes:"", result:"pending" },
+  { id:"i2", restaurantId:"r3", date:"2026-03-06", mashgiachId:"m3", type:"urgent", notes:"Previous issues", result:"pending" },
+  { id:"i3", restaurantId:"r2", date:"2026-03-10", mashgiachId:"m2", type:"planned", notes:"", result:"pending" },
+  { id:"i4", restaurantId:"r5", date:"2026-03-12", mashgiachId:"m4", type:"planned", notes:"", result:"open" },
+];
+const initDocs = [
+  { id:1, name:"Kashrut Inspection Guidelines 5786", category:"Instructions", date:"2026-01-08", size:"2.4 MB", ext:"PDF" },
+  { id:2, name:"כתב התחייבות – פסח תשפ\"ו", category:"Pesach", date:"2026-01-08", size:"0.8 MB", ext:"PDF" },
+  { id:3, name:"Mashgiach Daily Checklist", category:"Forms", date:"2026-01-15", size:"0.3 MB", ext:"PDF" },
+  { id:4, name:"Bishul Yisrael Regulations", category:"Regulations", date:"2025-12-01", size:"1.1 MB", ext:"PDF" },
+  { id:5, name:"טופס המתנה מעת לעת", category:"Pesach", date:"2026-01-08", size:"0.2 MB", ext:"PDF" },
+  { id:6, name:"Hechsher Certificate Template", category:"Forms", date:"2026-02-01", size:"0.5 MB", ext:"DOCX" },
+  { id:7, name:"היערכות מסעדות לפסח תשפ\"ו", category:"Pesach", date:"2026-01-08", size:"1.8 MB", ext:"PDF" },
+  { id:8, name:"Mehadrin Standards Reference", category:"Regulations", date:"2025-11-20", size:"3.2 MB", ext:"PDF" },
+];
+const initUsers = [
+  { id:"u1", name:"System Owner", role:"owner", org:"—", status:"active", lastLogin:"2026-03-05" },
+  { id:"u2", name:"Admin Jerusalem", role:"rabbanut", org:"Rabbanut Jerusalem", status:"active", lastLogin:"2026-03-04" },
+  { id:"u3", name:"Admin Haifa", role:"rabbanut", org:"Rabbanut Haifa", status:"active", lastLogin:"2026-03-03" },
+  { id:"u4", name:"Р. Коэн", role:"mashgiach", org:"Rabbanut Jerusalem", status:"active", lastLogin:"2026-03-05" },
+  { id:"u5", name:"Р. Леви", role:"mashgiach", org:"Rabbanut Jerusalem", status:"active", lastLogin:"2026-03-04" },
+  { id:"u6", name:"Р. Фридман", role:"mashgiach", org:"Rabbanut Haifa", status:"inactive", lastLogin:"2026-02-20" },
+];
+
+// ─── UI ATOMS ─────────────────────────────────────────────────────────────────
+const cs = { background:"#1A1D2E", border:"1px solid #2A2D3E", borderRadius:12, padding:20 };
+
+const Badge = ({label,color,small})=>(
+  <span style={{background:`${color}18`,color,border:`1px solid ${color}35`,padding:small?"2px 8px":"3px 11px",borderRadius:20,fontSize:small?10:11,fontWeight:700,whiteSpace:"nowrap"}}>{label}</span>
+);
+const HTag = ({h,small})=>h?<Badge label={h.shortName} color={h.color||"#888"} small={small}/>:null;
+
+const Inp = ({label,value,onChange,type="text",options,placeholder})=>(
+  <div style={{marginBottom:12}}>
+    <label style={{fontSize:10,color:"#666",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}</label>
+    {options?(
+      <select value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:"#22253A",border:"1px solid #2A2D3E",color:value?"#ddd":"#555",padding:"7px 10px",borderRadius:6,fontSize:12}}>
+        <option value="">—</option>
+        {options.map(o=><option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}
+      </select>
+    ):(
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder||""} style={{width:"100%",background:"#22253A",border:"1px solid #2A2D3E",color:"#ddd",padding:"7px 10px",borderRadius:6,fontSize:12,boxSizing:"border-box"}}/>
+    )}
+  </div>
+);
+
+const Mdl = ({title,onClose,children,width=460})=>(
+  <div style={{position:"fixed",inset:0,background:"rgba(10,11,18,0.92)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#1A1D2E",border:"1px solid #2A2D3E",borderRadius:14,padding:24,width,maxHeight:"85vh",overflowY:"auto",color:"#E8E8EE"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <span style={{fontSize:14,fontWeight:700,color:"#E8C96D"}}>{title}</span>
+        <button onClick={onClose} style={{background:"none",border:"none",color:"#555",fontSize:20,cursor:"pointer"}}>×</button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const Btn = ({onClick,children,variant="primary",style:s={},disabled})=>{
+  const v={primary:{background:"linear-gradient(135deg,#C9A84C,#E8C96D)",color:"#1A1D2E",border:"none"},secondary:{background:"#22253A",border:"1px solid #2A2D3E",color:"#aaa"},danger:{background:"#E74C3C15",border:"1px solid #E74C3C40",color:"#E74C3C"},ghost:{background:"transparent",border:"1px solid #2A2D3E",color:"#777"}};
+  return <button onClick={onClick} disabled={disabled} style={{padding:"7px 15px",borderRadius:7,cursor:disabled?"not-allowed":"pointer",fontSize:12,fontWeight:600,opacity:disabled?0.4:1,...v[variant],...s}}>{children}</button>;
+};
+
+const Divider = ()=><div style={{height:1,background:"#1E2030",margin:"8px 0"}}/>;
+const NoAccess = ({t})=><div style={{textAlign:"center",padding:"80px 20px",color:"#333",fontSize:14}}>🔒 {t.noAccess}</div>;
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+function KashrutCRM() {
+  const [lang,setLang]=useState("ru");
+
+  useEffect(()=>{
+    const style = document.createElement("style");
+    style.textContent = `html,body,#root{background:#0F1117!important;margin:0;padding:0;min-height:100vh;} *{box-sizing:border-box;} select option{background:#1A1D2E;color:#ddd;}`;
+    document.head.appendChild(style);
+    return ()=>document.head.removeChild(style);
+  },[]);
+  const [role,setRole]=useState("owner");
+  const [tab,setTab]=useState("dashboard");
+  const t=T[lang]; const perm=PERMS[role]; const isHe=lang==="he";
+  const rc=ROLE_COLOR[role];
+
+  // current rabbanut context (for rabbanut role demo)
+  const myRabbanutId = "rb1";
+
+  const [restaurants,setRestaurants]=useState(initRestaurants);
+  const [inspections,setInspections]=useState(initInspections);
+  const [mashgichim,setMashgichim]=useState(initMashgichim);
+  const [hechsherim,setHechsherim]=useState(initHechsherim);
+  const [rabbanuts,setRabbanuts]=useState(initRabbanuts);
+  const [users]=useState(initUsers);
+  const [docs]=useState(initDocs);
+
+  const [selRest,setSelRest]=useState(null);
+  const [selHech,setSelHech]=useState(null);
+  const [filterSt,setFilterSt]=useState("all");
+  const [docCat,setDocCat]=useState("All");
+  const [modal,setModal]=useState(null);
+  const [confirmId,setConfirmId]=useState(null);
+  const [rbFilter,setRbFilter]=useState("all"); // for owner: filter by rabbanut
+
+  const eR={name:"",address:"",city:"",level:"",hechsherId:"",mashgiachId:"",kitniyot:"",expires:"",notes:""};
+  const eI={restaurantId:"",date:"",type:"planned",mashgiachId:"",notes:""};
+  const eM={name:"",phone:"",email:"",area:"",hechsherimIds:[],active:true};
+  const eH={name:"",shortName:"",city:"",contact:"",phone:"",email:"",type:""};
+  const eRb={name:"",city:"",contact:"",phone:"",email:""};
+  const [rF,setRF]=useState(eR); const [iF,setIF]=useState(eI);
+  const [mF,setMF]=useState(eM); const [hF,setHF]=useState(eH);
+  const [rbF,setRbF]=useState(eRb);
+
+  const getH=id=>hechsherim.find(h=>h.id===id);
+  const getM=id=>mashgichim.find(m=>m.id===id);
+  const getR=id=>restaurants.find(r=>r.id===id);
+  const getRb=id=>rabbanuts.find(r=>r.id===id);
+
+  // role-scoped data
+  const myMashgiach=mashgichim[0]; // demo: first mashgiach
+  const scopedRests = role==="owner" ? restaurants
+    : role==="rabbanut" ? restaurants.filter(r=>r.rabbanutId===myRabbanutId)
+    : restaurants.filter(r=>r.mashgiachId===myMashgiach?.id);
+  const scopedInsps = role==="owner" ? inspections
+    : role==="rabbanut" ? inspections.filter(i=>scopedRests.find(r=>r.id===i.restaurantId))
+    : inspections.filter(i=>i.mashgiachId===myMashgiach?.id);
+  const scopedMash = role==="owner" ? mashgichim : mashgichim.filter(m=>m.rabbanutId===myRabbanutId);
+  const scopedHech = role==="owner" ? hechsherim : hechsherim.filter(h=>h.rabbanutId===myRabbanutId);
+
+  // owner can filter by rabbanut
+  const rbScopedRests = (role==="owner"&&rbFilter!=="all") ? scopedRests.filter(r=>r.rabbanutId===rbFilter) : scopedRests;
+  const filtRests=rbScopedRests.filter(r=>filterSt==="all"||r.status===filterSt);
+
+  const normCat=c=>CAT_MAP[c]||c;
+  const filtDocs=normCat(docCat)==="All"?docs:docs.filter(d=>d.category===normCat(docCat));
+
+  const saveR=()=>{
+    if(!rF.name)return;
+    const d=daysUntil(rF.expires);
+    const status=d<10?"critical":d<30?"warning":"ok";
+    const nr={...rF,id:"r"+Date.now(),status,lastInspection:"—",rabbanutId:myRabbanutId};
+    setRestaurants(p=>[...p,nr]);
+    if(rF.mashgiachId) setMashgichim(p=>p.map(m=>m.id===rF.mashgiachId?{...m,assigned:[...m.assigned,nr.id]}:m));
+    setModal(null);setRF(eR);
+  };
+  const saveI=()=>{ if(!iF.restaurantId)return; setInspections(p=>[...p,{...iF,id:"i"+Date.now(),result:"pending"}]); setModal(null);setIF(eI); };
+  const saveM=()=>{ if(!mF.name)return; setMashgichim(p=>[...p,{...mF,id:"m"+Date.now(),assigned:[],rabbanutId:myRabbanutId}]); setModal(null);setMF(eM); };
+  const saveH=()=>{
+    if(!hF.name)return;
+    const tc={"Rabbanut":"#3498DB","Рабанут":"#3498DB","רבנות":"#3498DB","Badatz":"#E74C3C","Бадац":"#E74C3C","בד\"ץ":"#E74C3C","Mehadrin":"#9B59B6","Мехадрин":"#9B59B6","מהדרין":"#9B59B6","Private":"#95A5A6","Частный":"#95A5A6","פרטי":"#95A5A6"};
+    setHechsherim(p=>[...p,{...hF,id:"h"+Date.now(),color:tc[hF.type]||"#888",rabbanutId:myRabbanutId}]);
+    setModal(null);setHF(eH);
+  };
+  const saveRb=()=>{ if(!rbF.name)return; const colors=["#E8C96D","#E67E22","#1ABC9C","#8E44AD"]; setRabbanuts(p=>[...p,{...rbF,id:"rb"+Date.now(),active:true,color:colors[p.length%colors.length]}]); setModal(null);setRbF(eRb); };
+  const delM=id=>{setMashgichim(p=>p.filter(m=>m.id!==id));setModal(null);};
+  const delH=id=>{setHechsherim(p=>p.filter(h=>h.id!==id));setModal(null);};
+  const delRb=id=>{setRabbanuts(p=>p.filter(r=>r.id!==id));setModal(null);};
+  const toggleM=id=>setMashgichim(p=>p.map(m=>m.id===id?{...m,active:!m.active}:m));
+  const toggleRb=id=>setRabbanuts(p=>p.map(r=>r.id===id?{...r,active:!r.active}:r));
+  const setRes=(id,result)=>setInspections(p=>p.map(i=>i.id===id?{...i,result}:i));
+  const goTab=t2=>{setTab(t2);setSelRest(null);setSelHech(null);};
+  const toggleMH=hId=>setMF(p=>({...p,hechsherimIds:p.hechsherimIds.includes(hId)?p.hechsherimIds.filter(x=>x!==hId):[...p.hechsherimIds,hId]}));
+
+  const activeTab=perm.tabs.includes(tab)?tab:"dashboard";
+
+  return (
+    <div dir={isHe?"rtl":"ltr"} style={{fontFamily:isHe?"'Heebo','Segoe UI',sans-serif":"'IBM Plex Sans','Segoe UI',sans-serif",background:"#0F1117",minHeight:"100vh",position:"relative",color:"#E8E8EE",display:"flex",flexDirection:"column"}}>
+
+      {/* ── HEADER ── */}
+      <div style={{background:"#1A1D2E",borderBottom:"1px solid #2A2D3E",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,position:"sticky",top:0,zIndex:100,gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,flexShrink:0}}>
+          <div style={{width:30,height:30,borderRadius:7,background:"linear-gradient(135deg,#C9A84C,#E8C96D)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#1A1D2E"}}>כ</div>
+          <div><div style={{fontSize:13,fontWeight:700,color:"#E8C96D"}}>{t.appName}</div><div style={{fontSize:9,color:"#3A3A4A"}}>{t.appSub}</div></div>
+        </div>
+
+        <nav style={{display:"flex",gap:2,flex:1,justifyContent:"center"}}>
+          {Object.entries(t.nav).map(([id,label])=>{
+            const ok=perm.tabs.includes(id);
+            return <button key={id} onClick={()=>ok&&goTab(id)} style={{background:activeTab===id?`${rc}12`:"transparent",border:activeTab===id?`1px solid ${rc}35`:"1px solid transparent",color:!ok?"#252535":activeTab===id?rc:"#666",padding:"5px 10px",borderRadius:6,cursor:ok?"pointer":"not-allowed",fontSize:11,fontWeight:activeTab===id?600:400,transition:"all 0.15s"}}>{label}</button>;
+          })}
+        </nav>
+
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          {/* Role switcher */}
+          <div style={{display:"flex",background:"#22253A",borderRadius:7,border:"1px solid #2A2D3E",overflow:"hidden"}}>
+            {Object.entries(t.roles).map(([r,label])=>{
+              const c=ROLE_COLOR[r];
+              return <button key={r} onClick={()=>{setRole(r);goTab("dashboard");}} style={{background:role===r?`${c}22`:"transparent",border:"none",color:role===r?c:"#555",padding:"5px 10px",cursor:"pointer",fontSize:10,fontWeight:role===r?700:400,borderRight:"1px solid #2A2D3E"}}>{label}</button>;
+            })}
+          </div>
+          {/* Lang */}
+          <div style={{display:"flex",background:"#22253A",borderRadius:7,border:"1px solid #2A2D3E",overflow:"hidden"}}>
+            {["en","ru","he"].map(l=><button key={l} onClick={()=>setLang(l)} style={{background:lang===l?"#E8C96D12":"transparent",border:"none",color:lang===l?"#E8C96D":"#555",padding:"5px 9px",cursor:"pointer",fontSize:10,fontWeight:lang===l?700:400}}>{l.toUpperCase()}</button>)}
+          </div>
+        </div>
+      </div>
+
+      {/* ── ROLE CONTEXT BANNER ── */}
+      <div style={{background:`${rc}0C`,borderBottom:`1px solid ${rc}20`,padding:"5px 22px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:rc}}>
+          <span style={{fontWeight:700}}>{t.roles[role]}</span>
+          <span style={{color:"#333"}}>·</span>
+          <span style={{color:"#555"}}>{t.roleDesc[role]}</span>
+          {role==="rabbanut"&&<><span style={{color:"#333"}}>·</span><span style={{color:"#666"}}>Rabbanut Jerusalem</span></>}
+          {role==="mashgiach"&&<><span style={{color:"#333"}}>·</span><span style={{color:"#666"}}>{myMashgiach?.name} · {t.myEstablishments}: {scopedRests.length}</span></>}
+        </div>
+        {role==="owner"&&(
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <span style={{fontSize:10,color:"#555"}}>{t.allRabbanuts}:</span>
+            <button onClick={()=>setRbFilter("all")} style={{background:rbFilter==="all"?`${rc}18`:"transparent",border:rbFilter==="all"?`1px solid ${rc}40`:"1px solid transparent",color:rbFilter==="all"?rc:"#555",padding:"2px 9px",borderRadius:5,cursor:"pointer",fontSize:10,fontWeight:rbFilter==="all"?700:400}}>All</button>
+            {rabbanuts.map(rb=><button key={rb.id} onClick={()=>setRbFilter(rb.id)} style={{background:rbFilter===rb.id?`${rb.color}18`:"transparent",border:rbFilter===rb.id?`1px solid ${rb.color}40`:"1px solid transparent",color:rbFilter===rb.id?rb.color:"#555",padding:"2px 9px",borderRadius:5,cursor:"pointer",fontSize:10,fontWeight:rbFilter===rb.id?700:400}}>{rb.city}</button>)}
+          </div>
+        )}
+      </div>
+
+      <div style={{padding:"18px 22px",flex:1}}>
+
+        {/* ══ DASHBOARD ══ */}
+        {activeTab==="dashboard"&&(
+          <div>
+            <div style={{marginBottom:18}}><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.dashboard.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.dashboard.sub}</p></div>
+
+            {/* Owner global stats */}
+            {perm.isOwner&&(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+                {rabbanuts.map(rb=>{
+                  const rbR=restaurants.filter(r=>r.rabbanutId===rb.id);
+                  const rbCrit=rbR.filter(r=>r.status!=="ok").length;
+                  return(
+                    <div key={rb.id} style={{background:"#1A1D2E",border:`1px solid ${rb.color}25`,borderRadius:10,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:600,color:"#ddd"}}>{rb.name}</div>
+                        <div style={{fontSize:10,color:"#555",marginTop:1}}>{rb.city} · {rbR.length} est.</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <Badge label={rb.active?t.rabbanuts.active:t.rabbanuts.inactive} color={rb.active?"#2ECC71":"#666"} small/>
+                        {rbCrit>0&&<div style={{marginTop:4}}><Badge label={`${rbCrit} ⚠`} color="#E74C3C" small/></div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:20}}>
+              {[{v:scopedRests.filter(r=>r.status==="ok").length,c:"#2ECC71",i:"✓"},{v:scopedRests.filter(r=>r.status!=="ok").length,c:"#F39C12",i:"⏳"},{v:scopedInsps.length,c:"#3498DB",i:"🔍"},{v:7,c:"#E74C3C",i:"📄"}].map((s,i)=>(
+                <div key={i} style={{...cs,border:`1px solid ${s.c}25`,position:"relative",overflow:"hidden"}}>
+                  <div style={{position:"absolute",top:0,right:0,width:55,height:55,background:`radial-gradient(circle at top right,${s.c}14,transparent)`}}/>
+                  <div style={{fontSize:18,marginBottom:5}}>{s.i}</div>
+                  <div style={{fontSize:26,fontWeight:800,color:s.c,lineHeight:1}}>{s.v}</div>
+                  <div style={{fontSize:11,color:"#999",marginTop:4}}>{t.stats[i]}</div>
+                  <div style={{fontSize:9,color:"#444",marginTop:2}}>{t.statsSub[i]}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <div style={cs}>
+                <div style={{fontSize:11,fontWeight:600,color:"#E8C96D",marginBottom:12}}>{t.expiring}</div>
+                {scopedRests.filter(r=>r.status!=="ok").map(r=>(
+                  <div key={r.id} onClick={()=>{setSelRest(r);goTab("restaurants");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #1E2030",cursor:"pointer"}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:600,color:"#ddd"}}>{r.name}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:5,marginTop:3}}>
+                        <HTag h={getH(r.hechsherId)} small/>
+                        {perm.isOwner&&<Badge label={getRb(r.rabbanutId)?.city||""} color="#555" small/>}
+                      </div>
+                    </div>
+                    <Badge label={`${daysUntil(r.expires)} ${t.days}`} color={SC[r.status]}/>
+                  </div>
+                ))}
+              </div>
+              <div style={cs}>
+                <div style={{fontSize:11,fontWeight:600,color:"#3498DB",marginBottom:12}}>{t.upcoming}</div>
+                {scopedInsps.map(ins=>{
+                  const r=getR(ins.restaurantId); const m=getM(ins.mashgiachId);
+                  return(
+                    <div key={ins.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #1E2030"}}>
+                      <div><div style={{fontSize:12,fontWeight:600,color:"#ddd"}}>{r?.name}</div><div style={{fontSize:10,color:"#555",marginTop:1}}>{m?.name}</div></div>
+                      <Badge label={ins.date.slice(5).replace("-","/")} color={ins.type==="urgent"?"#E74C3C":"#3498DB"} small/>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ RESTAURANTS ══ */}
+        {activeTab==="restaurants"&&!selRest&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.restaurants.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.restaurants.sub}</p></div>
+              <div style={{display:"flex",gap:7,alignItems:"center"}}>
+                <div style={{display:"flex",gap:3}}>
+                  {["all","ok","warning","critical"].map((s,i)=>(
+                    <button key={s} onClick={()=>setFilterSt(s)} style={{background:filterSt===s?`${rc}10`:"transparent",border:filterSt===s?`1px solid ${rc}40`:"1px solid #2A2D3E",color:filterSt===s?rc:"#666",padding:"5px 10px",borderRadius:6,cursor:"pointer",fontSize:10}}>{t.restaurants.filters[i]}</button>
+                  ))}
+                </div>
+                {perm.canEdit&&<Btn onClick={()=>setModal("rest")}>{t.restaurants.add}</Btn>}
+              </div>
+            </div>
+            <div style={{display:"grid",gap:7}}>
+              {filtRests.map(r=>{
+                const h=getH(r.hechsherId); const m=getM(r.mashgiachId); const rb=getRb(r.rabbanutId);
+                return(
+                  <div key={r.id} onClick={()=>setSelRest(r)} style={{background:"#1A1D2E",border:"1px solid #2A2D3E",borderLeft:`3px solid ${SC[r.status]}`,borderRadius:10,padding:"12px 15px",display:"grid",gridTemplateColumns:`1fr auto auto auto auto${perm.isOwner?" auto":""}`,alignItems:"center",gap:18,cursor:"pointer"}}>
+                    <div><div style={{fontSize:13,fontWeight:600,color:"#E8E8EE"}}>{r.name}</div><div style={{fontSize:10,color:"#444",marginTop:1}}>{r.address}, {r.city}</div></div>
+                    {perm.isOwner&&<div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#444",marginBottom:3}}>Rabbanut</div><Badge label={rb?.city||"—"} color={rb?.color||"#888"} small/></div>}
+                    <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#444",marginBottom:3}}>{t.restaurants.cols.hechsher}</div><HTag h={h} small/></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#444",marginBottom:2}}>{t.restaurants.cols.level}</div><span style={{fontSize:11,fontWeight:600,color:"#bbb"}}>{r.level}</span></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:9,color:"#444",marginBottom:2}}>{t.restaurants.cols.mashgiach}</div><span style={{fontSize:11,color:"#aaa"}}>{m?.name||"—"}</span></div>
+                    <Badge label={t.status[r.status]} color={SC[r.status]}/>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* RESTAURANT DETAIL */}
+        {activeTab==="restaurants"&&selRest&&(()=>{
+          const r=selRest; const h=getH(r.hechsherId); const m=getM(r.mashgiachId);
+          const rI=inspections.filter(i=>i.restaurantId===r.id);
+          return(
+            <div>
+              <button onClick={()=>setSelRest(null)} style={{background:"transparent",border:"1px solid #2A2D3E",color:"#666",padding:"4px 12px",borderRadius:6,cursor:"pointer",fontSize:11,marginBottom:14}}>{t.back}</button>
+              <div style={{display:"grid",gridTemplateColumns:"1.3fr 1fr",gap:14}}>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  <div style={cs}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+                      <div><h2 style={{margin:0,fontSize:16,color:"#fff"}}>{r.name}</h2><p style={{color:"#444",fontSize:11,marginTop:2}}>{r.address}, {r.city}</p></div>
+                      <Badge label={t.status[r.status]} color={SC[r.status]}/>
+                    </div>
+                    {[[t.restaurants.cols.level,r.level],[t.restaurants.cols.mashgiach,m?.name||"—"],["Kitniyot",r.kitniyot],[t.restaurants.cols.expires,r.expires],["Last inspection",r.lastInspection]].map(([k,v])=>(
+                      <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1E2030"}}><span style={{fontSize:11,color:"#555"}}>{k}</span><span style={{fontSize:11,color:"#ccc",fontWeight:500}}>{v}</span></div>
+                    ))}
+                    {r.notes&&<div style={{marginTop:10,padding:"7px 10px",background:"#22253A",borderRadius:6,fontSize:11,color:"#888",fontStyle:"italic"}}>{r.notes}</div>}
+                  </div>
+                  {h&&(
+                    <div style={{...cs,border:`1px solid ${h.color}30`}}>
+                      <div style={{fontSize:11,fontWeight:600,color:h.color,marginBottom:10}}>🏛 {t.restaurants.cols.hechsher}</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontSize:13,fontWeight:700,color:"#ddd"}}>{h.name}</span><Badge label={h.type} color={h.color} small/></div>
+                      {[[t.hechsherim.contact,h.contact],[t.hechsherim.phone,h.phone],[t.hechsherim.email,h.email]].map(([k,v])=>(
+                        <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #1E2030"}}><span style={{fontSize:10,color:"#555"}}>{k}</span><span style={{fontSize:11,color:"#bbb"}}>{v}</span></div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  <div style={cs}>
+                    <div style={{fontSize:11,fontWeight:600,color:"#3498DB",marginBottom:10}}>🔍 {t.inspections.title}</div>
+                    {rI.length===0&&<div style={{fontSize:11,color:"#333"}}>—</div>}
+                    {rI.map(ins=>{
+                      const im=getM(ins.mashgiachId);
+                      const rc2={pending:"#888",open:"#F39C12",pass:"#2ECC71",fail:"#E74C3C"}[ins.result];
+                      return(<div key={ins.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #1E2030"}}><div><div style={{fontSize:11,color:"#ccc"}}>{ins.date}</div><div style={{fontSize:10,color:"#555"}}>{im?.name}</div></div><Badge label={t.inspections.result[ins.result]} color={rc2} small/></div>);
+                    })}
+                    {perm.canEdit&&<Btn style={{marginTop:10,fontSize:11}} onClick={()=>{setIF(p=>({...p,restaurantId:r.id}));setModal("insp");}}>{t.inspections.add}</Btn>}
+                  </div>
+                  {perm.canEdit&&(
+                    <div style={cs}>
+                      <div style={{fontSize:11,fontWeight:600,color:"#E8C96D",marginBottom:10}}>{t.restaurants.actions}</div>
+                      {t.restaurants.actionList.map((a,i)=>(
+                        <button key={i} style={{display:"block",width:"100%",marginBottom:6,background:i===3?"#E74C3C10":"#22253A",border:i===3?"1px solid #E74C3C30":"1px solid #2A2D3E",color:i===3?"#E74C3C":"#bbb",padding:"7px 10px",borderRadius:6,cursor:"pointer",fontSize:11,textAlign:"left"}}>{a}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ══ INSPECTIONS ══ */}
+        {activeTab==="inspections"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.inspections.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.inspections.sub}</p></div>
+              {perm.canEdit&&<Btn onClick={()=>setModal("insp")}>{t.inspections.add}</Btn>}
+            </div>
+            <div style={{display:"grid",gap:7}}>
+              {scopedInsps.map(ins=>{
+                const r=getR(ins.restaurantId); const m=getM(ins.mashgiachId); const h=getH(r?.hechsherId);
+                const d=daysUntil(ins.date);
+                const rc2={pending:"#888",open:"#F39C12",pass:"#2ECC71",fail:"#E74C3C"}[ins.result];
+                return(
+                  <div key={ins.id} style={{background:"#1A1D2E",border:ins.type==="urgent"?"1px solid #E74C3C30":"1px solid #2A2D3E",borderLeft:`3px solid ${ins.type==="urgent"?"#E74C3C":"#3498DB"}`,borderRadius:10,padding:"12px 15px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}><span style={{fontSize:13,fontWeight:600,color:"#E8E8EE"}}>{r?.name}</span><HTag h={h} small/></div>
+                      <div style={{fontSize:10,color:"#555"}}>{m?.name} · {ins.type==="urgent"?t.inspections.urgent:t.inspections.planned}</div>
+                      {ins.notes&&<div style={{fontSize:10,color:"#555",marginTop:2,fontStyle:"italic"}}>{ins.notes}</div>}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:9}}>
+                      <div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:600,color:"#ccc"}}>{ins.date}</div><div style={{fontSize:9,color:"#555"}}>{d===0?t.inspections.today:`${t.in} ${d} ${t.days}`}</div></div>
+                      <select value={ins.result} onChange={e=>setRes(ins.id,e.target.value)} style={{background:`${rc2}18`,border:`1px solid ${rc2}35`,color:rc2,padding:"4px 8px",borderRadius:6,fontSize:11,cursor:"pointer"}}>
+                        {Object.entries(t.inspections.result).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <Badge label={ins.type==="urgent"?t.inspections.urgent:t.inspections.planned} color={ins.type==="urgent"?"#E74C3C":"#3498DB"} small/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ══ MASHGICHIM ══ */}
+        {activeTab==="mashgichim"&&(perm.tabs.includes("mashgichim")?(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.mashgichim.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.mashgichim.sub}</p></div>
+              {perm.canEdit&&<Btn onClick={()=>setModal("mash")}>{t.mashgichim.add}</Btn>}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+              {scopedMash.map(m=>{
+                const mH=hechsherim.filter(h=>m.hechsherimIds.includes(h.id));
+                return(
+                  <div key={m.id} style={{...cs,opacity:m.active?1:0.55}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                      <div style={{display:"flex",alignItems:"center",gap:9}}>
+                        <div style={{width:38,height:38,borderRadius:9,background:"#E8C96D12",border:"1px solid #E8C96D20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>👤</div>
+                        <div><div style={{fontSize:13,fontWeight:700,color:"#E8E8EE"}}>{m.name}</div><div style={{fontSize:10,color:"#444",marginTop:1}}>{m.area}</div></div>
+                      </div>
+                      <div style={{display:"flex",gap:5}}>
+                        {perm.canEdit&&<button onClick={()=>toggleM(m.id)} style={{background:m.active?"#2ECC7112":"#22253A",border:m.active?"1px solid #2ECC7128":"1px solid #333",color:m.active?"#2ECC71":"#555",padding:"3px 9px",borderRadius:20,cursor:"pointer",fontSize:9,fontWeight:700}}>{m.active?t.mashgichim.active:t.mashgichim.inactive}</button>}
+                        {perm.canEdit&&<button onClick={()=>{setConfirmId(m.id);setModal("cM");}} style={{background:"#E74C3C10",border:"1px solid #E74C3C25",color:"#E74C3C",padding:"3px 7px",borderRadius:6,cursor:"pointer",fontSize:12}}>×</button>}
+                      </div>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
+                      {[[t.mashgichim.phone,m.phone],[t.mashgichim.email,m.email],[t.mashgichim.assigned,m.assigned.length]].map(([k,v])=>(
+                        <div key={k} style={{background:"#22253A",borderRadius:6,padding:"6px 9px"}}><div style={{fontSize:9,color:"#444",marginBottom:2}}>{k}</div><div style={{fontSize:11,color:k===t.mashgichim.assigned?"#E8C96D":"#bbb",fontWeight:k===t.mashgichim.assigned?700:400}}>{v}</div></div>
+                      ))}
+                    </div>
+                    <Divider/>
+                    <div style={{fontSize:9,color:"#444",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>{t.mashgichim.hechsherim}</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      {mH.length===0&&<span style={{fontSize:10,color:"#333",fontStyle:"italic"}}>{t.mashgichim.noHechsher}</span>}
+                      {mH.map(h=><HTag key={h.id} h={h} small/>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ):<NoAccess t={t}/>)}
+
+        {/* ══ HECHSHERIM ══ */}
+        {activeTab==="hechsherim"&&(perm.tabs.includes("hechsherim")?(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.hechsherim.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.hechsherim.sub}</p></div>
+              {perm.canEdit&&<Btn onClick={()=>setModal("hech")}>{t.hechsherim.add}</Btn>}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+              {scopedHech.map(h=>{
+                const hR=restaurants.filter(r=>r.hechsherId===h.id);
+                const hM=mashgichim.filter(m=>m.hechsherimIds.includes(h.id));
+                const exp=selHech?.id===h.id;
+                return(
+                  <div key={h.id} onClick={()=>setSelHech(exp?null:h)} style={{...cs,border:`1px solid ${h.color}28`,cursor:"pointer"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                      <div style={{display:"flex",alignItems:"center",gap:9}}>
+                        <div style={{width:38,height:38,borderRadius:9,background:`${h.color}18`,border:`1px solid ${h.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>🏛</div>
+                        <div><div style={{fontSize:13,fontWeight:700,color:"#E8E8EE"}}>{h.name}</div><div style={{fontSize:10,color:"#444",marginTop:1}}>{h.city}</div></div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:5}}>
+                        <Badge label={h.type} color={h.color} small/>
+                        {perm.canEdit&&<button onClick={e=>{e.stopPropagation();setConfirmId(h.id);setModal("cH");}} style={{background:"#E74C3C10",border:"1px solid #E74C3C25",color:"#E74C3C",padding:"3px 7px",borderRadius:6,cursor:"pointer",fontSize:12}}>×</button>}
+                      </div>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
+                      {[[t.hechsherim.establishments,hR.length,h.color],[t.hechsherim.mashgichim,hM.length,"#888"],["Abbr.",h.shortName,"#aaa"]].map(([k,v,c])=>(
+                        <div key={k} style={{background:"#22253A",borderRadius:6,padding:"7px 8px",textAlign:"center"}}><div style={{fontSize:k==="Abbr."?11:15,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:9,color:"#444",marginTop:2}}>{k}</div></div>
+                      ))}
+                    </div>
+                    {exp&&(
+                      <div style={{borderTop:"1px solid #1E2030",marginTop:12,paddingTop:12}}>
+                        {[[t.hechsherim.contact,h.contact],[t.hechsherim.phone,h.phone],[t.hechsherim.email,h.email]].map(([k,v])=>(
+                          <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #1E2030"}}><span style={{fontSize:10,color:"#555"}}>{k}</span><span style={{fontSize:11,color:"#bbb"}}>{v}</span></div>
+                        ))}
+                        <div style={{marginTop:10}}><div style={{fontSize:9,color:"#444",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>{t.hechsherim.mashgichim}</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{hM.map(m=><Badge key={m.id} label={m.name} color="#888" small/>)}</div></div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ):<NoAccess t={t}/>)}
+
+        {/* ══ RABBANUTS (owner only) ══ */}
+        {activeTab==="rabbanuts"&&(perm.isOwner?(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.rabbanuts.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.rabbanuts.sub}</p></div>
+              <Btn onClick={()=>setModal("rb")}>{t.rabbanuts.add}</Btn>
+            </div>
+            <div style={{display:"grid",gap:10}}>
+              {rabbanuts.map(rb=>{
+                const rbR=restaurants.filter(r=>r.rabbanutId===rb.id);
+                const rbM=mashgichim.filter(m=>m.rabbanutId===rb.id);
+                return(
+                  <div key={rb.id} style={{...cs,border:`1px solid ${rb.color}30`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:12}}>
+                        <div style={{width:42,height:42,borderRadius:10,background:`${rb.color}18`,border:`1px solid ${rb.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🏢</div>
+                        <div>
+                          <div style={{fontSize:14,fontWeight:700,color:"#E8E8EE"}}>{rb.name}</div>
+                          <div style={{fontSize:11,color:"#555",marginTop:1}}>{rb.city} · {rb.contact}</div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <div style={{display:"flex",gap:14}}>
+                          {[[t.rabbanuts.establishments,rbR.length,rb.color],[t.rabbanuts.mashgichim,rbM.length,"#888"]].map(([k,v,c])=>(
+                            <div key={k} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:9,color:"#444"}}>{k}</div></div>
+                          ))}
+                        </div>
+                        <button onClick={()=>toggleRb(rb.id)} style={{background:rb.active?"#2ECC7112":"#22253A",border:rb.active?"1px solid #2ECC7128":"1px solid #333",color:rb.active?"#2ECC71":"#555",padding:"4px 12px",borderRadius:20,cursor:"pointer",fontSize:10,fontWeight:700}}>{rb.active?t.rabbanuts.active:t.rabbanuts.inactive}</button>
+                        <button onClick={()=>{setConfirmId(rb.id);setModal("cRb");}} style={{background:"#E74C3C10",border:"1px solid #E74C3C25",color:"#E74C3C",padding:"4px 8px",borderRadius:6,cursor:"pointer",fontSize:12}}>×</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ):<NoAccess t={t}/>)}
+
+        {/* ══ USERS (owner only) ══ */}
+        {activeTab==="users"&&(perm.isOwner?(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.users.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.users.sub}</p></div>
+              <Btn>{t.users.add}</Btn>
+            </div>
+            <div style={{display:"grid",gap:7}}>
+              {users.map(u=>{
+                const rc2=ROLE_COLOR[u.role]||"#888";
+                return(
+                  <div key={u.id} style={{...cs,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:34,height:34,borderRadius:8,background:`${rc2}18`,border:`1px solid ${rc2}25`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👤</div>
+                      <div><div style={{fontSize:13,fontWeight:600,color:"#E8E8EE"}}>{u.name}</div><div style={{fontSize:10,color:"#555",marginTop:1}}>{u.org}</div></div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <Badge label={t.roles[u.role]} color={rc2} small/>
+                      <div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#555"}}>{t.users.lastLogin}</div><div style={{fontSize:11,color:"#bbb"}}>{u.lastLogin}</div></div>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:u.status==="active"?"#2ECC71":"#555",boxShadow:u.status==="active"?"0 0 5px #2ECC71":"none"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ):<NoAccess t={t}/>)}
+
+        {/* ══ DOCUMENTS ══ */}
+        {activeTab==="documents"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div><h2 style={{fontSize:19,fontWeight:700,margin:0}}>{t.documents.title}</h2><p style={{color:"#444",fontSize:11,marginTop:3}}>{t.documents.sub}</p></div>
+              <div style={{display:"flex",gap:7,alignItems:"center"}}>
+                <div style={{display:"flex",gap:3}}>
+                  {t.documents.categories.map(c=>(
+                    <button key={c} onClick={()=>setDocCat(c)} style={{background:docCat===c?`${rc}10`:"transparent",border:docCat===c?`1px solid ${rc}35`:"1px solid #2A2D3E",color:docCat===c?rc:"#666",padding:"5px 10px",borderRadius:6,cursor:"pointer",fontSize:10}}>{c}</button>
+                  ))}
+                </div>
+                {perm.canEdit&&<Btn>{t.documents.add}</Btn>}
+              </div>
+            </div>
+            <div style={{display:"grid",gap:7}}>
+              {filtDocs.map(doc=>{
+                const cc=CAT_COLOR[doc.category]||"#888";
+                return(
+                  <div key={doc.id} style={{...cs,padding:"11px 15px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:11}}>
+                      <div style={{width:34,height:40,borderRadius:6,background:`${cc}15`,border:`1px solid ${cc}30`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}><span style={{fontSize:13}}>📄</span><span style={{fontSize:8,fontWeight:700,color:cc}}>{doc.ext}</span></div>
+                      <div><div style={{fontSize:12,fontWeight:600,color:"#E8E8EE"}}>{doc.name}</div><div style={{fontSize:10,color:"#444",marginTop:1}}>{doc.date} · {doc.size}</div></div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <Badge label={doc.category} color={cc} small/>
+                      <Btn variant="ghost" style={{fontSize:10,padding:"4px 10px"}}>{t.documents.view}</Btn>
+                      <Btn variant="ghost" style={{fontSize:10,padding:"4px 10px"}}>{t.documents.download}</Btn>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ══ MODALS ══ */}
+      {modal==="rest"&&(<Mdl title={t.addRest.title} onClose={()=>setModal(null)}><Inp label={t.addRest.name} value={rF.name} onChange={v=>setRF(p=>({...p,name:v}))}/><Inp label={t.addRest.address} value={rF.address} onChange={v=>setRF(p=>({...p,address:v}))}/><Inp label={t.addRest.city} value={rF.city} onChange={v=>setRF(p=>({...p,city:v}))} options={["Jerusalem","Haifa","Tel Aviv","Tzfat","Tiberias"]}/><Inp label={t.addRest.level} value={rF.level} onChange={v=>setRF(p=>({...p,level:v}))} options={["Regular","Mehadrin"]}/><Inp label={t.addRest.hechsher} value={rF.hechsherId} onChange={v=>setRF(p=>({...p,hechsherId:v}))} options={hechsherim.map(h=>({value:h.id,label:h.name}))}/><Inp label={t.addRest.mashgiach} value={rF.mashgiachId} onChange={v=>setRF(p=>({...p,mashgiachId:v}))} options={mashgichim.filter(m=>m.active).map(m=>({value:m.id,label:m.name}))}/><Inp label={t.addRest.kitniyot} value={rF.kitniyot} onChange={v=>setRF(p=>({...p,kitniyot:v}))} options={["ללא חשש קטניות","מכיל קטניות"]}/><Inp label={t.addRest.expires} value={rF.expires} onChange={v=>setRF(p=>({...p,expires:v}))} type="date"/><Inp label={t.addRest.notes} value={rF.notes} onChange={v=>setRF(p=>({...p,notes:v}))} placeholder="..."/><div style={{display:"flex",gap:7,marginTop:4}}><Btn onClick={saveR}>{t.addRest.save}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.addRest.cancel}</Btn></div></Mdl>)}
+
+      {modal==="insp"&&(<Mdl title={t.inspections.addTitle} onClose={()=>setModal(null)}><Inp label={t.inspections.restaurant} value={iF.restaurantId} onChange={v=>setIF(p=>({...p,restaurantId:v}))} options={restaurants.map(r=>({value:r.id,label:r.name}))}/><Inp label={t.inspections.date} value={iF.date} onChange={v=>setIF(p=>({...p,date:v}))} type="date"/><Inp label={t.inspections.type} value={iF.type} onChange={v=>setIF(p=>({...p,type:v}))} options={["planned","urgent"]}/><Inp label={t.inspections.assign} value={iF.mashgiachId} onChange={v=>setIF(p=>({...p,mashgiachId:v}))} options={mashgichim.filter(m=>m.active).map(m=>({value:m.id,label:m.name}))}/><Inp label={t.inspections.notes} value={iF.notes} onChange={v=>setIF(p=>({...p,notes:v}))} placeholder="..."/><div style={{display:"flex",gap:7,marginTop:4}}><Btn onClick={saveI}>{t.inspections.save}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.inspections.cancel}</Btn></div></Mdl>)}
+
+      {modal==="mash"&&(<Mdl title={t.mashgichim.addTitle} onClose={()=>setModal(null)}><Inp label={t.mashgichim.name} value={mF.name} onChange={v=>setMF(p=>({...p,name:v}))}/><Inp label={t.mashgichim.phone} value={mF.phone} onChange={v=>setMF(p=>({...p,phone:v}))}/><Inp label={t.mashgichim.email} value={mF.email} onChange={v=>setMF(p=>({...p,email:v}))} type="email"/><Inp label={t.mashgichim.area} value={mF.area} onChange={v=>setMF(p=>({...p,area:v}))}/><div style={{marginBottom:12}}><label style={{fontSize:10,color:"#666",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>{t.mashgichim.hechsherim}</label><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{hechsherim.map(h=>{const sel=mF.hechsherimIds.includes(h.id);return <button key={h.id} onClick={()=>toggleMH(h.id)} style={{background:sel?`${h.color}22`:"#22253A",border:sel?`1px solid ${h.color}55`:"1px solid #2A2D3E",color:sel?h.color:"#666",padding:"4px 10px",borderRadius:20,cursor:"pointer",fontSize:11,fontWeight:sel?700:400}}>{h.shortName}</button>;})}</div></div><div style={{display:"flex",gap:7,marginTop:4}}><Btn onClick={saveM}>{t.mashgichim.save}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.mashgichim.cancel}</Btn></div></Mdl>)}
+
+      {modal==="hech"&&(<Mdl title={t.hechsherim.addTitle} onClose={()=>setModal(null)}><Inp label={t.hechsherim.name} value={hF.name} onChange={v=>setHF(p=>({...p,name:v}))}/><Inp label={t.hechsherim.shortName} value={hF.shortName} onChange={v=>setHF(p=>({...p,shortName:v}))}/><Inp label={t.hechsherim.city} value={hF.city} onChange={v=>setHF(p=>({...p,city:v}))} options={["Jerusalem","Haifa","Tel Aviv","Tzfat","Tiberias","Bnei Brak"]}/><Inp label={t.hechsherim.type} value={hF.type} onChange={v=>setHF(p=>({...p,type:v}))} options={t.hechsherim.types}/><Inp label={t.hechsherim.contact} value={hF.contact} onChange={v=>setHF(p=>({...p,contact:v}))}/><Inp label={t.hechsherim.phone} value={hF.phone} onChange={v=>setHF(p=>({...p,phone:v}))}/><Inp label={t.hechsherim.email} value={hF.email} onChange={v=>setHF(p=>({...p,email:v}))} type="email"/><div style={{display:"flex",gap:7,marginTop:4}}><Btn onClick={saveH}>{t.hechsherim.save}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.hechsherim.cancel}</Btn></div></Mdl>)}
+
+      {modal==="rb"&&(<Mdl title={t.rabbanuts.add} onClose={()=>setModal(null)}><Inp label={t.rabbanuts.name} value={rbF.name} onChange={v=>setRbF(p=>({...p,name:v}))}/><Inp label={t.rabbanuts.city} value={rbF.city} onChange={v=>setRbF(p=>({...p,city:v}))} options={["Jerusalem","Haifa","Tel Aviv","Beer Sheva","Bnei Brak","Tzfat"]}/><Inp label={t.rabbanuts.contact} value={rbF.contact} onChange={v=>setRbF(p=>({...p,contact:v}))}/><Inp label={t.rabbanuts.phone} value={rbF.phone} onChange={v=>setRbF(p=>({...p,phone:v}))}/><Inp label={t.rabbanuts.email} value={rbF.email} onChange={v=>setRbF(p=>({...p,email:v}))} type="email"/><div style={{display:"flex",gap:7,marginTop:4}}><Btn onClick={saveRb}>{t.rabbanuts.save}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.rabbanuts.cancel}</Btn></div></Mdl>)}
+
+      {modal==="cM"&&(<Mdl title={t.mashgichim.remove} onClose={()=>setModal(null)} width={340}><p style={{color:"#bbb",fontSize:13,marginBottom:16}}>{t.mashgichim.confirmRemove}</p><div style={{display:"flex",gap:7}}><Btn variant="danger" onClick={()=>delM(confirmId)}>{t.mashgichim.remove}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.mashgichim.cancel}</Btn></div></Mdl>)}
+      {modal==="cH"&&(<Mdl title={t.hechsherim.remove} onClose={()=>setModal(null)} width={340}><p style={{color:"#bbb",fontSize:13,marginBottom:16}}>{t.hechsherim.confirmRemove}</p><div style={{display:"flex",gap:7}}><Btn variant="danger" onClick={()=>delH(confirmId)}>{t.hechsherim.remove}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.hechsherim.cancel}</Btn></div></Mdl>)}
+      {modal==="cRb"&&(<Mdl title={t.rabbanuts.remove} onClose={()=>setModal(null)} width={340}><p style={{color:"#bbb",fontSize:13,marginBottom:16}}>{t.rabbanuts.confirmRemove}</p><div style={{display:"flex",gap:7}}><Btn variant="danger" onClick={()=>delRb(confirmId)}>{t.rabbanuts.remove}</Btn><Btn variant="secondary" onClick={()=>setModal(null)}>{t.rabbanuts.cancel}</Btn></div></Mdl>)}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<KashrutCRM />);
+</script>
+</body>
+</html>
