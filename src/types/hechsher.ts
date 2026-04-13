@@ -1,3 +1,5 @@
+export type HechsherType = 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private'
+
 export interface Hechsher {
   id: string
   name: string
@@ -6,7 +8,7 @@ export interface Hechsher {
   contact: string
   phone: string
   email: string
-  type: 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private'
+  type: HechsherType
   color: string
   rabbanutId: string
 }

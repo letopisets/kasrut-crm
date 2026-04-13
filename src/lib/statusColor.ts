@@ -1,4 +1,4 @@
-import type { CertStatus, HechsherType, DocumentCategory, Role } from '@/types'
+import type { CertStatus, HechsherType, DocumentCategory, Role, InspectionType, InspectionResult } from '@/types'
 
 export const STATUS_COLOR: Record<CertStatus, string> = {
   ok:       '#2ECC71',
@@ -10,6 +10,18 @@ export const ROLE_COLOR: Record<Role, string> = {
   owner:     '#E8C96D',
   rabbanut:  '#3498DB',
   mashgiach: '#2ECC71',
+}
+
+export const TYPE_COLOR: Record<InspectionType, string> = {
+  urgent:  '#E74C3C',
+  planned: '#3498DB',
+}
+
+export const RESULT_COLOR: Record<InspectionResult, string> = {
+  pending: '#888888',
+  open:    '#F39C12',
+  pass:    '#2ECC71',
+  fail:    '#E74C3C',
 }
 
 export const HECHSHER_TYPE_COLOR: Record<HechsherType, string> = {

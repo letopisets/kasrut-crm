@@ -17,7 +17,6 @@ export function RoleBanner() {
   const t           = useLang()
   const rc          = ROLE_COLOR[role]
 
-  // Context info per role
   const myRabbanut  = rabbanuts.find(rb => rb.id === user?.rabbanutId)
   const myMashgiach = mashgichim.find(m => m.id === user?.id)
   const myRestCount = myMashgiach
@@ -25,55 +24,37 @@ export function RoleBanner() {
     : 0
 
   return (
-    <div style={{
-      background:   `${rc}0C`,
-      borderBottom: `1px solid ${rc}20`,
-      padding:      '5px 22px',
-      display:      'flex',
-      alignItems:   'center',
-      justifyContent: 'space-between',
-      flexShrink:   0,
-      minHeight:    32,
-    }}>
-      {/* Left — role context */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: rc }}>
-        <span style={{ fontWeight: 700 }}>{t.roles[role]}</span>
-        <span style={{ color: 'var(--text-disabled)' }}>·</span>
-        <span style={{ color: 'var(--text-muted)' }}>{t.roleDesc[role]}</span>
+    <div className="role-banner" style={{ '--c': rc } as React.CSSProperties}>
+
+      <div className="role-banner-info" style={{ color: rc }}>
+        <span className="role-banner-name">{t.roles[role]}</span>
+        <span className="role-banner-dot">·</span>
+        <span className="role-banner-desc">{t.roleDesc[role]}</span>
 
         {role === 'rabbanut' && myRabbanut && (
           <>
-            <span style={{ color: 'var(--text-disabled)' }}>·</span>
-            <span style={{ color: 'var(--text-secondary)' }}>{myRabbanut.name}</span>
+            <span className="role-banner-dot">·</span>
+            <span className="role-banner-extra">{myRabbanut.name}</span>
           </>
         )}
 
         {role === 'mashgiach' && myMashgiach && (
           <>
-            <span style={{ color: 'var(--text-disabled)' }}>·</span>
-            <span style={{ color: 'var(--text-secondary)' }}>
+            <span className="role-banner-dot">·</span>
+            <span className="role-banner-extra">
               {myMashgiach.name} · {t.myEstablishments}: {myRestCount}
             </span>
           </>
         )}
       </div>
 
-      {/* Right — owner rabbanut filter */}
       {role === 'owner' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.allRabbanuts}:</span>
+        <div className="role-banner-filters">
+          <span className="role-banner-label">{t.allRabbanuts}:</span>
           <button
             onClick={() => setRabbanutFilter('')}
-            style={{
-              background:   rabbanutFilter === '' ? `${rc}18` : 'transparent',
-              border:       rabbanutFilter === '' ? `1px solid ${rc}40` : '1px solid transparent',
-              color:        rabbanutFilter === '' ? rc : 'var(--text-muted)',
-              padding:      '2px 9px',
-              borderRadius: 5,
-              cursor:       'pointer',
-              fontSize:     10,
-              fontWeight:   rabbanutFilter === '' ? 700 : 400,
-            }}
+            className={rabbanutFilter === '' ? 'filter-tab filter-tab--active' : 'filter-tab'}
+            style={rabbanutFilter === '' ? { '--c': rc } as React.CSSProperties : undefined}
           >
             All
           </button>
@@ -81,16 +62,8 @@ export function RoleBanner() {
             <button
               key={rb.id}
               onClick={() => setRabbanutFilter(rb.id)}
-              style={{
-                background:   rabbanutFilter === rb.id ? `${rb.color}18` : 'transparent',
-                border:       rabbanutFilter === rb.id ? `1px solid ${rb.color}40` : '1px solid transparent',
-                color:        rabbanutFilter === rb.id ? rb.color : 'var(--text-muted)',
-                padding:      '2px 9px',
-                borderRadius: 5,
-                cursor:       'pointer',
-                fontSize:     10,
-                fontWeight:   rabbanutFilter === rb.id ? 700 : 400,
-              }}
+              className={rabbanutFilter === rb.id ? 'filter-tab filter-tab--active' : 'filter-tab'}
+              style={rabbanutFilter === rb.id ? { '--c': rb.color } as React.CSSProperties : undefined}
             >
               {rb.city}
             </button>

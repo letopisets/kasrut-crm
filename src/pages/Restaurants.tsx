@@ -29,36 +29,20 @@ export default function Restaurants() {
 
   return (
     <div>
-      {/* ── Header ── */}
-      <div style={{
-        display:        'flex',
-        justifyContent: 'space-between',
-        alignItems:     'center',
-        marginBottom:   16,
-      }}>
+      <div className="page-header">
         <div>
-          <h2 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-            {t.restaurants.title}
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3 }}>{t.restaurants.sub}</p>
+          <h2 className="page-title">{t.restaurants.title}</h2>
+          <p className="page-sub">{t.restaurants.sub}</p>
         </div>
 
-        <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
-          {/* Status filters */}
-          <div style={{ display: 'flex', gap: 3 }}>
+        <div className="page-actions">
+          <div className="filter-group">
             {FILTER_KEYS.map((key, i) => (
               <button
                 key={key}
                 onClick={() => setFilter(key)}
-                style={{
-                  background:   filter === key ? `${rc}10` : 'transparent',
-                  border:       filter === key ? `1px solid ${rc}40` : '1px solid var(--border)',
-                  color:        filter === key ? rc : 'var(--text-muted)',
-                  padding:      '5px 10px',
-                  borderRadius: 6,
-                  cursor:       'pointer',
-                  fontSize:     10,
-                }}
+                className={filter === key ? 'filter-btn filter-btn--active' : 'filter-btn'}
+                style={filter === key ? { '--c': rc } as React.CSSProperties : undefined}
               >
                 {t.restaurants.filters[i]}
               </button>
@@ -71,16 +55,11 @@ export default function Restaurants() {
         </div>
       </div>
 
-      {/* ── List ── */}
-      {filtered.length === 0 ? (
-        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-disabled)', fontSize: 13 }}>
-          —
-        </div>
-      ) : (
-        <RestaurantList restaurants={filtered} />
-      )}
+      {filtered.length === 0
+        ? <div className="empty-state">—</div>
+        : <RestaurantList restaurants={filtered} />
+      }
 
-      {/* ── Add form modal ── */}
       {showForm && <RestaurantForm onClose={() => setShowForm(false)} />}
     </div>
   )

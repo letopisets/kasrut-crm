@@ -11,72 +11,50 @@ import { STATUS_COLOR } from '@/lib/statusColor'
 interface Props { restaurant: Restaurant }
 
 export function RestaurantCard({ restaurant: r }: Props) {
-  const navigate   = useNavigate()
-  const t          = useLang()
-  const perm       = usePermissions()
-  const hechsherim = useHechsherStore(s => s.hechsherim)
-  const mashgichim = useMashgiachStore(s => s.mashgichim)
-  const rabbanuts  = useRabbanutStore(s => s.rabbanuts)
-
-  const hechsher  = hechsherim.find(h => h.id === r.hechsherId)
-  const mashgiach = mashgichim.find(m => m.id === r.mashgiachId)
-  const rabbanut  = rabbanuts.find(rb => rb.id === r.rabbanutId)
+  const navigate  = useNavigate()
+  const t         = useLang()
+  const perm      = usePermissions()
+  const hechsher  = useHechsherStore(s => s.hechsherim.find(h => h.id === r.hechsherId))
+  const mashgiach = useMashgiachStore(s => s.mashgichim.find(m => m.id === r.mashgiachId))
+  const rabbanut  = useRabbanutStore(s => s.rabbanuts.find(rb => rb.id === r.rabbanutId))
 
   return (
     <div
       onClick={() => navigate(`/restaurants/${r.id}`)}
-      style={{
-        background:          'var(--bg-card)',
-        border:              '1px solid var(--border)',
-        borderLeft:          `3px solid ${STATUS_COLOR[r.status]}`,
-        borderRadius:        10,
-        padding:             '12px 15px',
-        display:             'grid',
-        gridTemplateColumns: perm.isOwner
-          ? '1fr auto auto auto auto auto'
-          : '1fr auto auto auto auto',
-        alignItems: 'center',
-        gap:        18,
-        cursor:     'pointer',
-        transition: 'background 0.1s',
-      }}
+      className="restaurant-card"
+      style={{ '--c': STATUS_COLOR[r.status] } as React.CSSProperties}
     >
-      {/* Name + address */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{r.name}</div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{r.address}, {r.city}</div>
+      <div className="rest-card-header">
+        <div className="rest-card-name-wrap">
+          <div className="rest-card-name">{r.name}</div>
+          <div className="rest-card-address">{r.address}, {r.city}</div>
+        </div>
+        <Badge label={t.status[r.status]} color={STATUS_COLOR[r.status]} small />
       </div>
 
-      {/* Rabbanut — owner only */}
-      {perm.isOwner && (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>Rabbanut</div>
-          <Badge label={rabbanut?.city ?? '—'} color={rabbanut?.color ?? '#888'} small />
-        </div>
-      )}
-
-      {/* Hechsher */}
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>{t.restaurants.cols.hechsher}</div>
+      <div className="rest-card-tags">
         {hechsher
           ? <HechsherTag hechsher={hechsher} small />
-          : <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>—</span>}
+          : <span className="rest-card-no-tag">—</span>}
+        {perm.isOwner && rabbanut && (
+          <Badge label={rabbanut.city} color={rabbanut.color} small />
+        )}
       </div>
 
-      {/* Level */}
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>{t.restaurants.cols.level}</div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{r.level}</span>
+      <div className="card-info-grid">
+        <div>
+          <div className="card-info-label">{t.restaurants.cols.level}</div>
+          <div className="card-info-value">{r.level}</div>
+        </div>
+        <div>
+          <div className="card-info-label">{t.restaurants.cols.mashgiach}</div>
+          <div className="card-info-truncated">{mashgiach?.name ?? '—'}</div>
+        </div>
+        <div>
+          <div className="card-info-label">{t.restaurants.cols.expires}</div>
+          <div className="card-info-value" style={{ fontWeight: 400 }}>{r.expires}</div>
+        </div>
       </div>
-
-      {/* Mashgiach */}
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>{t.restaurants.cols.mashgiach}</div>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{mashgiach?.name ?? '—'}</span>
-      </div>
-
-      {/* Status badge */}
-      <Badge label={t.status[r.status]} color={STATUS_COLOR[r.status]} />
     </div>
   )
 }

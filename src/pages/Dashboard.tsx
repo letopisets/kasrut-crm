@@ -11,12 +11,12 @@ import { UpcomingInspections } from '@/components/dashboard/UpcomingInspections'
 import { STATUS_COLOR, ROLE_COLOR } from '@/lib/statusColor'
 
 export default function Dashboard() {
-  const t            = useLang()
-  const perm         = usePermissions()
-  const scopedRests  = useRestaurants()
-  const scopedInsps  = useInspections()
-  const allRests     = useRestaurantStore(s => s.restaurants)
-  const rabbanuts    = useRabbanutStore(s => s.rabbanuts)
+  const t           = useLang()
+  const perm        = usePermissions()
+  const scopedRests = useRestaurants()
+  const scopedInsps = useInspections()
+  const allRests    = useRestaurantStore(s => s.restaurants)
+  const rabbanuts   = useRabbanutStore(s => s.rabbanuts)
 
   const stats = [
     { icon: '✓',  value: scopedRests.filter(r => r.status === 'ok').length,  color: STATUS_COLOR.ok,       label: t.stats[0], sub: t.statsSub[0] },
@@ -27,44 +27,34 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Page title */}
-      <div style={{ marginBottom: 18 }}>
-        <h2 style={{ fontSize: 19, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-          {t.dashboard.title}
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3 }}>{t.dashboard.sub}</p>
+      <div className="dashboard-head">
+        <h2 className="page-title">{t.dashboard.title}</h2>
+        <p className="page-sub">{t.dashboard.sub}</p>
       </div>
 
-      {/* Owner: per-rabbanut overview */}
       {perm.isOwner && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+        <div className="rabbanut-grid">
           {rabbanuts.map(rb => {
             const rbRests = allRests.filter(r => r.rabbanutId === rb.id)
             const rbCrit  = rbRests.filter(r => r.status !== 'ok').length
             return (
-              <div key={rb.id} style={{
-                background:     'var(--bg-card)',
-                border:         `1px solid ${rb.color}25`,
-                borderRadius:   10,
-                padding:        '12px 15px',
-                display:        'flex',
-                alignItems:     'center',
-                justifyContent: 'space-between',
-              }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{rb.name}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                    {rb.city} · {rbRests.length} est.
-                  </div>
+              <div
+                key={rb.id}
+                className="rabbanut-card"
+                style={{ '--c': rb.color } as React.CSSProperties}
+              >
+                <div className="rabbanut-card-info">
+                  <div className="rabbanut-card-name">{rb.name}</div>
+                  <div className="rabbanut-card-sub">{rb.city} · {rbRests.length} est.</div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="rabbanut-card-right">
                   <Badge
                     label={rb.active ? t.rabbanuts.active : t.rabbanuts.inactive}
                     color={rb.active ? STATUS_COLOR.ok : '#666'}
                     small
                   />
                   {rbCrit > 0 && (
-                    <div style={{ marginTop: 4 }}>
+                    <div className="rabbanut-card-crit">
                       <Badge label={`${rbCrit} ⚠`} color={STATUS_COLOR.critical} small />
                     </div>
                   )}
@@ -75,15 +65,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 11, marginBottom: 20 }}>
+      <div className="stats-grid">
         {stats.map((s, i) => (
           <StatCard key={i} icon={s.icon} value={s.value} label={s.label} sub={s.sub} color={s.color} />
         ))}
       </div>
 
-      {/* Expiring + Upcoming */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div className="bottom-grid">
         <ExpiringList />
         <UpcomingInspections />
       </div>

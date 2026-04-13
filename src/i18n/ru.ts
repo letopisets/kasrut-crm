@@ -25,6 +25,7 @@ const ru: Translations = {
   in:    'Через',
   status: { ok: 'Активен', warning: 'Истекает', critical: 'Срочно' },
   back: '← Назад',
+  logout: 'Выйти',
   restaurants: {
     title:  'Заведения',
     sub:    'Рестораны и точки питания',

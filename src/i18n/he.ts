@@ -25,6 +25,7 @@ const he: Translations = {
   in:    'בעוד',
   status: { ok: 'פעיל', warning: 'פוגת תוקף', critical: 'דחוף' },
   back: '→ חזרה',
+  logout: 'יציאה',
   restaurants: {
     title:  'עסקים',
     sub:    'מסעדות ובתי אוכל',

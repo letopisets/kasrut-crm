@@ -2,9 +2,11 @@ import './App.css'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from '@/components/layout/AppLayout'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
+import Login             from '@/pages/Login'
 import Dashboard         from '@/pages/Dashboard'
 import Restaurants       from '@/pages/Restaurants'
 import RestaurantDetail  from '@/pages/RestaurantDetail'
+import Inspections       from '@/pages/Inspections'
 
 // Temporary placeholder — replaced page by page in Stage 5
 const Soon = ({ name }: { name: string }) => (
@@ -25,7 +27,7 @@ function App() {
             <ProtectedRoute page="restaurants"><RestaurantDetail /></ProtectedRoute>
           } />
           <Route path="inspections"   element={
-            <ProtectedRoute page="inspections"><Soon name="Inspections" /></ProtectedRoute>
+            <ProtectedRoute page="inspections"><Inspections /></ProtectedRoute>
           } />
           <Route path="mashgichim"    element={
             <ProtectedRoute page="mashgichim"><Soon name="Mashgichim" /></ProtectedRoute>
@@ -43,7 +45,7 @@ function App() {
             <ProtectedRoute page="users"><Soon name="Users" /></ProtectedRoute>
           } />
         </Route>
-        <Route path="/login" element={<Soon name="Login" />} />
+        <Route path="/login" element={<Login />} />
         <Route path="*"      element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>

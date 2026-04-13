@@ -38,31 +38,22 @@ export function RestaurantForm({ onClose }: Props) {
     onClose()
   }
 
-  const hechsherOptions = hechsherim.map(h => ({ value: h.id, label: h.name }))
-  const mashgiachOptions = mashgichim
-    .filter(m => m.active)
-    .map(m => ({ value: m.id, label: m.name }))
+  const hechsherOptions  = hechsherim.map(h => ({ value: h.id, label: h.name }))
+  const mashgiachOptions = mashgichim.filter(m => m.active).map(m => ({ value: m.id, label: m.name }))
 
   return (
     <Modal title={t.addRest.title} onClose={onClose}>
       <Input label={t.addRest.name}     value={form.name}       onChange={v => set('name', v)} />
       <Input label={t.addRest.address}  value={form.address}    onChange={v => set('address', v)} />
-      <Input label={t.addRest.city}     value={form.city}       onChange={v => set('city', v)}
-             options={CITIES} />
-      <Input label={t.addRest.level}    value={form.level}      onChange={v => set('level', v as typeof form['level'])}
-             options={['Regular', 'Mehadrin']} />
-      <Input label={t.addRest.hechsher} value={form.hechsherId} onChange={v => set('hechsherId', v)}
-             options={hechsherOptions} />
-      <Input label={t.addRest.mashgiach}value={form.mashgiachId}onChange={v => set('mashgiachId', v)}
-             options={mashgiachOptions} />
-      <Input label={t.addRest.kitniyot} value={form.kitniyot}   onChange={v => set('kitniyot', v as typeof form['kitniyot'])}
-             options={['ללא חשש קטניות', 'מכיל קטניות']} />
-      <Input label={t.addRest.expires}  value={form.expires}    onChange={v => set('expires', v)}
-             type="date" />
-      <Input label={t.addRest.notes}    value={form.notes}      onChange={v => set('notes', v)}
-             placeholder="..." />
+      <Input label={t.addRest.city}     value={form.city}       onChange={v => set('city', v)}    options={CITIES} />
+      <Input label={t.addRest.level}    value={form.level}      onChange={v => set('level', v as typeof form['level'])} options={['Regular', 'Mehadrin']} />
+      <Input label={t.addRest.hechsher} value={form.hechsherId} onChange={v => set('hechsherId', v)} options={hechsherOptions} />
+      <Input label={t.addRest.mashgiach}value={form.mashgiachId}onChange={v => set('mashgiachId', v)} options={mashgiachOptions} />
+      <Input label={t.addRest.kitniyot} value={form.kitniyot}   onChange={v => set('kitniyot', v as typeof form['kitniyot'])} options={['ללא חשש קטניות', 'מכיל קטניות']} />
+      <Input label={t.addRest.expires}  value={form.expires}    onChange={v => set('expires', v)} type="date" />
+      <Input label={t.addRest.notes}    value={form.notes}      onChange={v => set('notes', v)} placeholder="..." />
 
-      <div style={{ display: 'flex', gap: 7, marginTop: 4 }}>
+      <div className="form-actions">
         <Button onClick={handleSave} disabled={!form.name || !form.expires || !form.level || !form.hechsherId}>
           {t.addRest.save}
         </Button>

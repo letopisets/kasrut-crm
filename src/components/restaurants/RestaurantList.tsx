@@ -5,7 +5,7 @@ interface Props { restaurants: Restaurant[] }
 
 export function RestaurantList({ restaurants }: Props) {
   return (
-    <div style={{ display: 'grid', gap: 7 }}>
+    <div className="restaurant-grid">
       {restaurants.map(r => (
         <RestaurantCard key={r.id} restaurant={r} />
       ))}

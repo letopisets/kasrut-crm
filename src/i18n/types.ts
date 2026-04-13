@@ -23,6 +23,7 @@ export interface Translations {
   in: string
   status: { ok: string; warning: string; critical: string }
   back: string
+  logout: string
   restaurants: {
     title: string
     sub: string

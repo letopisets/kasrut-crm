@@ -30,7 +30,7 @@ export const useAuthStore = create<AuthState>()(
       setUser:          (user, token) => set({ user, token, role: user.role }),
       setRole:          (role) => set({ role, user: DEMO_USERS[role], rabbanutFilter: '' }),
       setRabbanutFilter:(id) => set({ rabbanutFilter: id }),
-      logout:           () => set({ user: null, token: null, role: 'rabbanut', rabbanutFilter: '' }),
+      logout:           () => set({ user: null, token: null, role: 'owner',    rabbanutFilter: '' }),
     }),
     { name: 'auth-storage' }
   )

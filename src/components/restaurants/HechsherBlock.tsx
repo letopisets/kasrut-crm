@@ -14,30 +14,18 @@ export function HechsherBlock({ hechsher: h }: Props) {
   ]
 
   return (
-    <div style={{
-      background:   'var(--bg-card)',
-      border:       `1px solid ${h.color}30`,
-      borderRadius: 12,
-      padding:      20,
-    }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: h.color, marginBottom: 10 }}>
-        🏛 {t.restaurants.cols.hechsher}
-      </div>
+    <div className="hechsher-block" style={{ '--c': h.color } as React.CSSProperties}>
+      <div className="hechsher-title">🏛 {t.restaurants.cols.hechsher}</div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{h.name}</span>
+      <div className="hechsher-header">
+        <span className="hechsher-name">{h.name}</span>
         <Badge label={h.type} color={h.color} small />
       </div>
 
       {rows.map(([k, v]) => (
-        <div key={k} style={{
-          display:        'flex',
-          justifyContent: 'space-between',
-          padding:        '5px 0',
-          borderBottom:   '1px solid var(--border-subtle)',
-        }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{k}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{v}</span>
+        <div key={k} className="info-row">
+          <span className="info-label">{k}</span>
+          <span className="info-value">{v}</span>
         </div>
       ))}
     </div>

@@ -11,42 +11,22 @@ export default function RestaurantDetail() {
 
   if (!restaurant) {
     return (
-      <div style={{ padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+      <div className="empty-state">
         —{' '}
-        <button
-          onClick={() => navigate('/restaurants')}
-          style={{
-            background: 'transparent', border: '1px solid var(--border)',
-            color: 'var(--text-muted)', padding: '4px 12px',
-            borderRadius: 6, cursor: 'pointer', fontSize: 11,
-          }}
-        >
-          {t.back}
-        </button>
+        <button onClick={() => navigate('/restaurants')} className="btn-ghost">{t.back}</button>
       </div>
     )
   }
 
   return (
     <div>
-      {/* ── Back button ── */}
       <button
         onClick={() => navigate('/restaurants')}
-        style={{
-          background:   'transparent',
-          border:       '1px solid var(--border)',
-          color:        'var(--text-muted)',
-          padding:      '4px 12px',
-          borderRadius: 6,
-          cursor:       'pointer',
-          fontSize:     11,
-          marginBottom: 14,
-          display:      'inline-block',
-        }}
+        className="btn-ghost"
+        style={{ marginBottom: 16, display: 'inline-block' }}
       >
         {t.back}
       </button>
-
       <RestaurantDetailContent restaurant={restaurant} />
     </div>
   )

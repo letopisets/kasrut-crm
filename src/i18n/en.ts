@@ -25,6 +25,7 @@ const en: Translations = {
   in:    'In',
   status: { ok: 'Active', warning: 'Expiring', critical: 'Urgent' },
   back: '← Back',
+  logout: 'Logout',
   restaurants: {
     title:  'Establishments',
     sub:    'Restaurants and food businesses',
