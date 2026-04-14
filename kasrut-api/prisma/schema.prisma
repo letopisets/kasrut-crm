@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  owner
+  rabbanut
+  mashgiach
+}
+
+enum CertStatus {
+  ok
+  warning
+  critical
+}
+
+enum HechsherType {
+  Rabbanut
+  Badatz
+  Mehadrin
+  Private
+}
+
+enum InspectionResult {
+  pending
+  open
+  pass
+  fail
+}
+
+enum InspectionType {
+  planned
+  urgent
+}
+
+enum DocumentCategory {
+  Instructions
+  Forms
+  Regulations
+  Pesach
+}
+
+enum DocExt {
+  PDF
+  DOCX
+  XLSX
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  passwordHash      String
+  role              Role
+  rabbanutId        String?
+  twoFactorSecret   String?
+  twoFactorEnabled  Boolean  @default(false)
+
+  rabbanut          Rabbanut? @relation(fields: [rabbanutId], references: [id], onDelete: SetNull)
+
+  @@map("users")
+}
+
+model Rabbanut {
+  id      String  @id @default(cuid())
+  name    String
+  city    String
+  contact String
+  phone   String
+  email   String
+  active  Boolean @default(true)
+  color   String
+
+  users        User[]
+  hechsherim   Hechsher[]
+  mashgichim   Mashgiach[]
+  restaurants  Restaurant[]
+
+  @@map("rabbanuts")
+}
+
+model Hechsher {
+  id         String       @id @default(cuid())
+  name       String
+  shortName  String
+  city       String
+  contact    String
+  phone      String
+  email      String
+  type       HechsherType
+  color      String
+  rabbanutId String
+
+  rabbanut    Rabbanut    @relation(fields: [rabbanutId], references: [id], onDelete: Cascade)
+  restaurants Restaurant[]
+  mashgichim  MashgiachHechsher[]
+
+  @@map("hechsherim")
+}
+
+model Mashgiach {
+  id         String  @id @default(cuid())
+  name       String
+  phone      String
+  email      String
+  area       String
+  active     Boolean @default(true)
+  rabbanutId String
+
+  rabbanut    Rabbanut  @relation(fields: [rabbanutId], references: [id], onDelete: Cascade)
+  hechsherim  MashgiachHechsher[]
+  restaurants Restaurant[]
+  inspections Inspection[]
+
+  @@map("mashgichim")
+}
+
+// Many-to-many: Mashgiach ↔ Hechsher
+model MashgiachHechsher {
+  mashgiachId String
+  hechsherId  String
+
+  mashgiach Mashgiach @relation(fields: [mashgiachId], references: [id], onDelete: Cascade)
+  hechsher  Hechsher  @relation(fields: [hechsherId],  references: [id], onDelete: Cascade)
+
+  @@id([mashgiachId, hechsherId])
+  @@map("mashgiach_hechsher")
+}
+
+model Restaurant {
+  id             String     @id @default(cuid())
+  name           String
+  address        String
+  city           String
+  level          String     // 'Regular' | 'Mehadrin'
+  hechsherId     String
+  mashgiachId    String
+  kitniyot       String
+  expires        DateTime
+  status         CertStatus @default(ok)
+  rabbanutId     String
+  notes          String?
+  lastInspection DateTime?
+
+  hechsher    Hechsher    @relation(fields: [hechsherId],  references: [id])
+  mashgiach   Mashgiach   @relation(fields: [mashgiachId], references: [id])
+  rabbanut    Rabbanut    @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
+  inspections Inspection[]
+
+  @@map("restaurants")
+}
+
+model Inspection {
+  id           String           @id @default(cuid())
+  restaurantId String
+  mashgiachId  String
+  date         DateTime
+  type         InspectionType
+  result       InspectionResult @default(pending)
+  notes        String?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  mashgiach  Mashgiach  @relation(fields: [mashgiachId],  references: [id])
+
+  @@map("inspections")
+}
+
+model KashrutDocument {
+  id       String           @id @default(cuid())
+  name     String
+  category DocumentCategory
+  date     DateTime
+  size     String
+  ext      DocExt
+  url      String?
+
+  @@map("documents")
+}
