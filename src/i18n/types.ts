@@ -81,6 +81,8 @@ export interface Translations {
     remove: string
     confirmRemove: string
     noHechsher: string
+    count?: string
+    empty?: string
   }
   hechsherim: {
     title: string
@@ -101,6 +103,8 @@ export interface Translations {
     confirmRemove: string
     establishments: string
     mashgichim: string
+    count?: string
+    empty?: string
   }
   documents: {
     title: string
@@ -109,6 +113,9 @@ export interface Translations {
     categories: [string, string, string, string, string]
     view: string
     download: string
+    count?: string
+    upload?: string
+    all?: string
   }
   rabbanuts: {
     title: string
@@ -127,6 +134,8 @@ export interface Translations {
     mashgichim: string
     active: string
     inactive: string
+    count?: string
+    restaurants?: string
   }
   users: {
     title: string
@@ -136,6 +145,8 @@ export interface Translations {
     org: string
     status: string
     lastLogin: string
+    count?: string
+    all?: string
   }
   noAccess: string
   myEstablishments: string

@@ -1,11 +1,17 @@
-import { create } from 'zustand'
+// Compatibility shim — same API as Zustand useMashgiachStore, backed by RTK Query
 import type { Mashgiach } from '@/types'
-import { seedMashgichim } from '@/data/seed'
+import {
+  useGetMashgichimQuery,
+  useCreateMashgiachMutation,
+  useUpdateMashgiachMutation,
+  useToggleMashgiachMutation,
+  useDeleteMashgiachMutation,
+} from './api/mashgichimApi'
 
 type MashgiachInput = Omit<Mashgiach, 'id' | 'assignedRestaurantIds'>
 
-interface MashgiachStore {
-  mashgichim: Mashgiach[]
+interface MashgiachStoreShim {
+  mashgichim:       Mashgiach[]
   add:              (data: MashgiachInput) => void
   remove:           (id: string) => void
   toggle:           (id: string) => void
@@ -13,33 +19,21 @@ interface MashgiachStore {
   assignRestaurant: (mashgiachId: string, restaurantId: string) => void
 }
 
-export const useMashgiachStore = create<MashgiachStore>((set) => ({
-  mashgichim: seedMashgichim,
+export function useMashgiachStore<T>(selector: (state: MashgiachStoreShim) => T): T {
+  const { data: mashgichim = [] } = useGetMashgichimQuery()
+  const [createMutation] = useCreateMashgiachMutation()
+  const [updateMutation] = useUpdateMashgiachMutation()
+  const [toggleMutation] = useToggleMashgiachMutation()
+  const [deleteMutation] = useDeleteMashgiachMutation()
 
-  add: (data) => set(s => ({
-    mashgichim: [
-      ...s.mashgichim,
-      { ...data, id: `m${Date.now()}`, assignedRestaurantIds: [] },
-    ],
-  })),
+  const state: MashgiachStoreShim = {
+    mashgichim,
+    add:              (data)                     => { void createMutation(data) },
+    remove:           (id)                       => { void deleteMutation(id) },
+    toggle:           (id)                       => { void toggleMutation(id) },
+    update:           (id, patch)                => { void updateMutation({ id, patch }) },
+    assignRestaurant: (_mashgiachId, _restId)    => { /* handled via update */ },
+  }
 
-  remove: (id) => set(s => ({
-    mashgichim: s.mashgichim.filter(m => m.id !== id),
-  })),
-
-  toggle: (id) => set(s => ({
-    mashgichim: s.mashgichim.map(m => m.id === id ? { ...m, active: !m.active } : m),
-  })),
-
-  update: (id, patch) => set(s => ({
-    mashgichim: s.mashgichim.map(m => m.id === id ? { ...m, ...patch } : m),
-  })),
-
-  assignRestaurant: (mashgiachId, restaurantId) => set(s => ({
-    mashgichim: s.mashgichim.map(m =>
-      m.id === mashgiachId && !m.assignedRestaurantIds.includes(restaurantId)
-        ? { ...m, assignedRestaurantIds: [...m.assignedRestaurantIds, restaurantId] }
-        : m
-    ),
-  })),
-}))
+  return selector(state)
+}

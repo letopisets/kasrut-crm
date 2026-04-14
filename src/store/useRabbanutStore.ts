@@ -1,38 +1,33 @@
-import { create } from 'zustand'
+// Compatibility shim — same API as Zustand useRabbanutStore, backed by RTK Query
 import type { Rabbanut } from '@/types'
-import { seedRabbanuts } from '@/data/seed'
+import {
+  useGetRabbanutsQuery,
+  useCreateRabbanutMutation,
+  useToggleRabbanutMutation,
+  useDeleteRabbanutMutation,
+} from './api/rabbanutApi'
 
 type RabbanutInput = Omit<Rabbanut, 'id' | 'active' | 'color'>
 
-const PALETTE = ['#E8C96D', '#E67E22', '#1ABC9C', '#8E44AD', '#3498DB', '#2ECC71']
-
-interface RabbanutStore {
+interface RabbanutStoreShim {
   rabbanuts: Rabbanut[]
   add:    (data: RabbanutInput) => void
   remove: (id: string) => void
   toggle: (id: string) => void
 }
 
-export const useRabbanutStore = create<RabbanutStore>((set) => ({
-  rabbanuts: seedRabbanuts,
+export function useRabbanutStore<T>(selector: (state: RabbanutStoreShim) => T): T {
+  const { data: rabbanuts = [] } = useGetRabbanutsQuery()
+  const [createMutation] = useCreateRabbanutMutation()
+  const [toggleMutation] = useToggleRabbanutMutation()
+  const [deleteMutation] = useDeleteRabbanutMutation()
 
-  add: (data) => set(s => ({
-    rabbanuts: [
-      ...s.rabbanuts,
-      {
-        ...data,
-        id:     `rb${Date.now()}`,
-        active: true,
-        color:  PALETTE[s.rabbanuts.length % PALETTE.length],
-      },
-    ],
-  })),
+  const state: RabbanutStoreShim = {
+    rabbanuts,
+    add:    (data) => { void createMutation({ ...data, active: true, color: '#3498DB' }) },
+    remove: (id)   => { void deleteMutation(id) },
+    toggle: (id)   => { void toggleMutation(id) },
+  }
 
-  remove: (id) => set(s => ({
-    rabbanuts: s.rabbanuts.filter(r => r.id !== id),
-  })),
-
-  toggle: (id) => set(s => ({
-    rabbanuts: s.rabbanuts.map(r => r.id === id ? { ...r, active: !r.active } : r),
-  })),
-}))
+  return selector(state)
+}

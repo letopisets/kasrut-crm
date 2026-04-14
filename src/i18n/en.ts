@@ -83,6 +83,8 @@ const en: Translations = {
     remove:        'Remove',
     confirmRemove: 'Remove this mashgiach?',
     noHechsher:    'No hechsher',
+    count:         'mashgichim',
+    empty:         'No mashgichim yet',
   },
   hechsherim: {
     title:         'Hechsher Orgs.',
@@ -103,6 +105,8 @@ const en: Translations = {
     confirmRemove: 'Remove hechsher?',
     establishments:'Est.',
     mashgichim:    'Mashg.',
+    count:         'hechsherim',
+    empty:         'No hechsherim yet',
   },
   documents: {
     title:      'Documents',
@@ -111,6 +115,9 @@ const en: Translations = {
     categories: ['All', 'Instructions', 'Forms', 'Regulations', 'Pesach'],
     view:       'View',
     download:   '↓',
+    count:      'documents',
+    upload:     '+ Upload',
+    all:        'All',
   },
   rabbanuts: {
     title:         'Rabbanut Organizations',
@@ -129,6 +136,8 @@ const en: Translations = {
     mashgichim:    'Mashg.',
     active:        'Active',
     inactive:      'Inactive',
+    count:         'organizations',
+    restaurants:   'restaurants',
   },
   users: {
     title:     'Users & Access',
@@ -138,6 +147,8 @@ const en: Translations = {
     org:       'Organization',
     status:    'Status',
     lastLogin: 'Last Login',
+    count:     'users',
+    all:       'All',
   },
   noAccess:         "You don't have access to this section.",
   myEstablishments: 'My Establishments',

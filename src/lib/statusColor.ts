@@ -37,3 +37,6 @@ export const DOC_CAT_COLOR: Record<DocumentCategory, string> = {
   Regulations:  '#E67E22',
   Pesach:       '#E8C96D',
 }
+
+// Alias for components
+export const DOCUMENT_CATEGORY_COLOR = DOC_CAT_COLOR

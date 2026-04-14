@@ -1,19 +1,22 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+// Compatibility shim — same API as Zustand useLangStore, backed by Redux
+import { useAppSelector, useAppDispatch } from './index'
+import { setLang as setLangAction, type Lang } from './langSlice'
 
-export type Lang = 'en' | 'ru' | 'he'
+export type { Lang }
 
-interface LangState {
-  lang: Lang
+interface LangShimState {
+  lang:    Lang
   setLang: (lang: Lang) => void
 }
 
-export const useLangStore = create<LangState>()(
-  persist(
-    (set) => ({
-      lang: 'ru' as Lang,
-      setLang: (lang: Lang) => set({ lang }),
-    }),
-    { name: 'lang-storage' }
-  )
-)
+export function useLangStore<T>(selector: (state: LangShimState) => T): T {
+  const dispatch = useAppDispatch()
+  const lang     = useAppSelector(s => s.lang.lang)
+
+  const state: LangShimState = {
+    lang,
+    setLang: (l) => dispatch(setLangAction(l)),
+  }
+
+  return selector(state)
+}

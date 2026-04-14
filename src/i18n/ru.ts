@@ -83,6 +83,8 @@ const ru: Translations = {
     remove:        'Удалить',
     confirmRemove: 'Удалить машгиаха?',
     noHechsher:    'Нет кашрута',
+    count:         'машгиахов',
+    empty:         'Машгиахи не добавлены',
   },
   hechsherim: {
     title:         'Организации гекшера',
@@ -103,6 +105,8 @@ const ru: Translations = {
     confirmRemove: 'Удалить кашрут?',
     establishments:'Завед.',
     mashgichim:    'Машг.',
+    count:         'гекшерим',
+    empty:         'Гекшерим не добавлены',
   },
   documents: {
     title:      'Документы',
@@ -111,6 +115,9 @@ const ru: Translations = {
     categories: ['Все', 'Инструкции', 'Формы', 'Нормативы', 'Песах'],
     view:       'Просмотр',
     download:   '↓',
+    count:      'документов',
+    upload:     '+ Загрузить',
+    all:        'Все',
   },
   rabbanuts: {
     title:         'Организации рабанут',
@@ -129,6 +136,8 @@ const ru: Translations = {
     mashgichim:    'Машг.',
     active:        'Активен',
     inactive:      'Неактивен',
+    count:         'организаций',
+    restaurants:   'заведений',
   },
   users: {
     title:     'Пользователи и доступы',
@@ -138,6 +147,8 @@ const ru: Translations = {
     org:       'Организация',
     status:    'Статус',
     lastLogin: 'Последний вход',
+    count:     'пользователей',
+    all:       'Все',
   },
   noAccess:         'У вас нет доступа к этому разделу.',
   myEstablishments: 'Мои заведения',

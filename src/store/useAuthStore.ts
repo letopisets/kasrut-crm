@@ -1,37 +1,44 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+// Compatibility shim — same API as Zustand useAuthStore, backed by Redux
+import { useAppSelector, useAppDispatch } from './index'
+import { setUser as setUserAction, setRabbanutFilter as setRabbanutFilterAction, logout as logoutAction } from './authSlice'
 import type { User, Role } from '@/types'
 
-// Demo users — replaced by real JWT auth when backend is ready
 export const DEMO_USERS: Record<Role, User> = {
   owner:     { id: 'u1', name: 'System Owner',    role: 'owner',     email: 'owner@kashrut.il' },
   rabbanut:  { id: 'u2', name: 'Admin Jerusalem', role: 'rabbanut',  email: 'admin@jer.il',  rabbanutId: 'rb1' },
   mashgiach: { id: 'm1', name: 'Р. Коэн',         role: 'mashgiach', email: 'cohen@jer.il',  rabbanutId: 'rb1' },
 }
 
-interface AuthState {
-  user:             User | null
-  token:            string | null
-  role:             Role
-  rabbanutFilter:   string        // owner's filter by rabbanut ('': all)
+interface AuthShimState {
+  user:           User | null
+  token:          string | null
+  role:           Role
+  rabbanutFilter: string
   setUser:          (user: User, token: string) => void
-  setRole:          (role: Role) => void
   setRabbanutFilter:(id: string) => void
   logout:           () => void
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user:             null,
-      token:            null,
-      role:             'owner',
-      rabbanutFilter:   '',
-      setUser:          (user, token) => set({ user, token, role: user.role }),
-      setRole:          (role) => set({ role, user: DEMO_USERS[role], rabbanutFilter: '' }),
-      setRabbanutFilter:(id) => set({ rabbanutFilter: id }),
-      logout:           () => set({ user: null, token: null, role: 'owner',    rabbanutFilter: '' }),
-    }),
-    { name: 'auth-storage' }
-  )
-)
+export function useAuthStore<T>(selector: (state: AuthShimState) => T): T {
+  const dispatch    = useAppDispatch()
+  const authState   = useAppSelector(s => s.auth)
+
+  const state: AuthShimState = {
+    ...authState,
+    setUser:           (user, token) => dispatch(setUserAction({ user, token })),
+    setRabbanutFilter: (id)          => dispatch(setRabbanutFilterAction(id)),
+    logout:            ()            => dispatch(logoutAction()),
+  }
+
+  // Persist auth state to localStorage on every change (replaces Zustand persist)
+  try {
+    localStorage.setItem('auth-storage', JSON.stringify({
+      user:           authState.user,
+      token:          authState.token,
+      role:           authState.role,
+      rabbanutFilter: authState.rabbanutFilter,
+    }))
+  } catch { /* ignore */ }
+
+  return selector(state)
+}

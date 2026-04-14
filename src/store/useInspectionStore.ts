@@ -1,31 +1,33 @@
-import { create } from 'zustand'
+// Compatibility shim — same API as Zustand useInspectionStore, backed by RTK Query
 import type { Inspection, InspectionResult } from '@/types'
-import { seedInspections } from '@/data/seed'
+import {
+  useGetInspectionsQuery,
+  useCreateInspectionMutation,
+  useSetInspectionResultMutation,
+  useDeleteInspectionMutation,
+} from './api/inspectionsApi'
 
 type InspectionInput = Omit<Inspection, 'id' | 'result'>
 
-interface InspectionStore {
+interface InspectionStoreShim {
   inspections: Inspection[]
   add:       (data: InspectionInput) => void
   setResult: (id: string, result: InspectionResult) => void
   remove:    (id: string) => void
 }
 
-export const useInspectionStore = create<InspectionStore>((set) => ({
-  inspections: seedInspections,
+export function useInspectionStore<T>(selector: (state: InspectionStoreShim) => T): T {
+  const { data: inspections = [] } = useGetInspectionsQuery()
+  const [createMutation]    = useCreateInspectionMutation()
+  const [setResultMutation] = useSetInspectionResultMutation()
+  const [deleteMutation]    = useDeleteInspectionMutation()
 
-  add: (data) => set(s => ({
-    inspections: [
-      ...s.inspections,
-      { ...data, id: `i${Date.now()}`, result: 'pending' },
-    ],
-  })),
+  const state: InspectionStoreShim = {
+    inspections,
+    add:       (data)         => { void createMutation(data) },
+    setResult: (id, result)   => { void setResultMutation({ id, result }) },
+    remove:    (id)           => { void deleteMutation(id) },
+  }
 
-  setResult: (id, result) => set(s => ({
-    inspections: s.inspections.map(i => i.id === id ? { ...i, result } : i),
-  })),
-
-  remove: (id) => set(s => ({
-    inspections: s.inspections.filter(i => i.id !== id),
-  })),
-}))
+  return selector(state)
+}

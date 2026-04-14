@@ -7,11 +7,11 @@ import Dashboard         from '@/pages/Dashboard'
 import Restaurants       from '@/pages/Restaurants'
 import RestaurantDetail  from '@/pages/RestaurantDetail'
 import Inspections       from '@/pages/Inspections'
-
-// Temporary placeholder — replaced page by page in Stage 5
-const Soon = ({ name }: { name: string }) => (
-  <div style={{ padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>{name}</div>
-)
+import Mashgichim        from '@/pages/Mashgichim'
+import Hechsherim        from '@/pages/Hechsherim'
+import Documents         from '@/pages/Documents'
+import Rabbanuts         from '@/pages/Rabbanuts'
+import Users             from '@/pages/Users'
 
 function App() {
   return (
@@ -30,19 +30,19 @@ function App() {
             <ProtectedRoute page="inspections"><Inspections /></ProtectedRoute>
           } />
           <Route path="mashgichim"    element={
-            <ProtectedRoute page="mashgichim"><Soon name="Mashgichim" /></ProtectedRoute>
+            <ProtectedRoute page="mashgichim"><Mashgichim /></ProtectedRoute>
           } />
           <Route path="hechsherim"    element={
-            <ProtectedRoute page="hechsherim"><Soon name="Hechsherim" /></ProtectedRoute>
+            <ProtectedRoute page="hechsherim"><Hechsherim /></ProtectedRoute>
           } />
           <Route path="documents"     element={
-            <ProtectedRoute page="documents"><Soon name="Documents" /></ProtectedRoute>
+            <ProtectedRoute page="documents"><Documents /></ProtectedRoute>
           } />
           <Route path="rabbanuts"     element={
-            <ProtectedRoute page="rabbanuts"><Soon name="Rabbanuts" /></ProtectedRoute>
+            <ProtectedRoute page="rabbanuts"><Rabbanuts /></ProtectedRoute>
           } />
           <Route path="users"         element={
-            <ProtectedRoute page="users"><Soon name="Users" /></ProtectedRoute>
+            <ProtectedRoute page="users"><Users /></ProtectedRoute>
           } />
         </Route>
         <Route path="/login" element={<Login />} />

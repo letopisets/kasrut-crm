@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuthStore, DEMO_USERS } from '@/store/useAuthStore'
+import { useAuthController } from '@/controllers/useAuthController'
 import { useLangStore } from '@/store/useLangStore'
 import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
@@ -8,24 +8,34 @@ import { ROLE_COLOR } from '@/lib/statusColor'
 import type { Role } from '@/types'
 import type { Lang } from '@/store/useLangStore'
 
+const DEMO_EMAILS: Record<Role, string> = {
+  owner:     'owner@kashrut.il',
+  rabbanut:  'admin@jer.il',
+  mashgiach: 'cohen@jer.il',
+}
+
+const DEMO_INFO: Record<Role, { name: string; email: string }> = {
+  owner:     { name: 'System Owner',    email: 'owner@kashrut.il' },
+  rabbanut:  { name: 'Admin Jerusalem', email: 'admin@jer.il' },
+  mashgiach: { name: 'Р. Коэн',         email: 'cohen@jer.il' },
+}
+
 const PROFILES: Role[] = ['owner', 'rabbanut', 'mashgiach']
 const LANGS: Lang[]    = ['en', 'ru', 'he']
 
 export default function Login() {
-  const navigate = useNavigate()
-  const user     = useAuthStore(s => s.user)
-  const setRole  = useAuthStore(s => s.setRole)
-  const lang     = useLangStore(s => s.lang)
-  const setLang  = useLangStore(s => s.setLang)
-  const t        = useLang()
+  const navigate  = useNavigate()
+  const { user, login, isLoading } = useAuthController()
+  const lang      = useLangStore(s => s.lang)
+  const setLang   = useLangStore(s => s.setLang)
+  const t         = useLang()
 
   useEffect(() => {
     if (user) navigate('/dashboard', { replace: true })
   }, [user, navigate])
 
   const handleLogin = (role: Role) => {
-    setRole(role)
-    navigate('/dashboard', { replace: true })
+    void login(DEMO_EMAILS[role], 'password')
   }
 
   return (
@@ -50,16 +60,16 @@ export default function Login() {
         <p className="login-logo-sub">{t.appSub}</p>
       </div>
 
-      <p className="login-heading">Выберите профиль для входа</p>
+      <p className="login-heading">{t.loginHeading ?? 'Выберите профиль для входа'}</p>
 
       <div className="login-cards">
         {PROFILES.map(role => {
-          const demo  = DEMO_USERS[role]
+          const demo  = DEMO_INFO[role]
           const color = ROLE_COLOR[role]
           return (
             <div
               key={role}
-              onClick={() => handleLogin(role)}
+              onClick={() => !isLoading && handleLogin(role)}
               className="login-card"
               style={{ '--c': color } as React.CSSProperties}
             >
@@ -73,10 +83,11 @@ export default function Login() {
               <div className="login-card-desc">{t.roleDesc[role]}</div>
 
               <button
-                onClick={e => { e.stopPropagation(); handleLogin(role) }}
+                onClick={e => { e.stopPropagation(); if (!isLoading) handleLogin(role) }}
                 className="login-card-btn"
+                disabled={isLoading}
               >
-                Войти →
+                {isLoading ? '...' : 'Войти →'}
               </button>
             </div>
           )

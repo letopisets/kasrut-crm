@@ -83,6 +83,8 @@ const he: Translations = {
     remove:        'הסר',
     confirmRemove: 'להסיר משגיח?',
     noHechsher:    'ללא הכשר',
+    count:         'משגיחים',
+    empty:         'אין משגיחים עדיין',
   },
   hechsherim: {
     title:         'גופים מכשירים',
@@ -103,6 +105,8 @@ const he: Translations = {
     confirmRemove: 'להסיר הכשר?',
     establishments:'עסקים',
     mashgichim:    'משגיחים',
+    count:         'הכשרים',
+    empty:         'אין הכשרים עדיין',
   },
   documents: {
     title:      'מסמכים',
@@ -111,6 +115,9 @@ const he: Translations = {
     categories: ['הכל', 'הוראות', 'טפסים', 'נהלים', 'פסח'],
     view:       'צפה',
     download:   '↓',
+    count:      'מסמכים',
+    upload:     '+ העלה',
+    all:        'הכל',
   },
   rabbanuts: {
     title:         'ארגוני רבנות',
@@ -129,6 +136,8 @@ const he: Translations = {
     mashgichim:    'משגיחים',
     active:        'פעיל',
     inactive:      'לא פעיל',
+    count:         'ארגונים',
+    restaurants:   'עסקים',
   },
   users: {
     title:     'משתמשים וגישות',
@@ -138,6 +147,8 @@ const he: Translations = {
     org:       'ארגון',
     status:    'סטטוס',
     lastLogin: 'כניסה אחרונה',
+    count:     'משתמשים',
+    all:       'הכל',
   },
   noAccess:         'אין לך גישה לקטע זה.',
   myEstablishments: 'העסקים שלי',

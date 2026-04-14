@@ -1,41 +1,33 @@
-import { create } from 'zustand'
-import type { Restaurant, CertStatus } from '@/types'
-import { seedRestaurants } from '@/data/seed'
-import { daysUntil } from '@/lib/daysUntil'
+// Compatibility shim — same API as Zustand useRestaurantStore, backed by RTK Query
+import type { Restaurant } from '@/types'
+import {
+  useGetRestaurantsQuery,
+  useCreateRestaurantMutation,
+  useUpdateRestaurantMutation,
+  useDeleteRestaurantMutation,
+} from './api/restaurantsApi'
 
 type RestaurantInput = Omit<Restaurant, 'id' | 'status'>
 
-interface RestaurantStore {
+interface RestaurantStoreShim {
   restaurants: Restaurant[]
   add:    (data: RestaurantInput) => void
   update: (id: string, patch: Partial<Restaurant>) => void
   remove: (id: string) => void
 }
 
-const calcStatus = (expires: string): CertStatus => {
-  const d = daysUntil(expires)
-  return d < 10 ? 'critical' : d < 30 ? 'warning' : 'ok'
+export function useRestaurantStore<T>(selector: (state: RestaurantStoreShim) => T): T {
+  const { data: restaurants = [] } = useGetRestaurantsQuery()
+  const [createMutation]  = useCreateRestaurantMutation()
+  const [updateMutation]  = useUpdateRestaurantMutation()
+  const [deleteMutation]  = useDeleteRestaurantMutation()
+
+  const state: RestaurantStoreShim = {
+    restaurants,
+    add:    (data)        => { void createMutation(data) },
+    update: (id, patch)   => { void updateMutation({ id, patch }) },
+    remove: (id)          => { void deleteMutation(id) },
+  }
+
+  return selector(state)
 }
-
-export const useRestaurantStore = create<RestaurantStore>((set) => ({
-  restaurants: seedRestaurants,
-
-  add: (data) => set(s => ({
-    restaurants: [
-      ...s.restaurants,
-      { ...data, id: `r${Date.now()}`, status: calcStatus(data.expires) },
-    ],
-  })),
-
-  update: (id, patch) => set(s => ({
-    restaurants: s.restaurants.map(r =>
-      r.id === id
-        ? { ...r, ...patch, status: patch.expires ? calcStatus(patch.expires) : r.status }
-        : r
-    ),
-  })),
-
-  remove: (id) => set(s => ({
-    restaurants: s.restaurants.filter(r => r.id !== id),
-  })),
-}))

@@ -1,31 +1,29 @@
-import { create } from 'zustand'
-import type { Hechsher, HechsherType } from '@/types'
-import { seedHechsherim } from '@/data/seed'
-import { HECHSHER_TYPE_COLOR } from '@/lib/statusColor'
+// Compatibility shim — same API as Zustand useHechsherStore, backed by RTK Query
+import type { Hechsher } from '@/types'
+import {
+  useGetHechsherimQuery,
+  useCreateHechsherMutation,
+  useDeleteHechsherMutation,
+} from './api/hechsherimApi'
 
-type HechsherInput = Omit<Hechsher, 'id' | 'color'>
+type HechsherInput = Omit<Hechsher, 'id'>
 
-interface HechsherStore {
+interface HechsherStoreShim {
   hechsherim: Hechsher[]
   add:    (data: HechsherInput) => void
   remove: (id: string) => void
 }
 
-export const useHechsherStore = create<HechsherStore>((set) => ({
-  hechsherim: seedHechsherim,
+export function useHechsherStore<T>(selector: (state: HechsherStoreShim) => T): T {
+  const { data: hechsherim = [] } = useGetHechsherimQuery()
+  const [createMutation] = useCreateHechsherMutation()
+  const [deleteMutation] = useDeleteHechsherMutation()
 
-  add: (data) => set(s => ({
-    hechsherim: [
-      ...s.hechsherim,
-      {
-        ...data,
-        id:    `h${Date.now()}`,
-        color: HECHSHER_TYPE_COLOR[data.type as HechsherType] ?? '#888',
-      },
-    ],
-  })),
+  const state: HechsherStoreShim = {
+    hechsherim,
+    add:    (data) => { void createMutation(data) },
+    remove: (id)   => { void deleteMutation(id) },
+  }
 
-  remove: (id) => set(s => ({
-    hechsherim: s.hechsherim.filter(h => h.id !== id),
-  })),
-}))
+  return selector(state)
+}
