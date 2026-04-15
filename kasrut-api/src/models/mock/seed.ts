@@ -5,6 +5,7 @@ const HASH = bcrypt.hashSync('password', 8)
 
 export const seedUsers: User[] = [
   { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH, role: 'owner',     twoFactorEnabled: false },
+  { id: 'u4', name: 'Авнер',           email: 'avner@kashrut.il', passwordHash: HASH, role: 'owner',     twoFactorEnabled: false },
   { id: 'u2', name: 'Admin Jerusalem', email: 'admin@jer.il',     passwordHash: HASH, role: 'rabbanut',  twoFactorEnabled: false, rabbanutId: 'rb1' },
   { id: 'm1', name: 'Р. Коэн',         email: 'cohen@jer.il',     passwordHash: HASH, role: 'mashgiach', twoFactorEnabled: false, rabbanutId: 'rb1' },
 ]

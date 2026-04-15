@@ -27,6 +27,7 @@ async function main() {
   // ── Users ──────────────────────────────────────────────────────────────────
   await prisma.user.createMany({ data: [
     { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH, role: 'owner' },
+    { id: 'u4', name: 'Авнер',           email: 'avner@kashrut.il', passwordHash: HASH, role: 'owner' },
     { id: 'u2', name: 'Admin Jerusalem', email: 'admin@jer.il',     passwordHash: HASH, role: 'rabbanut',  rabbanutId: rb1.id },
     { id: 'u3', name: 'Р. Коэн',         email: 'cohen@jer.il',     passwordHash: HASH, role: 'mashgiach', rabbanutId: rb1.id },
   ] })
