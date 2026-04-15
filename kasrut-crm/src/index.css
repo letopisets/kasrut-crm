@@ -1055,4 +1055,66 @@ button, input, select, textarea { font-family: inherit; }
   .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn-ghost--active { color: var(--gold); }
+
+  .btn-ghost--danger {
+    color: var(--status-crit);
+    border-color: transparent;
+  }
+  .btn-ghost--danger:hover {
+    border-color: var(--status-crit);
+    background: rgba(231,76,60,0.1);
+    color: var(--status-crit);
+  }
+
+  /* ─────────────────────────────────────
+     User row avatar
+  ───────────────────────────────────── */
+  .user-row-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* ─────────────────────────────────────
+     Rabbanut row accent bar
+  ───────────────────────────────────── */
+  .rabbanut-row-accent {
+    width: 4px;
+    height: 100%;
+    min-height: 60px;
+    border-radius: 2px;
+    background: var(--c, var(--border));
+    flex-shrink: 0;
+    align-self: stretch;
+  }
+
+  /* ─────────────────────────────────────
+     Color palette picker (RabbanutForm)
+  ───────────────────────────────────── */
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform var(--transition), border-color var(--transition);
+  }
+  .color-swatch:hover { transform: scale(1.15); }
+  .color-swatch--active {
+    border-color: #fff;
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
+  }
 }

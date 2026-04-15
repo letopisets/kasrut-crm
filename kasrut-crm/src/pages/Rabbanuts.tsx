@@ -1,10 +1,20 @@
 import { useRabbanutController } from '@/controllers/useRabbanutController'
 import { useLang } from '@/i18n/useLang'
 import { Button, Badge } from '@/components/ui'
+import { RabbanutForm } from '@/components/rabbanuts/RabbanutForm'
+import type { Rabbanut } from '@/types'
 
 export default function Rabbanuts() {
   const t    = useLang()
   const ctrl = useRabbanutController()
+
+  const handleSave = (data: Omit<Rabbanut, 'id'>) => {
+    if (ctrl.editTarget) {
+      void ctrl.updateRabbanut(ctrl.editTarget.id, data)
+    } else {
+      void ctrl.createRabbanut(data)
+    }
+  }
 
   return (
     <div>
@@ -20,6 +30,8 @@ export default function Rabbanuts() {
 
       {ctrl.isLoading ? (
         <div className="empty-state">Loading…</div>
+      ) : ctrl.rabbanuts.length === 0 ? (
+        <div className="empty-state">—</div>
       ) : (
         <div className="rabbanuts-list">
           {ctrl.rabbanuts.map(r => {
@@ -30,6 +42,8 @@ export default function Rabbanuts() {
                 className="rabbanut-row"
                 style={{ '--c': r.color } as React.CSSProperties}
               >
+                <div className="rabbanut-row-accent" />
+
                 <div className="rabbanut-row-info">
                   <div className="rabbanut-row-name">{r.name}</div>
                   <div className="rabbanut-row-city">{r.city} · {r.contact}</div>
@@ -53,9 +67,16 @@ export default function Rabbanuts() {
                 <div className="rabbanut-row-actions">
                   <Badge
                     label={r.active ? (t.rabbanuts?.active ?? 'Active') : (t.rabbanuts?.inactive ?? 'Inactive')}
-                    color={r.active ? 'var(--status-ok)' : 'var(--text-disabled)'}
+                    color={r.active ? 'var(--status-ok)' : 'var(--text-muted)'}
                     small
                   />
+                  <button
+                    className="btn-ghost"
+                    onClick={() => ctrl.openEdit(r)}
+                    title="Edit"
+                  >
+                    ✏
+                  </button>
                   <button
                     className="btn-ghost"
                     onClick={() => ctrl.toggleRabbanut(r.id)}
@@ -64,7 +85,7 @@ export default function Rabbanuts() {
                     {r.active ? '⏸' : '▶'}
                   </button>
                   <button
-                    className="btn-ghost"
+                    className="btn-ghost btn-ghost--danger"
                     onClick={() => ctrl.deleteRabbanut(r.id)}
                     title="Delete"
                   >
@@ -75,6 +96,14 @@ export default function Rabbanuts() {
             )
           })}
         </div>
+      )}
+
+      {ctrl.showForm && (
+        <RabbanutForm
+          initial={ctrl.editTarget ?? undefined}
+          onSave={handleSave}
+          onClose={ctrl.closeForm}
+        />
       )}
     </div>
   )
