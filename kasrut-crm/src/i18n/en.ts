@@ -156,6 +156,11 @@ const en: Translations = {
   ownerBanner:      'Owner — full system access',
   allRabbanuts:     'All Rabbanuts',
   loginHeading:     'Select profile to sign in',
+  login: {
+    password:   'Password',
+    enterBtn:   'Sign In',
+    selectRole: 'Select →',
+  },
   twoFactor: {
     title:            'Two-Factor Authentication',
     subtitle:         'Enter the 6-digit code from your authenticator app',

@@ -382,18 +382,35 @@ button, input, select, textarea { font-family: inherit; }
   }
   [dir="rtl"] .login-lang { right: auto; left: 22px; }
 
-  .login-logo { text-align: center; margin-bottom: 36px; }
+  .login-logo {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px; margin-bottom: 32px;
+  }
+  .login-logo-brand {
+    display: flex; align-items: center; gap: 14px;
+  }
   .login-logo-icon {
     width: 60px; height: 60px; border-radius: 16px;
     background: linear-gradient(135deg, var(--gold-dim), var(--gold));
     display: flex; align-items: center; justify-content: center;
     font-size: 28px; font-weight: 900; color: var(--bg-card);
-    margin: 0 auto 16px;
     box-shadow: 0 4px 24px rgba(232,201,109,0.2);
+    flex-shrink: 0;
   }
-  .login-logo-name { font-size: 24px; font-weight: 800; color: var(--gold); margin: 0 0 6px; }
+  .login-logo-name { font-size: 26px; font-weight: 800; color: var(--gold); line-height: 1.1; }
   .login-logo-sub  { font-size: 12px; color: var(--text-muted); }
-  .login-heading   { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; letter-spacing: 0.3px; }
+
+  /* separator between heading and cards */
+  .login-divider {
+    display: flex; align-items: center; gap: 14px;
+    width: 100%; max-width: 860px; margin-bottom: 24px;
+  }
+  .login-divider-line { flex: 1; height: 1px; background: var(--border); }
+  .login-divider-text {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-muted); letter-spacing: 0.6px;
+    text-transform: uppercase; white-space: nowrap;
+  }
 
   .login-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; width: 100%; max-width: 860px; }
 
@@ -407,21 +424,96 @@ button, input, select, textarea { font-family: inherit; }
     box-shadow: var(--shadow-sm); transition: all 0.2s ease;
   }
   .login-card:hover { background: var(--bg-elevated); transform: translateY(-3px); box-shadow: var(--shadow-lg); }
-  .login-card-body  { margin-top: 2px; }
-  .login-card-name  { font-size: 17px; font-weight: 700; color: var(--text-primary); margin-bottom: 5px; letter-spacing: -0.2px; }
-  .login-card-email { font-size: 11px; color: var(--text-muted); letter-spacing: 0.1px; }
+
+  /* role badge header — more padding around the badge */
+  .login-card-header {
+    padding-block: 6px 4px;
+  }
+  [dir="ltr"] .login-card-header { padding-inline-start: 2px; }
+  [dir="rtl"] .login-card-header { padding-inline-start: 2px; }
+
+  /* bigger badge inside login cards */
+  .login-card .badge {
+    font-size: 14px;
+    padding: 5px 16px;
+  }
+
   .login-card-desc  { font-size: 12px; color: var(--text-secondary); line-height: 1.65; flex: 1; }
+
   /* login-card-btn uses --c */
   .login-card-btn {
-    margin-top: 6px; padding: 11px 0;
+    margin-top: 4px; padding: 14px 0;
     border-radius: var(--radius-md); cursor: pointer;
     font-size: 13px; font-weight: 600; width: 100%;
     background: color-mix(in srgb, var(--c) 8%, transparent);
     border: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
     color: var(--c);
-    transition: opacity var(--transition); letter-spacing: 0.3px;
+    transition: all var(--transition); letter-spacing: 0.3px;
   }
-  .login-card-btn:hover { opacity: 0.85; }
+  .login-card-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--c) 16%, transparent);
+    border-color: color-mix(in srgb, var(--c) 40%, transparent);
+  }
+  .login-card-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Auth form card (after role selection) ── */
+  .login-auth {
+    background: var(--bg-card);
+    border: 1px solid color-mix(in srgb, var(--c) 14%, transparent);
+    border-top: 3px solid var(--c);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    width: 100%; max-width: 420px;
+    display: flex; flex-direction: column; gap: 20px;
+    box-shadow: var(--shadow-md);
+  }
+  .login-auth-back {
+    align-self: flex-start;
+    background: none; border: none;
+    color: var(--text-muted); font-size: 13px;
+    cursor: pointer; padding: 0;
+    transition: color var(--transition);
+  }
+  .login-auth-back:hover { color: var(--text-primary); }
+  .login-auth-role { display: flex; flex-direction: column; gap: 8px; }
+  .login-auth-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.55; }
+  .login-auth-fields { display: flex; flex-direction: column; gap: 14px; }
+  .login-field-label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--text-secondary); margin-bottom: 6px;
+    letter-spacing: 0.3px; text-transform: uppercase;
+  }
+  .login-field-input {
+    width: 100%; padding: 10px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary); font-size: 14px;
+    outline: none; transition: border-color var(--transition);
+    font-family: inherit;
+  }
+  .login-field-input:focus { border-color: var(--c, var(--gold)); }
+  .login-auth-btn {
+    padding: 14px 0;
+    border-radius: var(--radius-md); cursor: pointer;
+    font-size: 14px; font-weight: 700; width: 100%;
+    background: color-mix(in srgb, var(--c) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+    color: var(--c); letter-spacing: 0.3px;
+    transition: all var(--transition);
+  }
+  .login-auth-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--c) 22%, transparent);
+    border-color: color-mix(in srgb, var(--c) 50%, transparent);
+  }
+  .login-auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .login-auth-error {
+    font-size: 12px; color: var(--status-crit);
+    background: rgba(231,76,60,0.08);
+    border: 1px solid rgba(231,76,60,0.2);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px; text-align: center;
+  }
 
   /* ─────────────────────────────────────
      Dashboard
@@ -849,6 +941,7 @@ button, input, select, textarea { font-family: inherit; }
   .mashgiach-grid   { grid-template-columns: 1fr; }
   .hechsher-grid    { grid-template-columns: 1fr; }
   .login-cards      { grid-template-columns: 1fr; max-width: 400px; }
+  .login-auth       { padding: 24px 20px; }
   .rabbanut-grid    { grid-template-columns: 1fr; }
   .bottom-grid      { grid-template-columns: 1fr; }
   .rabbanut-row     { flex-direction: column; align-items: flex-start; gap: 10px; }

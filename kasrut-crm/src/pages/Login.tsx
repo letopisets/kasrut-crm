@@ -14,17 +14,24 @@ const DEMO_EMAILS: Record<Role, string> = {
   mashgiach: 'cohen@jer.il',
 }
 
-const DEMO_INFO: Record<Role, { name: string; email: string }> = {
-  owner:     { name: 'System Owner',    email: 'owner@kashrut.il' },
-  rabbanut:  { name: 'Admin Jerusalem', email: 'admin@jer.il' },
-  mashgiach: { name: 'Р. Коэн',         email: 'cohen@jer.il' },
-}
-
 const PROFILES: Role[] = ['owner', 'rabbanut', 'mashgiach']
 const LANGS: Lang[]    = ['en', 'ru', 'he']
 
+function extractError(err: unknown): string | null {
+  if (!err) return null
+  if (typeof err === 'object' && err !== null) {
+    if ('data' in err) {
+      const d = (err as { data: unknown }).data
+      if (typeof d === 'object' && d !== null && 'message' in d)
+        return String((d as { message: unknown }).message)
+    }
+    if ('message' in err) return String((err as { message: unknown }).message)
+  }
+  return 'Ошибка входа'
+}
+
 export default function Login() {
-  const navigate  = useNavigate()
+  const navigate = useNavigate()
   const {
     user, login, isLoading,
     twoFactorPending, verify2fa, cancelTwoFactor, error,
@@ -34,20 +41,35 @@ export default function Login() {
   const t       = useLang()
   const tf      = t.twoFactor
 
-  const [totpCode, setTotpCode]   = useState('')
-  const [totpError, setTotpError] = useState('')
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
+  const [totpCode,     setTotpCode]     = useState('')
+  const [totpError,    setTotpError]    = useState('')
 
   useEffect(() => {
     if (user) navigate('/dashboard', { replace: true })
   }, [user, navigate])
 
-  // Reset TOTP state when entering 2FA step
   useEffect(() => {
     if (twoFactorPending) { setTotpCode(''); setTotpError('') }
   }, [twoFactorPending])
 
-  const handleLogin = (role: Role) => {
-    void login(DEMO_EMAILS[role], 'password')
+  const selectRole = (role: Role) => {
+    setSelectedRole(role)
+    setEmail(DEMO_EMAILS[role])
+    setPassword('')
+  }
+
+  const handleBack = () => {
+    setSelectedRole(null)
+    setEmail('')
+    setPassword('')
+  }
+
+  const handleLogin = async () => {
+    if (!email || !password) return
+    try { await login(email, password) } catch { /* error surfaced via error state */ }
   }
 
   const handleVerify = async () => {
@@ -63,33 +85,44 @@ export default function Login() {
     }
   }
 
+  const isRtl  = lang === 'he'
+  const errMsg = extractError(error)
+
+  const LangBar = () => (
+    <div className="login-lang">
+      {LANGS.map(l => (
+        <button
+          key={l}
+          onClick={() => setLang(l)}
+          className={lang === l ? 'filter-btn filter-btn--active' : 'filter-btn'}
+          style={lang === l ? { '--c': 'var(--gold)' } as React.CSSProperties : undefined}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  )
+
+  const Logo = () => (
+    <div className="login-logo">
+      <div className="login-logo-brand">
+        <div className="login-logo-icon">כ</div>
+        <h1 className="login-logo-name">{t.appName}</h1>
+      </div>
+      <p className="login-logo-sub">{t.appSub}</p>
+    </div>
+  )
+
+  // ── 2FA step ──────────────────────────────────────────────────
   if (twoFactorPending) {
     return (
-      <div dir={lang === 'he' ? 'rtl' : 'ltr'} className="login-page">
-        <div className="login-lang">
-          {LANGS.map(l => (
-            <button
-              key={l}
-              onClick={() => setLang(l)}
-              className={lang === l ? 'filter-btn filter-btn--active' : 'filter-btn'}
-              style={lang === l ? { '--c': 'var(--gold)' } as React.CSSProperties : undefined}
-            >
-              {l.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        <div className="login-logo">
-          <div className="login-logo-icon">כ</div>
-          <h1 className="login-logo-name">{t.appName}</h1>
-          <p className="login-logo-sub">{t.appSub}</p>
-        </div>
-
+      <div dir={isRtl ? 'rtl' : 'ltr'} className="login-page">
+        <LangBar />
+        <Logo />
         <div className="totp-card">
           <div className="totp-card-icon">🔐</div>
           <h2 className="totp-card-title">{tf?.title ?? 'Two-Factor Authentication'}</h2>
           <p className="totp-card-sub">{tf?.subtitle ?? 'Enter the code from your authenticator app'}</p>
-
           <input
             className="totp-input"
             type="text"
@@ -102,11 +135,9 @@ export default function Login() {
             onKeyDown={e => e.key === 'Enter' && void handleVerify()}
             autoFocus
           />
-
           {(totpError || error) && (
             <p className="totp-error">{totpError || 'Invalid code'}</p>
           )}
-
           <button
             className="btn-primary totp-verify-btn"
             onClick={() => void handleVerify()}
@@ -114,7 +145,6 @@ export default function Login() {
           >
             {isLoading ? '...' : (tf?.verifyBtn ?? 'Verify')}
           </button>
-
           <button className="btn-ghost totp-back-btn" onClick={cancelTwoFactor}>
             {tf?.backToLogin ?? '← Back'}
           </button>
@@ -123,56 +153,96 @@ export default function Login() {
     )
   }
 
-  return (
-    <div dir={lang === 'he' ? 'rtl' : 'ltr'} className="login-page">
-
-      <div className="login-lang">
-        {LANGS.map(l => (
-          <button
-            key={l}
-            onClick={() => setLang(l)}
-            className={lang === l ? 'filter-btn filter-btn--active' : 'filter-btn'}
-            style={lang === l ? { '--c': 'var(--gold)' } as React.CSSProperties : undefined}
-          >
-            {l.toUpperCase()}
+  // ── Auth form (role selected) ──────────────────────────────────
+  if (selectedRole) {
+    const color = ROLE_COLOR[selectedRole]
+    return (
+      <div dir={isRtl ? 'rtl' : 'ltr'} className="login-page">
+        <LangBar />
+        <Logo />
+        <div className="login-auth" style={{ '--c': color } as React.CSSProperties}>
+          <button className="login-auth-back" onClick={handleBack}>
+            {t.back ?? '← Назад'}
           </button>
-        ))}
-      </div>
 
-      <div className="login-logo">
-        <div className="login-logo-icon">כ</div>
-        <h1 className="login-logo-name">{t.appName}</h1>
-        <p className="login-logo-sub">{t.appSub}</p>
-      </div>
+          <div className="login-auth-role">
+            <Badge label={t.roles[selectedRole]} color={color} />
+            <p className="login-auth-desc">{t.roleDesc[selectedRole]}</p>
+          </div>
 
-      <p className="login-heading">{t.loginHeading ?? 'Select profile'}</p>
+          <div className="login-auth-fields">
+            <div className="login-field">
+              <label className="login-field-label">Email</label>
+              <input
+                className="login-field-input"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && void handleLogin()}
+                autoFocus
+              />
+            </div>
+            <div className="login-field">
+              <label className="login-field-label">
+                {t.login?.password ?? 'Пароль'}
+              </label>
+              <input
+                className="login-field-input"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && void handleLogin()}
+              />
+            </div>
+          </div>
+
+          {errMsg && <p className="login-auth-error">{errMsg}</p>}
+
+          <button
+            className="login-auth-btn"
+            onClick={() => void handleLogin()}
+            disabled={isLoading || !email || !password}
+          >
+            {isLoading ? '...' : (t.login?.enterBtn ?? 'Войти в систему')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Role selection (default) ───────────────────────────────────
+  return (
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="login-page">
+      <LangBar />
+      <Logo />
+
+      <div className="login-divider">
+        <div className="login-divider-line" />
+        <span className="login-divider-text">
+          {t.loginHeading ?? 'Выберите профиль'}
+        </span>
+        <div className="login-divider-line" />
+      </div>
 
       <div className="login-cards">
         {PROFILES.map(role => {
-          const demo  = DEMO_INFO[role]
           const color = ROLE_COLOR[role]
           return (
             <div
               key={role}
-              onClick={() => !isLoading && handleLogin(role)}
               className="login-card"
               style={{ '--c': color } as React.CSSProperties}
             >
-              <Badge label={t.roles[role]} color={color} />
-
-              <div className="login-card-body">
-                <div className="login-card-name">{demo.name}</div>
-                <div className="login-card-email">{demo.email}</div>
+              <div className="login-card-header">
+                <Badge label={t.roles[role]} color={color} />
               </div>
-
               <div className="login-card-desc">{t.roleDesc[role]}</div>
-
               <button
-                onClick={e => { e.stopPropagation(); if (!isLoading) handleLogin(role) }}
+                onClick={() => selectRole(role)}
                 className="login-card-btn"
                 disabled={isLoading}
               >
-                {isLoading ? '...' : 'Войти →'}
+                {t.login?.selectRole ?? 'Выбрать →'}
               </button>
             </div>
           )

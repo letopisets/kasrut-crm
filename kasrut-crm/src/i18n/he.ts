@@ -156,6 +156,11 @@ const he: Translations = {
   ownerBanner:      'Owner — גישה מלאה למערכת',
   allRabbanuts:     'כל הרבנויות',
   loginHeading:     'בחר פרופיל להתחברות',
+  login: {
+    password:   'סיסמה',
+    enterBtn:   'כניסה',
+    selectRole: '← בחר',
+  },
   twoFactor: {
     title:            'אימות דו-שלבי',
     subtitle:         'הכנס את הקוד בן 6 הספרות מאפליקציית האימות',

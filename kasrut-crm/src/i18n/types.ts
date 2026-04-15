@@ -154,6 +154,11 @@ export interface Translations {
   ownerBanner: string
   allRabbanuts: string
   loginHeading?: string
+  login?: {
+    password:   string
+    enterBtn:   string
+    selectRole: string
+  }
   twoFactor?: {
     title: string
     subtitle: string

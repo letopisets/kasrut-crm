@@ -156,6 +156,11 @@ const ru: Translations = {
   ownerBanner:      'Owner — полный доступ к системе',
   allRabbanuts:     'Все рабануты',
   loginHeading:     'Выберите профиль для входа',
+  login: {
+    password:   'Пароль',
+    enterBtn:   'Войти в систему',
+    selectRole: 'Выбрать →',
+  },
   twoFactor: {
     title:            'Двухфакторная аутентификация',
     subtitle:         'Введите 6-значный код из приложения-аутентификатора',
