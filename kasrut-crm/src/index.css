@@ -524,6 +524,132 @@ button, input, select, textarea { font-family: inherit; }
   }
 
   /* ─────────────────────────────────────
+     Login form — single card (lf-*)
+  ───────────────────────────────────── */
+  .lf-card {
+    width: min(90vw, 480px);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--c, var(--gold));
+    border-radius: var(--radius-lg);
+    padding: 32px 36px 36px;
+    display: flex; flex-direction: column; gap: 20px;
+    box-shadow: var(--shadow-md);
+    transition: border-top-color 0.25s ease;
+  }
+
+  .lf-title {
+    font-size: 18px; font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+    margin-bottom: 4px;
+  }
+
+  /* field group */
+  .lf-group { display: flex; flex-direction: column; gap: 6px; }
+
+  .lf-label {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  /* role select */
+  .lf-select-wrap {
+    position: relative;
+  }
+  .lf-select {
+    width: 100%;
+    padding: 8px 36px 8px 12px;
+    font-size: 1rem; font-family: inherit;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    appearance: none;
+    cursor: pointer;
+    outline: none;
+    transition: border-color var(--transition);
+  }
+  .lf-select:focus { border-color: var(--c, var(--gold)); }
+  .lf-select-arrow {
+    position: absolute;
+    inset-inline-end: 12px;
+    top: 50%; transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+    font-size: 12px;
+  }
+  /* select options inherit bg in Chromium but not always Firefox */
+  .lf-select option { background: var(--bg-elevated); color: var(--text-primary); }
+
+  /* role description below select */
+  .lf-role-desc {
+    font-size: 12px;
+    color: var(--c, var(--text-secondary));
+    background: color-mix(in srgb, var(--c, var(--border)) 8%, transparent);
+    border-inline-start: 2px solid var(--c, var(--border));
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 6px 10px;
+    line-height: 1.5;
+    transition: color 0.25s ease, background 0.25s ease;
+  }
+  [dir="rtl"] .lf-role-desc {
+    border-inline-start: none;
+    border-inline-end: 2px solid var(--c, var(--border));
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  }
+
+  /* text inputs */
+  .lf-input {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 1rem; font-family: inherit;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color var(--transition);
+  }
+  .lf-input:focus { border-color: var(--c, var(--gold)); }
+  .lf-input::placeholder { color: var(--text-disabled); }
+
+  /* error */
+  .lf-error {
+    font-size: 12px; color: var(--status-crit);
+    background: rgba(231,76,60,0.08);
+    border: 1px solid rgba(231,76,60,0.2);
+    border-radius: var(--radius-sm);
+    padding: 7px 12px; text-align: center;
+  }
+
+  /* submit button */
+  .lf-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 1rem; font-weight: 700; font-family: inherit;
+    text-align: center; letter-spacing: 0.3px;
+    background: color-mix(in srgb, var(--c, var(--gold)) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c, var(--gold)) 30%, transparent);
+    color: var(--c, var(--gold));
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition);
+    margin-top: 4px;
+  }
+  .lf-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--c, var(--gold)) 22%, transparent);
+    border-color: color-mix(in srgb, var(--c, var(--gold)) 50%, transparent);
+  }
+  .lf-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* mobile */
+  @media (max-width: 480px) {
+    .lf-card { padding: 24px 20px 28px; }
+  }
+
+  /* ─────────────────────────────────────
      Dashboard
   ───────────────────────────────────── */
   .dashboard-head     { margin-bottom: 20px; }

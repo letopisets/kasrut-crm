@@ -157,6 +157,8 @@ const he: Translations = {
   allRabbanuts:     'כל הרבנויות',
   loginHeading:     'בחר פרופיל להתחברות',
   login: {
+    title:      'התחברות',
+    roleLabel:  'בחר תפקיד',
     password:   'סיסמה',
     enterBtn:   'כניסה',
     selectRole: '← בחר',

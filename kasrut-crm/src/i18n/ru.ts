@@ -157,8 +157,10 @@ const ru: Translations = {
   allRabbanuts:     'Все рабануты',
   loginHeading:     'Выберите профиль для входа',
   login: {
+    title:      'Авторизация',
+    roleLabel:  'Выберите роль',
     password:   'Пароль',
-    enterBtn:   'Войти в систему',
+    enterBtn:   'Войти',
     selectRole: 'Выбрать →',
   },
   twoFactor: {

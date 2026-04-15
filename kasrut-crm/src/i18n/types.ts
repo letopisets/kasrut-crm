@@ -155,6 +155,8 @@ export interface Translations {
   allRabbanuts: string
   loginHeading?: string
   login?: {
+    title:      string
+    roleLabel:  string
     password:   string
     enterBtn:   string
     selectRole: string

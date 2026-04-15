@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthController } from '@/controllers/useAuthController'
 import { useLangStore } from '@/store/useLangStore'
 import { useLang } from '@/i18n/useLang'
-import { Badge } from '@/components/ui'
 import { ROLE_COLOR } from '@/lib/statusColor'
 import type { Role } from '@/types'
 import type { Lang } from '@/store/useLangStore'
@@ -41,11 +40,11 @@ export default function Login() {
   const t       = useLang()
   const tf      = t.twoFactor
 
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
-  const [email,        setEmail]        = useState('')
-  const [password,     setPassword]     = useState('')
-  const [totpCode,     setTotpCode]     = useState('')
-  const [totpError,    setTotpError]    = useState('')
+  const [role,     setRole]     = useState<Role>('owner')
+  const [email,    setEmail]    = useState(DEMO_EMAILS['owner'])
+  const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
+  const [totpError,setTotpError]= useState('')
 
   useEffect(() => {
     if (user) navigate('/dashboard', { replace: true })
@@ -55,21 +54,14 @@ export default function Login() {
     if (twoFactorPending) { setTotpCode(''); setTotpError('') }
   }, [twoFactorPending])
 
-  const selectRole = (role: Role) => {
-    setSelectedRole(role)
-    setEmail(DEMO_EMAILS[role])
-    setPassword('')
-  }
-
-  const handleBack = () => {
-    setSelectedRole(null)
-    setEmail('')
-    setPassword('')
+  const handleRoleChange = (r: Role) => {
+    setRole(r)
+    setEmail(DEMO_EMAILS[r])
   }
 
   const handleLogin = async () => {
     if (!email || !password) return
-    try { await login(email, password) } catch { /* error surfaced via error state */ }
+    try { await login(email, password) } catch { /* error shown via RTK state */ }
   }
 
   const handleVerify = async () => {
@@ -85,8 +77,9 @@ export default function Login() {
     }
   }
 
-  const isRtl  = lang === 'he'
-  const errMsg = extractError(error)
+  const isRtl    = lang === 'he'
+  const errMsg   = extractError(error)
+  const roleColor = ROLE_COLOR[role]
 
   const LangBar = () => (
     <div className="login-lang">
@@ -153,100 +146,70 @@ export default function Login() {
     )
   }
 
-  // ── Auth form (role selected) ──────────────────────────────────
-  if (selectedRole) {
-    const color = ROLE_COLOR[selectedRole]
-    return (
-      <div dir={isRtl ? 'rtl' : 'ltr'} className="login-page">
-        <LangBar />
-        <Logo />
-        <div className="login-auth" style={{ '--c': color } as React.CSSProperties}>
-          <button className="login-auth-back" onClick={handleBack}>
-            {t.back ?? '← Назад'}
-          </button>
-
-          <div className="login-auth-role">
-            <Badge label={t.roles[selectedRole]} color={color} />
-            <p className="login-auth-desc">{t.roleDesc[selectedRole]}</p>
-          </div>
-
-          <div className="login-auth-fields">
-            <div className="login-field">
-              <label className="login-field-label">Email</label>
-              <input
-                className="login-field-input"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && void handleLogin()}
-                autoFocus
-              />
-            </div>
-            <div className="login-field">
-              <label className="login-field-label">
-                {t.login?.password ?? 'Пароль'}
-              </label>
-              <input
-                className="login-field-input"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && void handleLogin()}
-              />
-            </div>
-          </div>
-
-          {errMsg && <p className="login-auth-error">{errMsg}</p>}
-
-          <button
-            className="login-auth-btn"
-            onClick={() => void handleLogin()}
-            disabled={isLoading || !email || !password}
-          >
-            {isLoading ? '...' : (t.login?.enterBtn ?? 'Войти в систему')}
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Role selection (default) ───────────────────────────────────
+  // ── Main login form ────────────────────────────────────────────
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="login-page">
       <LangBar />
       <Logo />
 
-      <div className="login-divider">
-        <div className="login-divider-line" />
-        <span className="login-divider-text">
-          {t.loginHeading ?? 'Выберите профиль'}
-        </span>
-        <div className="login-divider-line" />
-      </div>
+      <div className="lf-card" style={{ '--c': roleColor } as React.CSSProperties}>
+        <h2 className="lf-title">{t.login?.title ?? 'Авторизация'}</h2>
 
-      <div className="login-cards">
-        {PROFILES.map(role => {
-          const color = ROLE_COLOR[role]
-          return (
-            <div
-              key={role}
-              className="login-card"
-              style={{ '--c': color } as React.CSSProperties}
+        {/* Role selector */}
+        <div className="lf-group">
+          <label className="lf-label">{t.login?.roleLabel ?? 'Выберите роль'}</label>
+          <div className="lf-select-wrap">
+            <select
+              className="lf-select"
+              value={role}
+              onChange={e => handleRoleChange(e.target.value as Role)}
             >
-              <div className="login-card-header">
-                <Badge label={t.roles[role]} color={color} />
-              </div>
-              <div className="login-card-desc">{t.roleDesc[role]}</div>
-              <button
-                onClick={() => selectRole(role)}
-                className="login-card-btn"
-                disabled={isLoading}
-              >
-                {t.login?.selectRole ?? 'Выбрать →'}
-              </button>
-            </div>
-          )
-        })}
+              {PROFILES.map(r => (
+                <option key={r} value={r}>{t.roles[r]}</option>
+              ))}
+            </select>
+            <span className="lf-select-arrow">▾</span>
+          </div>
+          <p className="lf-role-desc" style={{ '--c': roleColor } as React.CSSProperties}>
+            {t.roleDesc[role]}
+          </p>
+        </div>
+
+        {/* Email */}
+        <div className="lf-group">
+          <label className="lf-label">Email</label>
+          <input
+            className="lf-input"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && void handleLogin()}
+            autoComplete="email"
+          />
+        </div>
+
+        {/* Password */}
+        <div className="lf-group">
+          <label className="lf-label">{t.login?.password ?? 'Пароль'}</label>
+          <input
+            className="lf-input"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && void handleLogin()}
+            autoComplete="current-password"
+          />
+        </div>
+
+        {errMsg && <p className="lf-error">{errMsg}</p>}
+
+        <button
+          className="lf-btn"
+          onClick={() => void handleLogin()}
+          disabled={isLoading || !email || !password}
+        >
+          {isLoading ? '...' : (t.login?.enterBtn ?? 'Войти')}
+        </button>
       </div>
     </div>
   )

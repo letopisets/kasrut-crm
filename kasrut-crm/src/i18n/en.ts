@@ -157,6 +157,8 @@ const en: Translations = {
   allRabbanuts:     'All Rabbanuts',
   loginHeading:     'Select profile to sign in',
   login: {
+    title:      'Sign In',
+    roleLabel:  'Select role',
     password:   'Password',
     enterBtn:   'Sign In',
     selectRole: 'Select →',
