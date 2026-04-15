@@ -175,7 +175,7 @@ button, input, select, textarea { font-family: inherit; }
     background: transparent; border: 1px solid var(--border);
     color: var(--text-muted);
     padding: 5px 12px; border-radius: var(--radius-sm);
-    cursor: pointer; font-size: 11px; font-weight: 500;
+    cursor: pointer; font-size: 0.75rem; font-weight: 500;
     transition: all var(--transition); white-space: nowrap;
   }
   .filter-btn:hover { border-color: var(--text-muted); color: var(--text-secondary); }
@@ -378,6 +378,7 @@ button, input, select, textarea { font-family: inherit; }
   }
   .login-lang {
     position: absolute; top: 18px; right: 22px;
+    font-size: 1rem;
     display: flex; gap: 3px;
   }
   [dir="rtl"] .login-lang { right: auto; left: 22px; }
@@ -403,7 +404,7 @@ button, input, select, textarea { font-family: inherit; }
   /* separator between heading and cards */
   .login-divider {
     display: flex; align-items: center; gap: 14px;
-    width: 100%; max-width: 860px; margin-bottom: 24px;
+    width: 100%; max-width: 860px; margin-bottom: 36px;
   }
   .login-divider-line { flex: 1; height: 1px; background: var(--border); }
   .login-divider-text {
@@ -412,43 +413,50 @@ button, input, select, textarea { font-family: inherit; }
     text-transform: uppercase; white-space: nowrap;
   }
 
-  .login-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; width: 100%; max-width: 860px; }
+  .login-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; width: 100%; max-width: 860px; margin-top: 5%;}
 
   /* login-card uses --c for border color */
   .login-card {
     background: var(--bg-card);
     border: 1px solid color-mix(in srgb, var(--c) 14%, transparent);
     border-top: 3px solid var(--c);
-    border-radius: var(--radius-lg); padding: 30px 26px;
-    cursor: pointer; display: flex; flex-direction: column; gap: 16px;
+    border-radius: var(--radius-lg); padding: 28px 28px 24px;
+    cursor: pointer; display: flex; flex-direction: column; gap: 0;
     box-shadow: var(--shadow-sm); transition: all 0.2s ease;
   }
   .login-card:hover { background: var(--bg-elevated); transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 
-  /* role badge header — more padding around the badge */
+  /* role badge — full-width block with padding around it */
   .login-card-header {
-    padding-block: 6px 4px;
+    margin-bottom: 18px;
   }
-  [dir="ltr"] .login-card-header { padding-inline-start: 2px; }
-  [dir="rtl"] .login-card-header { padding-inline-start: 2px; }
-
-  /* bigger badge inside login cards */
   .login-card .badge {
-    font-size: 14px;
-    padding: 5px 16px;
+    display: block;
+    width: 100%;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 800;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.4px;
   }
 
-  .login-card-desc  { font-size: 12px; color: var(--text-secondary); line-height: 1.65; flex: 1; }
+  .login-card-desc {
+    font-size: 13px; color: var(--text-secondary);
+    line-height: 1.7; flex: 1;
+    padding: 0 2px;
+    margin-bottom: 22px;
+  }
 
   /* login-card-btn uses --c */
   .login-card-btn {
-    margin-top: 4px; padding: 14px 0;
+    padding: 15px 0;
     border-radius: var(--radius-md); cursor: pointer;
-    font-size: 13px; font-weight: 600; width: 100%;
+    font-size: 14px; font-weight: 700; width: 100%;
     background: color-mix(in srgb, var(--c) 8%, transparent);
     border: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
     color: var(--c);
-    transition: all var(--transition); letter-spacing: 0.3px;
+    transition: all var(--transition); letter-spacing: 0.4px;
   }
   .login-card-btn:hover:not(:disabled) {
     background: color-mix(in srgb, var(--c) 16%, transparent);
@@ -971,7 +979,7 @@ button, input, select, textarea { font-family: inherit; }
   .page-title { font-size: 16px; }
   .card       { padding: 16px; }
   .modal-box  { padding: 18px; }
-  .login-card { padding: 22px 18px; }
+  .login-card { padding: 22px 20px 20px; }
   .nav-btn    { padding: 5px 8px; font-size: 11px; }
 
   .detail-grid     { gap: 12px; }
