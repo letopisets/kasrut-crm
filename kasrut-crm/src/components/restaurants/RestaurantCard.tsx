@@ -1,22 +1,26 @@
 import { useNavigate } from 'react-router-dom'
-import type { Restaurant } from '@/types'
-import { useHechsherStore } from '@/store/useHechsherStore'
-import { useMashgiachStore } from '@/store/useMashgiachStore'
-import { useRabbanutStore } from '@/store/useRabbanutStore'
+import type { Restaurant, Hechsher, Mashgiach, Rabbanut } from '@/types'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge, HechsherTag } from '@/components/ui'
 import { STATUS_COLOR } from '@/lib/statusColor'
 
-interface Props { restaurant: Restaurant }
+interface Props {
+  restaurant: Restaurant
+  hechsherim: Hechsher[]
+  mashgichim: Mashgiach[]
+  rabbanuts:  Rabbanut[]
+  canEdit:    boolean
+  onDelete:   (id: string) => void
+}
 
-export function RestaurantCard({ restaurant: r }: Props) {
+export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanuts, canEdit, onDelete }: Props) {
   const navigate  = useNavigate()
   const t         = useLang()
   const perm      = usePermissions()
-  const hechsher  = useHechsherStore(s => s.hechsherim.find(h => h.id === r.hechsherId))
-  const mashgiach = useMashgiachStore(s => s.mashgichim.find(m => m.id === r.mashgiachId))
-  const rabbanut  = useRabbanutStore(s => s.rabbanuts.find(rb => rb.id === r.rabbanutId))
+  const hechsher  = hechsherim.find(h => h.id === r.hechsherId)
+  const mashgiach = mashgichim.find(m => m.id === r.mashgiachId)
+  const rabbanut  = rabbanuts.find(rb => rb.id === r.rabbanutId)
 
   return (
     <div
@@ -29,7 +33,16 @@ export function RestaurantCard({ restaurant: r }: Props) {
           <div className="rest-card-name">{r.name}</div>
           <div className="rest-card-address">{r.address}, {r.city}</div>
         </div>
-        <Badge label={t.status[r.status]} color={STATUS_COLOR[r.status]} small />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Badge label={t.status[r.status]} color={STATUS_COLOR[r.status]} small />
+          {canEdit && (
+            <button
+              className="btn-ghost--danger"
+              onClick={e => { e.stopPropagation(); onDelete(r.id) }}
+              title="Delete"
+            >✕</button>
+          )}
+        </div>
       </div>
 
       <div className="rest-card-tags">

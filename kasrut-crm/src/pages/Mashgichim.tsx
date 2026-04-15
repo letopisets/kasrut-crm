@@ -33,6 +33,7 @@ export default function Mashgichim() {
           canEdit={ctrl.canEdit}
           onToggle={ctrl.toggleMashgiach}
           onDelete={ctrl.deleteMashgiach}
+          onEdit={ctrl.openEdit}
         />
       )}
 
@@ -41,6 +42,15 @@ export default function Mashgichim() {
           hechsherOptions={ctrl.hechsherOptions}
           onSave={ctrl.createMashgiach}
           onClose={ctrl.closeForm}
+        />
+      )}
+
+      {ctrl.editTarget && (
+        <MashgiachForm
+          hechsherOptions={ctrl.hechsherOptions}
+          initial={ctrl.editTarget}
+          onSave={ctrl.updateMashgiach}
+          onClose={ctrl.closeEdit}
         />
       )}
     </div>

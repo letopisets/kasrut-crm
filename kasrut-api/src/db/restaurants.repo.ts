@@ -85,10 +85,12 @@ export const restaurantsRepo = {
     } catch { return null }
   },
 
-  async remove(id: string): Promise<boolean> {
+  async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
+    const exists = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } })
+    if (!exists) return 'not_found'
     try {
       await prisma.restaurant.delete({ where: { id } })
-      return true
-    } catch { return false }
+      return 'deleted'
+    } catch { return 'conflict' }
   },
 }

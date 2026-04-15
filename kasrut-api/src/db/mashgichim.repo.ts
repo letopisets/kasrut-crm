@@ -90,10 +90,12 @@ export const mashgichimRepo = {
     } catch { return null }
   },
 
-  async remove(id: string): Promise<boolean> {
+  async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
+    const exists = await prisma.mashgiach.findUnique({ where: { id }, select: { id: true } })
+    if (!exists) return 'not_found'
     try {
       await prisma.mashgiach.delete({ where: { id } })
-      return true
-    } catch { return false }
+      return 'deleted'
+    } catch { return 'conflict' }
   },
 }

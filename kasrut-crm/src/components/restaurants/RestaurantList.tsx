@@ -1,13 +1,28 @@
-import type { Restaurant } from '@/types'
+import type { Restaurant, Hechsher, Mashgiach, Rabbanut } from '@/types'
 import { RestaurantCard } from './RestaurantCard'
 
-interface Props { restaurants: Restaurant[] }
+interface Props {
+  restaurants: Restaurant[]
+  hechsherim:  Hechsher[]
+  mashgichim:  Mashgiach[]
+  rabbanuts:   Rabbanut[]
+  canEdit:     boolean
+  onDelete:    (id: string) => void
+}
 
-export function RestaurantList({ restaurants }: Props) {
+export function RestaurantList({ restaurants, hechsherim, mashgichim, rabbanuts, canEdit, onDelete }: Props) {
   return (
     <div className="restaurant-grid">
       {restaurants.map(r => (
-        <RestaurantCard key={r.id} restaurant={r} />
+        <RestaurantCard
+          key={r.id}
+          restaurant={r}
+          hechsherim={hechsherim}
+          mashgichim={mashgichim}
+          rabbanuts={rabbanuts}
+          canEdit={canEdit}
+          onDelete={onDelete}
+        />
       ))}
     </div>
   )

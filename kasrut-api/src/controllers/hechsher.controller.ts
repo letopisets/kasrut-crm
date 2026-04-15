@@ -36,8 +36,9 @@ export const hechsherController = {
 
   async remove(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const ok = await hechsherimRepo.remove(req.params.id)
-      if (!ok) { res.status(404).json({ error: 'Not found' }); return }
+      const result = await hechsherimRepo.remove(req.params.id)
+      if (result === 'not_found') { res.status(404).json({ error: 'Not found' }); return }
+      if (result === 'conflict')  { res.status(409).json({ error: 'Cannot delete: hechsher has restaurants assigned. Reassign them first.' }); return }
       res.status(204).send()
     } catch (e) { next(e) }
   },

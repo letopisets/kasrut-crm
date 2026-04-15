@@ -43,10 +43,12 @@ export const hechsherimRepo = {
     } catch { return null }
   },
 
-  async remove(id: string): Promise<boolean> {
+  async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
+    const exists = await prisma.hechsher.findUnique({ where: { id }, select: { id: true } })
+    if (!exists) return 'not_found'
     try {
       await prisma.hechsher.delete({ where: { id } })
-      return true
-    } catch { return false }
+      return 'deleted'
+    } catch { return 'conflict' }
   },
 }

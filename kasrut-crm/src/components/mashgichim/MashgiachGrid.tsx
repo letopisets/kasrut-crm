@@ -7,9 +7,10 @@ interface Props {
   canEdit:     boolean
   onToggle:    (id: string) => void
   onDelete:    (id: string) => void
+  onEdit:      (m: Mashgiach) => void
 }
 
-export function MashgiachGrid({ mashgichim, hechsherim, canEdit, onToggle, onDelete }: Props) {
+export function MashgiachGrid({ mashgichim, hechsherim, canEdit, onToggle, onDelete, onEdit }: Props) {
   return (
     <div className="mashgiach-grid">
       {mashgichim.map(m => (
@@ -20,6 +21,7 @@ export function MashgiachGrid({ mashgichim, hechsherim, canEdit, onToggle, onDel
           canEdit={canEdit}
           onToggle={onToggle}
           onDelete={onDelete}
+          onEdit={onEdit}
         />
       ))}
     </div>

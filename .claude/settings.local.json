@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:3456/)",
+      "Bash(curl -s http://localhost:3456/restaurants/r1)",
+      "Bash(echo \"Backend started with PID $!\")"
+    ]
+  }
+}

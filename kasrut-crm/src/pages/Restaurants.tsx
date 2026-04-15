@@ -1,7 +1,4 @@
-import { useState } from 'react'
-import { useRestaurants } from '@/hooks/useRestaurants'
-import { usePermissions } from '@/hooks/usePermissions'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useRestaurantsController } from '@/controllers/useRestaurantsController'
 import { useLang } from '@/i18n/useLang'
 import { Button } from '@/components/ui'
 import { RestaurantList } from '@/components/restaurants/RestaurantList'
@@ -10,22 +7,12 @@ import { ROLE_COLOR } from '@/lib/statusColor'
 import type { CertStatus } from '@/types'
 
 type Filter = 'all' | CertStatus
-
 const FILTER_KEYS: Filter[] = ['all', 'ok', 'warning', 'critical']
 
 export default function Restaurants() {
-  const [filter,   setFilter]   = useState<Filter>('all')
-  const [showForm, setShowForm] = useState(false)
-
-  const t           = useLang()
-  const perm        = usePermissions()
-  const role        = useAuthStore(s => s.role)
-  const rc          = ROLE_COLOR[role]
-  const restaurants = useRestaurants()
-
-  const filtered = filter === 'all'
-    ? restaurants
-    : restaurants.filter(r => r.status === filter)
+  const t    = useLang()
+  const ctrl = useRestaurantsController()
+  const rc   = ROLE_COLOR[ctrl.restaurants[0]?.status ?? 'ok'] // fallback
 
   return (
     <div>
@@ -34,33 +21,41 @@ export default function Restaurants() {
           <h2 className="page-title">{t.restaurants.title}</h2>
           <p className="page-sub">{t.restaurants.sub}</p>
         </div>
-
         <div className="page-actions">
           <div className="filter-group">
             {FILTER_KEYS.map((key, i) => (
               <button
                 key={key}
-                onClick={() => setFilter(key)}
-                className={filter === key ? 'filter-btn filter-btn--active' : 'filter-btn'}
-                style={filter === key ? { '--c': rc } as React.CSSProperties : undefined}
+                onClick={() => ctrl.setStatusFilter(key)}
+                className={ctrl.statusFilter === key ? 'filter-btn filter-btn--active' : 'filter-btn'}
+                style={ctrl.statusFilter === key ? { '--c': rc } as React.CSSProperties : undefined}
               >
                 {t.restaurants.filters[i]}
               </button>
             ))}
           </div>
-
-          {perm.canEdit && (
-            <Button onClick={() => setShowForm(true)}>{t.restaurants.add}</Button>
+          {ctrl.canEdit && (
+            <Button onClick={ctrl.openForm}>{t.restaurants.add}</Button>
           )}
         </div>
       </div>
 
-      {filtered.length === 0
-        ? <div className="empty-state">—</div>
-        : <RestaurantList restaurants={filtered} />
-      }
+      {ctrl.isLoading ? (
+        <div className="empty-state">Loading…</div>
+      ) : ctrl.restaurants.length === 0 ? (
+        <div className="empty-state">—</div>
+      ) : (
+        <RestaurantList
+          restaurants={ctrl.restaurants}
+          hechsherim={ctrl.hechsherim}
+          mashgichim={ctrl.mashgichim}
+          rabbanuts={ctrl.rabbanuts}
+          canEdit={ctrl.canEdit}
+          onDelete={ctrl.deleteRestaurant}
+        />
+      )}
 
-      {showForm && <RestaurantForm onClose={() => setShowForm(false)} />}
+      {ctrl.showForm && <RestaurantForm onClose={ctrl.closeForm} />}
     </div>
   )
 }

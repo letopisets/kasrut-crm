@@ -4,6 +4,7 @@ import { useAppSelector } from '@/store'
 import { useGetRestaurantsQuery, useCreateRestaurantMutation, useDeleteRestaurantMutation } from '@/store/api/restaurantsApi'
 import { useGetHechsherimQuery }  from '@/store/api/hechsherimApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
+import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
 import { usePermissions }         from '@/hooks/usePermissions'
 import type { CertStatus, Restaurant } from '@/types'
 
@@ -22,6 +23,7 @@ export function useRestaurantsController() {
   const { data: all = [], isLoading, error } = useGetRestaurantsQuery()
   const { data: hechsherim = [] }            = useGetHechsherimQuery()
   const { data: mashgichim = [] }            = useGetMashgichimQuery()
+  const { data: rabbanuts  = [] }            = useGetRabbanutsQuery()
   const [createMutation] = useCreateRestaurantMutation()
   const [deleteMutation] = useDeleteRestaurantMutation()
 
@@ -52,6 +54,7 @@ export function useRestaurantsController() {
     showForm, openForm: () => setShowForm(true), closeForm: () => setShowForm(false),
     canEdit: perm.canEdit,
     createRestaurant, deleteRestaurant,
+    hechsherim, mashgichim, rabbanuts,
     hechsherOptions, mashgiachOptions,
     navigate,
   }

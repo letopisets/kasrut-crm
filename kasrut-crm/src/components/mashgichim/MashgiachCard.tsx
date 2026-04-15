@@ -1,16 +1,17 @@
 import type { Mashgiach, Hechsher } from '@/types'
 import { useLang } from '@/i18n/useLang'
-import { Badge, Button } from '@/components/ui'
+import { Badge } from '@/components/ui'
 
 interface Props {
-  mashgiach: Mashgiach
+  mashgiach:  Mashgiach
   hechsherim: Hechsher[]
-  canEdit: boolean
-  onToggle: (id: string) => void
-  onDelete: (id: string) => void
+  canEdit:    boolean
+  onToggle:   (id: string) => void
+  onDelete:   (id: string) => void
+  onEdit:     (m: Mashgiach) => void
 }
 
-export function MashgiachCard({ mashgiach: m, hechsherim, canEdit, onToggle, onDelete }: Props) {
+export function MashgiachCard({ mashgiach: m, hechsherim, canEdit, onToggle, onDelete, onEdit }: Props) {
   const t = useLang()
 
   return (
@@ -25,14 +26,21 @@ export function MashgiachCard({ mashgiach: m, hechsherim, canEdit, onToggle, onD
             <button
               className={m.active ? 'mashgiach-toggle mashgiach-toggle--active' : 'mashgiach-toggle'}
               onClick={() => onToggle(m.id)}
-              title={m.active ? t.mashgichim?.deactivate ?? 'Deactivate' : t.mashgichim?.activate ?? 'Activate'}
+              title={m.active ? 'Deactivate' : 'Activate'}
             >
               {m.active ? '●' : '○'}
             </button>
             <button
+              className="mashgiach-edit"
+              onClick={() => onEdit(m)}
+              title="Edit"
+            >
+              ✎
+            </button>
+            <button
               className="mashgiach-delete"
               onClick={() => onDelete(m.id)}
-              title={t.mashgichim?.delete ?? 'Delete'}
+              title="Delete"
             >
               ✕
             </button>
