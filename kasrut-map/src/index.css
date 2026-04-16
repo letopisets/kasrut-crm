@@ -58,6 +58,10 @@ html, body, #root {
   100% { box-shadow: 0 0 0 0   rgba(232,165,7,0),    0 2px 6px rgba(0,0,0,0.4); }
 }
 
+/* Correction mode — crosshair cursor */
+.leaflet-container.km-correcting,
+.leaflet-container.km-correcting .leaflet-interactive { cursor: crosshair !important; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #1A1D2E; }

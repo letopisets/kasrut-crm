@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Box, AppBar, Toolbar, Typography,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
@@ -8,6 +7,7 @@ import TuneIcon        from '@mui/icons-material/Tune'
 import MapIcon         from '@mui/icons-material/Map'
 import ListIcon        from '@mui/icons-material/List'
 import MyLocationIcon  from '@mui/icons-material/MyLocation'
+import EditLocationIcon from '@mui/icons-material/EditLocation'
 import MenuBookIcon    from '@mui/icons-material/MenuBook'
 
 import { MapView }               from '@/components/map/MapView'
@@ -15,11 +15,11 @@ import { RestaurantListView }    from '@/components/list/RestaurantListView'
 import { FilterPanel }           from '@/components/filters/FilterPanel'
 import { RestaurantDetailSheet } from '@/components/filters/RestaurantDetailSheet'
 import { RoutePanel }            from '@/components/filters/RoutePanel'
+import { LocationCorrector }     from '@/components/location/LocationCorrector'
 import { useMapController }      from '@/controllers/useMapController'
 
 export default function MapPage() {
   const ctrl = useMapController()
-  const [panToUser, setPanToUser] = useState(false)
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -68,28 +68,56 @@ export default function MapPage() {
         }}>
           <MapView
             userPosition={ctrl.geo.position}
-            panToUser={panToUser}
+            panToUser={ctrl.panToUser}
+            correcting={ctrl.correcting}
             restaurants={ctrl.restaurants}
             selected={ctrl.selected}
             radius={ctrl.filters.radius}
             route={ctrl.route}
             onSelect={r => ctrl.setSelected(r)}
-            onPanHandled={() => setPanToUser(false)}
+            onPanHandled={ctrl.onPanHandled}
+            onMapClick={ctrl.applyPosition}
           />
 
-          {/* My Location FAB */}
-          <Fab
-            size="small"
-            color="primary"
-            onClick={() => { ctrl.geo.refresh(); setPanToUser(true) }}
-            title="Моё местоположение"
-            sx={{ position: 'absolute', bottom: 24, right: 16, zIndex: 1000, boxShadow: 4 }}
-          >
-            <MyLocationIcon />
-          </Fab>
+          {/* Location correction overlay */}
+          {ctrl.correcting && (
+            <LocationCorrector
+              onApply={ctrl.applyPosition}
+              onCancel={ctrl.stopCorrection}
+            />
+          )}
+
+          {/* FAB row: My Location + Уточнить */}
+          <Box sx={{ position: 'absolute', bottom: 24, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Tooltip title="Уточнить моё местоположение" placement="left">
+              <Fab
+                size="small"
+                onClick={ctrl.startCorrection}
+                sx={{
+                  bgcolor: ctrl.correcting ? 'primary.main' : 'background.paper',
+                  color:   ctrl.correcting ? 'background.paper' : 'primary.main',
+                  border: '1px solid',
+                  borderColor: 'primary.main',
+                  boxShadow: 3,
+                  '&:hover': { bgcolor: 'rgba(232,165,7,0.15)' },
+                }}
+              >
+                <EditLocationIcon fontSize="small" />
+              </Fab>
+            </Tooltip>
+            <Fab
+              size="small"
+              color="primary"
+              onClick={ctrl.goToMyLocation}
+              title="Моё местоположение"
+              sx={{ boxShadow: 4 }}
+            >
+              <MyLocationIcon />
+            </Fab>
+          </Box>
 
           {/* Results count bubble — click to open list */}
-          {ctrl.restaurants.length > 0 && (
+          {ctrl.restaurants.length > 0 && !ctrl.correcting && (
             <Box
               onClick={() => ctrl.setView('list')}
               sx={{
@@ -97,8 +125,7 @@ export default function MapPage() {
                 bgcolor: 'background.paper', border: '1px solid', borderColor: 'primary.main',
                 borderRadius: 99, px: 2, py: 0.75, zIndex: 1000,
                 boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-                cursor: 'pointer',
-                userSelect: 'none',
+                cursor: 'pointer', userSelect: 'none',
                 transition: 'background 0.15s',
                 '&:hover': { bgcolor: 'rgba(232,165,7,0.12)' },
               }}

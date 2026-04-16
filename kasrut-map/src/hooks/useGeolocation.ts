@@ -47,5 +47,9 @@ export function useGeolocation() {
     }
   }, [start])
 
-  return { ...state, refresh: start }
+  const setPosition = useCallback((pos: [number, number]) => {
+    setState({ position: pos, error: null, loading: false })
+  }, [])
+
+  return { ...state, refresh: start, setPosition }
 }

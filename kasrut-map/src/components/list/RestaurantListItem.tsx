@@ -1,4 +1,4 @@
-import { Card, CardContent, CardActionArea, Box, Typography, Chip, Stack, IconButton } from '@mui/material'
+import { Card, CardContent, Box, Typography, Chip, Stack, IconButton } from '@mui/material'
 import DirectionsIcon from '@mui/icons-material/Directions'
 import PlaceIcon from '@mui/icons-material/Place'
 import type { MapRestaurant } from '@/types'
@@ -13,9 +13,20 @@ interface Props {
 
 export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, formatDist }: Props) {
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', borderRadius: 2 }}>
-      <CardActionArea onClick={() => onSelect(r)} sx={{ p: 0 }}>
-        <CardContent sx={{ pb: '12px !important' }}>
+    <Card
+      variant="outlined"
+      sx={{ bgcolor: 'background.paper', borderColor: 'divider', borderRadius: 2 }}
+    >
+      <CardContent sx={{ pb: '12px !important', p: 0 }}>
+        {/* Clickable area — everything except the route button */}
+        <Box
+          onClick={() => onSelect(r)}
+          sx={{
+            cursor: 'pointer', px: 2, pt: 2, pb: 0,
+            '&:hover': { bgcolor: 'action.hover' },
+            borderRadius: 2,
+          }}
+        >
           {/* Header row */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -60,26 +71,26 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
             />
             <Chip label={r.hechsher} size="small" variant="outlined" sx={{ borderColor: 'divider', fontSize: '0.7rem' }} />
           </Stack>
+        </Box>
 
-          {/* Footer */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            {r.hours && (
-              <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
-                🕐 {r.hours}
-              </Typography>
-            )}
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={e => { e.stopPropagation(); onStartRoute(r) }}
-              title="Построить маршрут"
-              sx={{ ml: 'auto', bgcolor: 'rgba(232,165,7,0.1)', '&:hover': { bgcolor: 'rgba(232,165,7,0.2)' } }}
-            >
-              <DirectionsIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        </CardContent>
-      </CardActionArea>
+        {/* Footer — outside clickable area to avoid nesting buttons */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, pb: 1.5 }}>
+          {r.hours && (
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
+              🕐 {r.hours}
+            </Typography>
+          )}
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={() => onStartRoute(r)}
+            title="Построить маршрут"
+            sx={{ ml: 'auto', bgcolor: 'rgba(232,165,7,0.1)', '&:hover': { bgcolor: 'rgba(232,165,7,0.2)' } }}
+          >
+            <DirectionsIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </CardContent>
     </Card>
   )
 }

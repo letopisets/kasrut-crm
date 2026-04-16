@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Circle, Marker, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Circle, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { MapRestaurant, RouteData } from '@/types'
@@ -26,15 +26,23 @@ function PanTo({ position, onDone }: { position: [number, number]; onDone: () =>
   return null
 }
 
+/** Fires onMapClick when the user clicks anywhere on the map */
+function MapClickHandler({ onMapClick }: { onMapClick: (pos: [number, number]) => void }) {
+  useMapEvents({ click: (e) => onMapClick([e.latlng.lat, e.latlng.lng]) })
+  return null
+}
+
 interface Props {
   userPosition: [number, number] | null
   panToUser:    boolean
+  correcting:   boolean
   restaurants:  MapRestaurant[]
   selected:     MapRestaurant | null
   radius:       number | null
   route:        RouteData | null
   onSelect:     (r: MapRestaurant) => void
   onPanHandled: () => void
+  onMapClick:   (pos: [number, number]) => void
 }
 
 const USER_ICON = L.divIcon({
@@ -44,8 +52,7 @@ const USER_ICON = L.divIcon({
   html: '<div class="km-user-dot"></div>',
 })
 
-export function MapView({ userPosition, panToUser, restaurants, selected, radius, route, onSelect, onPanHandled }: Props) {
-  // keep icon stable across renders
+export function MapView({ userPosition, panToUser, correcting, restaurants, selected, radius, route, onSelect, onPanHandled, onMapClick }: Props) {
   const userIcon = useMemo(() => USER_ICON, [])
 
   return (
@@ -53,6 +60,7 @@ export function MapView({ userPosition, panToUser, restaurants, selected, radius
       center={userPosition ?? DEFAULT_CENTER}
       zoom={DEFAULT_ZOOM}
       style={{ width: '100%', height: '100%' }}
+      className={correcting ? 'km-correcting' : undefined}
       zoomControl={false}
     >
       <TileLayer
@@ -60,6 +68,8 @@ export function MapView({ userPosition, panToUser, restaurants, selected, radius
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         maxZoom={19}
       />
+
+      {correcting && <MapClickHandler onMapClick={onMapClick} />}
 
       {panToUser && userPosition && (
         <PanTo position={userPosition} onDone={onPanHandled} />

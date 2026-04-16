@@ -23,11 +23,13 @@ function haversine([lat1, lng1]: [number, number], [lat2, lng2]: [number, number
 }
 
 export function useMapController() {
-  const [view,        setView]        = useState<'map' | 'list'>('map')
-  const [filters,     setFilters]     = useState<MapFilters>(DEFAULT_FILTERS)
-  const [filterOpen,  setFilterOpen]  = useState(false)
-  const [selected,    setSelected]    = useState<MapRestaurant | null>(null)
+  const [view,          setView]          = useState<'map' | 'list'>('map')
+  const [filters,       setFilters]       = useState<MapFilters>(DEFAULT_FILTERS)
+  const [filterOpen,    setFilterOpen]    = useState(false)
+  const [selected,      setSelected]      = useState<MapRestaurant | null>(null)
   const [routePanelOpen, setRoutePanelOpen] = useState(false)
+  const [correcting,    setCorrecting]    = useState(false)
+  const [panToUser,     setPanToUser]     = useState(false)
 
   const geo    = useGeolocation()
   const router = useRoute()
@@ -43,6 +45,15 @@ export function useMapController() {
     if (!filters.radius || !geo.position) return withDist
     return withDist.filter(r => r.distance !== undefined && r.distance <= filters.radius!)
   }, [raw, geo.position, filters.radius])
+
+  const goToMyLocation  = () => { geo.refresh(); setPanToUser(true) }
+  const startCorrection = () => { setCorrecting(true); setView('map') }
+  const stopCorrection  = () => setCorrecting(false)
+  const applyPosition   = (pos: [number, number]) => {
+    geo.setPosition(pos)
+    setCorrecting(false)
+    setPanToUser(true)
+  }
 
   const startRoute = (r: MapRestaurant) => {
     if (!geo.position) return
@@ -95,6 +106,9 @@ export function useMapController() {
     selected, setSelected,
     // geolocation
     geo,
+    // location correction
+    correcting, goToMyLocation, startCorrection, stopCorrection, applyPosition,
+    panToUser, onPanHandled: () => setPanToUser(false),
     // routing
     route:          router.route,
     routeLoading:   router.loading,
