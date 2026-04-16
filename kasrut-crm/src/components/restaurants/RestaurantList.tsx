@@ -7,10 +7,11 @@ interface Props {
   mashgichim:  Mashgiach[]
   rabbanuts:   Rabbanut[]
   canEdit:     boolean
+  onEdit:      (r: Restaurant) => void
   onDelete:    (id: string) => void
 }
 
-export function RestaurantList({ restaurants, hechsherim, mashgichim, rabbanuts, canEdit, onDelete }: Props) {
+export function RestaurantList({ restaurants, hechsherim, mashgichim, rabbanuts, canEdit, onEdit, onDelete }: Props) {
   return (
     <div className="restaurant-grid">
       {restaurants.map(r => (
@@ -21,6 +22,7 @@ export function RestaurantList({ restaurants, hechsherim, mashgichim, rabbanuts,
           mashgichim={mashgichim}
           rabbanuts={rabbanuts}
           canEdit={canEdit}
+          onEdit={onEdit}
           onDelete={onDelete}
         />
       ))}

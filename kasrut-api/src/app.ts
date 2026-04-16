@@ -10,7 +10,7 @@ export function createApp() {
 
   // Security
   app.use(helmet())
-  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
+  app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }))
 
   // Body parsing
   app.use(express.json())

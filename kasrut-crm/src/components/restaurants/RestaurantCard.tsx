@@ -11,10 +11,11 @@ interface Props {
   mashgichim: Mashgiach[]
   rabbanuts:  Rabbanut[]
   canEdit:    boolean
+  onEdit:     (r: Restaurant) => void
   onDelete:   (id: string) => void
 }
 
-export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanuts, canEdit, onDelete }: Props) {
+export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanuts, canEdit, onEdit, onDelete }: Props) {
   const navigate  = useNavigate()
   const t         = useLang()
   const perm      = usePermissions()
@@ -36,11 +37,18 @@ export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanut
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Badge label={t.status[r.status]} color={STATUS_COLOR[r.status]} small />
           {canEdit && (
-            <button
-              className="btn-ghost--danger"
-              onClick={e => { e.stopPropagation(); onDelete(r.id) }}
-              title="Delete"
-            >✕</button>
+            <>
+              <button
+                className="mashgiach-edit"
+                onClick={e => { e.stopPropagation(); onEdit(r) }}
+                title="Edit"
+              >✎</button>
+              <button
+                className="btn-ghost--danger"
+                onClick={e => { e.stopPropagation(); onDelete(r.id) }}
+                title="Delete"
+              >✕</button>
+            </>
           )}
         </div>
       </div>

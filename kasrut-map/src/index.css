@@ -1,0 +1,64 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  background: #0F1117;
+  color: #E8E8EE;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Leaflet map fills parent */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #0F1117;
+}
+
+/* Dark tile overlay for OSM */
+.leaflet-tile-pane { filter: brightness(0.85) saturate(0.9); }
+
+/* Custom marker pin */
+.km-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  border: 2px solid rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.km-pin:hover { transform: rotate(-45deg) scale(1.15); }
+.km-pin--selected { transform: rotate(-45deg) scale(1.25); border-color: #fff; }
+
+.km-pin-emoji {
+  transform: rotate(45deg);
+  font-size: 14px;
+  line-height: 1;
+  user-select: none;
+}
+
+/* User location pulse */
+.km-user-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #E8A507;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 0 rgba(232,165,7,0.5), 0 2px 6px rgba(0,0,0,0.4);
+  animation: km-pulse 1.8s ease-out infinite;
+}
+@keyframes km-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(232,165,7,0.55), 0 2px 6px rgba(0,0,0,0.4); }
+  60%  { box-shadow: 0 0 0 14px rgba(232,165,7,0),   0 2px 6px rgba(0,0,0,0.4); }
+  100% { box-shadow: 0 0 0 0   rgba(232,165,7,0),    0 2px 6px rgba(0,0,0,0.4); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1A1D2E; }
+::-webkit-scrollbar-thumb { background: #2A2D3E; border-radius: 3px; }

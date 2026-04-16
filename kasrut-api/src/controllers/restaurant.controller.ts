@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from 'express'
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
+import { invalidatePattern } from '../lib/cache'
+
+const invalidateMapCache = () => invalidatePattern('map:restaurants:*')
 
 export const restaurantController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -32,6 +35,7 @@ export const restaurantController = {
         res.status(403).json({ error: 'Forbidden' }); return
       }
       const r = await restaurantsRepo.create(body)
+      void invalidateMapCache()
       res.status(201).json(serializeRestaurant(r))
     } catch (e) { next(e) }
   },
@@ -40,6 +44,7 @@ export const restaurantController = {
     try {
       const r = await restaurantsRepo.update(req.params.id, req.body)
       if (!r) { res.status(404).json({ error: 'Not found' }); return }
+      void invalidateMapCache()
       res.json(serializeRestaurant(r))
     } catch (e) { next(e) }
   },
@@ -49,6 +54,7 @@ export const restaurantController = {
       const result = await restaurantsRepo.remove(req.params.id)
       if (result === 'not_found') { res.status(404).json({ error: 'Not found' }); return }
       if (result === 'conflict')  { res.status(409).json({ error: 'Cannot delete restaurant' }); return }
+      void invalidateMapCache()
       res.status(204).send()
     } catch (e) { next(e) }
   },

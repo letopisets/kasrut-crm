@@ -3,7 +3,7 @@ import { useLang } from '@/i18n/useLang'
 import { Button } from '@/components/ui'
 import { RestaurantList } from '@/components/restaurants/RestaurantList'
 import { RestaurantForm } from '@/components/restaurants/RestaurantForm'
-import { ROLE_COLOR } from '@/lib/statusColor'
+import { STATUS_COLOR } from '@/lib/statusColor'
 import type { CertStatus } from '@/types'
 
 type Filter = 'all' | CertStatus
@@ -12,7 +12,7 @@ const FILTER_KEYS: Filter[] = ['all', 'ok', 'warning', 'critical']
 export default function Restaurants() {
   const t    = useLang()
   const ctrl = useRestaurantsController()
-  const rc   = ROLE_COLOR[ctrl.restaurants[0]?.status ?? 'ok'] // fallback
+  const rc   = STATUS_COLOR[ctrl.statusFilter !== 'all' ? ctrl.statusFilter : 'ok']
 
   return (
     <div>
@@ -51,11 +51,13 @@ export default function Restaurants() {
           mashgichim={ctrl.mashgichim}
           rabbanuts={ctrl.rabbanuts}
           canEdit={ctrl.canEdit}
+          onEdit={ctrl.openEdit}
           onDelete={ctrl.deleteRestaurant}
         />
       )}
 
-      {ctrl.showForm && <RestaurantForm onClose={ctrl.closeForm} />}
+      {ctrl.showForm   && <RestaurantForm onClose={ctrl.closeForm} />}
+      {ctrl.editTarget && <RestaurantForm initial={ctrl.editTarget} onClose={ctrl.closeEdit} />}
     </div>
   )
 }

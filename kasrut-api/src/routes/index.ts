@@ -7,6 +7,7 @@ import hechsherRoutes   from './hechsher.routes'
 import rabbanutRoutes   from './rabbanut.routes'
 import documentRoutes   from './document.routes'
 import userRoutes       from './user.routes'
+import mapRoutes        from './map.routes'
 
 const router = Router()
 router.use('/auth',        authRoutes)
@@ -17,4 +18,5 @@ router.use('/hechsherim',  hechsherRoutes)
 router.use('/rabbanuts',   rabbanutRoutes)
 router.use('/documents',   documentRoutes)
 router.use('/users',       userRoutes)
+router.use('/map',         mapRoutes)
 export default router

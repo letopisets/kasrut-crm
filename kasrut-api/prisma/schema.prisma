@@ -53,6 +53,13 @@ enum DocExt {
   XLSX
 }
 
+enum FoodType {
+  meat
+  dairy
+  pareve
+  takeaway
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -150,6 +157,12 @@ model Restaurant {
   rabbanutId     String
   notes          String?
   lastInspection DateTime?
+  // Map fields
+  lat            Float?
+  lng            Float?
+  foodType       FoodType   @default(pareve)
+  phone          String?
+  hours          String?
 
   hechsher    Hechsher    @relation(fields: [hechsherId],  references: [id])
   mashgiach   Mashgiach   @relation(fields: [mashgiachId], references: [id])

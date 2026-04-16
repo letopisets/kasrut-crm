@@ -19,6 +19,7 @@ export function useRestaurantsController() {
 
   const [statusFilter, setStatusFilter] = useState<CertStatus | 'all'>('all')
   const [showForm,     setShowForm]     = useState(false)
+  const [editTarget,   setEditTarget]   = useState<Restaurant | null>(null)
 
   const { data: all = [], isLoading, error } = useGetRestaurantsQuery()
   const { data: hechsherim = [] }            = useGetHechsherimQuery()
@@ -51,7 +52,8 @@ export function useRestaurantsController() {
   return {
     restaurants, isLoading, error: error ? 'Failed to load' : null,
     statusFilter, setStatusFilter,
-    showForm, openForm: () => setShowForm(true), closeForm: () => setShowForm(false),
+    showForm,   openForm:  () => setShowForm(true),       closeForm:  () => setShowForm(false),
+    editTarget, openEdit:  (r: Restaurant) => setEditTarget(r), closeEdit: () => setEditTarget(null),
     canEdit: perm.canEdit,
     createRestaurant, deleteRestaurant,
     hechsherim, mashgichim, rabbanuts,
