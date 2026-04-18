@@ -2,13 +2,13 @@ import { useState, useMemo } from 'react'
 import { useGetMapRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGeolocation }           from '@/hooks/useGeolocation'
 import { useRoute }                  from '@/hooks/useRoute'
-import type { MapRestaurant, MapFilters, FoodType, KashrutLevel } from '@/types'
+import type { MapRestaurant, MapFilters, FoodType } from '@/types'
 
 const DEFAULT_FILTERS: MapFilters = {
-  kashrutLevel: [],
-  foodType:     [],
-  city:         'Все',
-  radius:       null,
+  hechsher: [],
+  foodType: [],
+  city:     'Все',
+  radius:   null,
 }
 
 /** Haversine distance in metres between two [lat,lng] points */
@@ -35,6 +35,17 @@ export function useMapController() {
   const router = useRoute()
 
   const { data: raw = [], isLoading } = useGetMapRestaurantsQuery(filters)
+  const { data: optionRows = [] } = useGetMapRestaurantsQuery(DEFAULT_FILTERS)
+
+  const availableHechshers = useMemo(() => (
+    [...new Set(optionRows.map(r => r.hechsher).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'he'))
+  ), [optionRows])
+
+  const availableCities = useMemo(() => (
+    ['Все', ...new Set(optionRows.map(r => r.city).filter(Boolean))]
+      .sort((a, b) => (a === 'Все' ? -1 : b === 'Все' ? 1 : a.localeCompare(b, 'he')))
+  ), [optionRows])
 
   /** Attach distance from user and apply radius filter */
   const restaurants = useMemo<MapRestaurant[]>(() => {
@@ -68,12 +79,12 @@ export function useMapController() {
     setRoutePanelOpen(false)
   }
 
-  const toggleKashrutLevel = (level: KashrutLevel) =>
+  const toggleHechsher = (hechsher: string) =>
     setFilters(f => ({
       ...f,
-      kashrutLevel: f.kashrutLevel.includes(level)
-        ? f.kashrutLevel.filter(l => l !== level)
-        : [...f.kashrutLevel, level],
+      hechsher: f.hechsher.includes(hechsher)
+        ? f.hechsher.filter(h => h !== hechsher)
+        : [...f.hechsher, hechsher],
     }))
 
   const toggleFoodType = (type: FoodType) =>
@@ -89,7 +100,7 @@ export function useMapController() {
   const resetFilters = ()                  => setFilters(DEFAULT_FILTERS)
 
   const activeFilterCount =
-    filters.kashrutLevel.length +
+    filters.hechsher.length +
     filters.foodType.length +
     (filters.city !== 'Все' ? 1 : 0) +
     (filters.radius !== null ? 1 : 0)
@@ -99,7 +110,8 @@ export function useMapController() {
     view, setView,
     // filters
     filters, filterOpen, setFilterOpen,
-    activeFilterCount, toggleKashrutLevel, toggleFoodType, setCity, setRadius, resetFilters,
+    activeFilterCount, toggleHechsher, toggleFoodType, setCity, setRadius, resetFilters,
+    availableHechshers, availableCities,
     // data
     restaurants, isLoading,
     // selected

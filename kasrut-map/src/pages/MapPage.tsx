@@ -9,6 +9,8 @@ import ListIcon        from '@mui/icons-material/List'
 import MyLocationIcon  from '@mui/icons-material/MyLocation'
 import EditLocationIcon from '@mui/icons-material/EditLocation'
 import MenuBookIcon    from '@mui/icons-material/MenuBook'
+import DarkModeIcon    from '@mui/icons-material/DarkMode'
+import LightModeIcon   from '@mui/icons-material/LightMode'
 
 import { MapView }               from '@/components/map/MapView'
 import { RestaurantListView }    from '@/components/list/RestaurantListView'
@@ -17,8 +19,14 @@ import { RestaurantDetailSheet } from '@/components/filters/RestaurantDetailShee
 import { RoutePanel }            from '@/components/filters/RoutePanel'
 import { LocationCorrector }     from '@/components/location/LocationCorrector'
 import { useMapController }      from '@/controllers/useMapController'
+import type { ThemeMode } from '@/theme'
 
-export default function MapPage() {
+interface Props {
+  themeMode: ThemeMode
+  onToggleThemeMode: () => void
+}
+
+export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const ctrl = useMapController()
 
   return (
@@ -28,9 +36,15 @@ export default function MapPage() {
       <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', zIndex: 1200 }}>
         <Toolbar sx={{ gap: 1 }}>
           <MenuBookIcon sx={{ color: 'primary.main', mr: 0.5 }} />
-          <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ flexGrow: 1, letterSpacing: -0.5 }}>
+          <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ flexGrow: 1, letterSpacing: 0 }}>
             KashrutMap
           </Typography>
+
+          <Tooltip title={themeMode === 'light' ? 'Тёмная тема' : 'Светлая тема'}>
+            <IconButton onClick={onToggleThemeMode} sx={{ color: 'text.secondary' }}>
+              {themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
+            </IconButton>
+          </Tooltip>
 
           {/* Map / List toggle */}
           <ToggleButtonGroup
@@ -177,7 +191,9 @@ export default function MapPage() {
         onClose={() => ctrl.setFilterOpen(false)}
         filters={ctrl.filters}
         activeFilterCount={ctrl.activeFilterCount}
-        onToggleKashrut={ctrl.toggleKashrutLevel}
+        availableHechshers={ctrl.availableHechshers}
+        availableCities={ctrl.availableCities}
+        onToggleHechsher={ctrl.toggleHechsher}
         onToggleFoodType={ctrl.toggleFoodType}
         onSetCity={ctrl.setCity}
         onSetRadius={ctrl.setRadius}

@@ -20,6 +20,7 @@ export const mapController = {
       const filter: MapFilter = {
         city:         q.city     || undefined,
         kashrutLevel: parseCsv<KashrutLevel>(q.kashrutLevel),
+        hechsher:     parseCsv(q.hechsher),
         foodType:     parseCsv(q.foodType),
       }
 
