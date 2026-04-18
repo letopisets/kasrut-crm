@@ -1,11 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import MapPage from '@/pages/MapPage'
+import type { ThemeMode } from '@/theme'
 
-export default function App() {
+interface Props {
+  themeMode: ThemeMode
+  onToggleThemeMode: () => void
+}
+
+export default function App({ themeMode, onToggleThemeMode }: Props) {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<MapPage />} />
+        <Route path="/" element={<MapPage themeMode={themeMode} onToggleThemeMode={onToggleThemeMode} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

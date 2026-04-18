@@ -27,6 +27,7 @@ function toKashrutLevel(type: string): KashrutLevel {
 export interface MapFilter {
   city?:         string
   kashrutLevel?: KashrutLevel[]
+  hechsher?:     string[]
   foodType?:     string[]
 }
 
@@ -39,6 +40,9 @@ export const mapRepo = {
         ...(filter.city && filter.city !== 'Все' ? { city: filter.city } : {}),
         ...(filter.foodType?.length
           ? { foodType: { in: filter.foodType as FoodType[] } }
+          : {}),
+        ...(filter.hechsher?.length
+          ? { hechsher: { name: { in: filter.hechsher } } }
           : {}),
       },
       select: {

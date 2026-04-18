@@ -17,10 +17,10 @@ export interface MapRestaurant {
 }
 
 export interface MapFilters {
-  kashrutLevel: KashrutLevel[]
-  foodType:     FoodType[]
-  city:         string       // 'Все' = no filter
-  radius:       number | null  // metres; null = viewport only
+  hechsher: string[]
+  foodType: FoodType[]
+  city:     string       // 'Все' = no filter
+  radius:   number | null  // metres; null = viewport only
 }
 
 export interface RouteStep {

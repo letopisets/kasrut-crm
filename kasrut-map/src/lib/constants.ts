@@ -44,7 +44,5 @@ export const RADIUS_OPTIONS: { label: string; value: number | null }[] = [
   { label: 'Все',    value: null   },
 ]
 
-export const CITIES = ['Все', 'Jerusalem', 'Haifa', 'Tel Aviv', 'Tzfat', 'Tiberias', 'Bnei Brak']
-
 export const DEFAULT_CENTER: [number, number] = [31.7767, 35.2345]  // Jerusalem
 export const DEFAULT_ZOOM = 14

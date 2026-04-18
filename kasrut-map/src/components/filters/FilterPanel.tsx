@@ -4,11 +4,10 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
-import type { MapFilters, FoodType, KashrutLevel } from '@/types'
+import type { MapFilters, FoodType } from '@/types'
 import {
   FOOD_TYPE_LABEL, FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI,
-  KASHRUT_LABEL, KASHRUT_COLOR,
-  RADIUS_OPTIONS, CITIES,
+  RADIUS_OPTIONS,
 } from '@/lib/constants'
 
 interface Props {
@@ -16,7 +15,9 @@ interface Props {
   onClose:             () => void
   filters:             MapFilters
   activeFilterCount:   number
-  onToggleKashrut:     (l: KashrutLevel) => void
+  availableHechshers:  string[]
+  availableCities:     string[]
+  onToggleHechsher:    (h: string) => void
   onToggleFoodType:    (t: FoodType) => void
   onSetCity:           (c: string) => void
   onSetRadius:         (r: number | null) => void
@@ -24,11 +25,11 @@ interface Props {
 }
 
 const FOOD_TYPES:     FoodType[]     = ['meat', 'dairy', 'pareve', 'takeaway']
-const KASHRUT_LEVELS: KashrutLevel[] = ['mehadrin', 'badatz', 'regular']
 
 export function FilterPanel({
   open, onClose, filters, activeFilterCount,
-  onToggleKashrut, onToggleFoodType, onSetCity, onSetRadius, onReset,
+  availableHechshers, availableCities,
+  onToggleHechsher, onToggleFoodType, onSetCity, onSetRadius, onReset,
 }: Props) {
   return (
     <Drawer
@@ -57,7 +58,7 @@ export function FilterPanel({
 
       <Box sx={{ px: 2.5, py: 2, overflowY: 'auto', flex: 1 }}>
         {/* Food type */}
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, display: 'block' }}>
+        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           Тип кухни
         </Typography>
         <Stack direction="row" flexWrap="wrap" gap={1} mb={3}>
@@ -80,25 +81,25 @@ export function FilterPanel({
           })}
         </Stack>
 
-        {/* Kashrut level */}
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, display: 'block' }}>
-          Уровень кашрута
+        {/* Hechsher */}
+        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
+          Хекшер
         </Typography>
-        <Stack direction="column" gap={1} mb={3}>
-          {KASHRUT_LEVELS.map(l => {
-            const active = filters.kashrutLevel.includes(l)
+        <Stack direction="column" gap={1} mb={3} sx={{ maxHeight: 260, overflowY: 'auto', pr: 0.5 }}>
+          {availableHechshers.map(h => {
+            const active = filters.hechsher.includes(h)
             return (
               <Chip
-                key={l}
-                label={KASHRUT_LABEL[l]}
-                onClick={() => onToggleKashrut(l)}
+                key={h}
+                label={h}
+                onClick={() => onToggleHechsher(h)}
                 variant={active ? 'filled' : 'outlined'}
                 sx={{
                   justifyContent: 'flex-start',
-                  borderColor:    KASHRUT_COLOR[l],
-                  color:          active ? '#fff' : KASHRUT_COLOR[l],
-                  bgcolor:        active ? KASHRUT_COLOR[l] : 'transparent',
-                  '&:hover':      { bgcolor: active ? KASHRUT_COLOR[l] : `${KASHRUT_COLOR[l]}22` },
+                  borderColor:    active ? 'primary.main' : 'divider',
+                  color:          active ? 'primary.contrastText' : 'text.primary',
+                  bgcolor:        active ? 'primary.main' : 'transparent',
+                  '&:hover':      { bgcolor: active ? 'primary.dark' : 'action.hover' },
                 }}
               />
             )
@@ -106,7 +107,7 @@ export function FilterPanel({
         </Stack>
 
         {/* City */}
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, display: 'block' }}>
+        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           Город
         </Typography>
         <ToggleButtonGroup
@@ -117,7 +118,7 @@ export function FilterPanel({
           fullWidth
           sx={{ mb: 3 }}
         >
-          {CITIES.map(c => (
+          {availableCities.map(c => (
             <ToggleButton
               key={c} value={c}
               sx={{
@@ -131,7 +132,7 @@ export function FilterPanel({
         </ToggleButtonGroup>
 
         {/* Radius */}
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, display: 'block' }}>
+        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           Радиус поиска
         </Typography>
         <Stack direction="row" flexWrap="wrap" gap={1}>

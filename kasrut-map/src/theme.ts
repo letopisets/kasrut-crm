@@ -1,18 +1,25 @@
 import { createTheme } from '@mui/material/styles'
+import type { PaletteMode } from '@mui/material'
 
-export const theme = createTheme({
+export type ThemeMode = PaletteMode
+
+export const createKashrutMapTheme = (mode: ThemeMode) => createTheme({
   palette: {
-    mode: 'dark',
+    mode,
     primary:    { main: '#E8A507', contrastText: '#0F1117' },
-    secondary:  { main: '#3498DB' },
+    secondary:  { main: mode === 'light' ? '#1877B8' : '#3498DB' },
     error:      { main: '#E74C3C' },
-    success:    { main: '#2ECC71' },
+    success:    { main: mode === 'light' ? '#138A52' : '#2ECC71' },
     warning:    { main: '#F39C12' },
-    background: { default: '#0F1117', paper: '#1A1D2E' },
-    text:       { primary: '#E8E8EE', secondary: '#999999' },
-    divider:    '#2A2D3E',
+    background: mode === 'light'
+      ? { default: '#F6F7F9', paper: '#FFFFFF' }
+      : { default: '#0F1117', paper: '#1A1D2E' },
+    text: mode === 'light'
+      ? { primary: '#17202A', secondary: '#56616D' }
+      : { primary: '#E8E8EE', secondary: '#999999' },
+    divider: mode === 'light' ? '#DDE3EA' : '#2A2D3E',
   },
-  shape: { borderRadius: 12 },
+  shape: { borderRadius: 8 },
   typography: {
     fontFamily: '"Inter", "Roboto", "Helvetica Neue", sans-serif',
     h6:   { fontWeight: 700 },
@@ -24,7 +31,11 @@ export const theme = createTheme({
     MuiChip: {
       styleOverrides: {
         root:          { borderRadius: 8 },
-        colorPrimary:  { backgroundColor: 'rgba(232,165,7,0.18)', color: '#E8A507', border: '1px solid rgba(232,165,7,0.35)' },
+        colorPrimary:  {
+          backgroundColor: mode === 'light' ? 'rgba(232,165,7,0.16)' : 'rgba(232,165,7,0.18)',
+          color: mode === 'light' ? '#7A5200' : '#E8A507',
+          border: '1px solid rgba(232,165,7,0.35)',
+        },
       },
     },
     MuiButton: {
@@ -34,8 +45,13 @@ export const theme = createTheme({
     },
     MuiDrawer: {
       styleOverrides: {
-        paper: { backgroundColor: '#1A1D2E', backgroundImage: 'none' },
+        paper: {
+          backgroundColor: mode === 'light' ? '#FFFFFF' : '#1A1D2E',
+          backgroundImage: 'none',
+        },
       },
     },
   },
 })
+
+export const theme = createKashrutMapTheme('light')
