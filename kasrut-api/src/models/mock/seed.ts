@@ -1,7 +1,7 @@
 import type { Rabbanut, Hechsher, Mashgiach, Restaurant, Inspection, KashrutDocument, User } from '../types'
 import bcrypt from 'bcryptjs'
 
-const HASH = bcrypt.hashSync('password', 8)
+const HASH = bcrypt.hashSync('password', 12)
 
 export const seedUsers: User[] = [
   { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH, role: 'owner',     twoFactorEnabled: false },

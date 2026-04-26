@@ -28,7 +28,7 @@ export const usersMock = {
       id:               `u${Date.now()}`,
       name:             input.name,
       email:            input.email,
-      passwordHash:     bcrypt.hashSync(input.password, 8),
+      passwordHash:     bcrypt.hashSync(input.password, 12),
       role:             input.role,
       twoFactorEnabled: false,
       ...(input.rabbanutId ? { rabbanutId: input.rabbanutId } : {}),

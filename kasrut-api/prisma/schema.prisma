@@ -60,6 +60,27 @@ enum FoodType {
   takeaway
 }
 
+enum MapAuthProvider {
+  google
+  apple
+}
+
+enum MapSuggestionType {
+  add
+  update
+}
+
+enum MapSuggestionStatus {
+  pending
+  approved
+  rejected
+}
+
+enum MapPasswordResetChannel {
+  email
+  phone
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -168,6 +189,8 @@ model Restaurant {
   mashgiach   Mashgiach   @relation(fields: [mashgiachId], references: [id])
   rabbanut    Rabbanut    @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
   inspections Inspection[]
+  mapSuggestions MapRestaurantSuggestion[]
+  mapReviews     MapRestaurantReview[]
 
   @@map("restaurants")
 }
@@ -197,4 +220,101 @@ model KashrutDocument {
   url      String?
 
   @@map("documents")
+}
+
+model MapUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  phone        String?  @unique
+  firstName    String?
+  lastName     String?
+  name         String
+  avatarUrl    String?
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  identities  MapOAuthIdentity[]
+  suggestions MapRestaurantSuggestion[]
+  reviews     MapRestaurantReview[]
+  resetTokens MapPasswordResetToken[]
+
+  @@map("map_users")
+}
+
+model MapOAuthIdentity {
+  id             String          @id @default(cuid())
+  provider       MapAuthProvider
+  providerUserId String
+  mapUserId      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  mapUser MapUser @relation(fields: [mapUserId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@unique([provider, mapUserId])
+  @@map("map_oauth_identities")
+}
+
+model MapRestaurantSuggestion {
+  id                    String              @id @default(cuid())
+  type                  MapSuggestionType
+  status                MapSuggestionStatus @default(pending)
+  restaurantId          String?
+  mapUserId             String
+  proposedName          String?
+  proposedAddress       String?
+  proposedCity          String?
+  proposedHechsher      String?
+  proposedKashrutStatus String?
+  proposedLat           Float?
+  proposedLng           Float?
+  notes                 String?
+  reviewerNote          String?
+  reviewedAt            DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  mapUser    MapUser     @relation(fields: [mapUserId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+
+  @@index([mapUserId])
+  @@index([restaurantId])
+  @@index([status])
+  @@map("map_restaurant_suggestions")
+}
+
+model MapRestaurantReview {
+  id           String   @id @default(cuid())
+  restaurantId String
+  mapUserId    String
+  rating       Int
+  text         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  mapUser    MapUser    @relation(fields: [mapUserId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, mapUserId])
+  @@index([restaurantId])
+  @@index([mapUserId])
+  @@map("map_restaurant_reviews")
+}
+
+model MapPasswordResetToken {
+  id        String                  @id @default(cuid())
+  mapUserId String
+  channel   MapPasswordResetChannel
+  tokenHash String                  @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime                @default(now())
+
+  mapUser MapUser @relation(fields: [mapUserId], references: [id], onDelete: Cascade)
+
+  @@index([mapUserId])
+  @@index([expiresAt])
+  @@map("map_password_reset_tokens")
 }

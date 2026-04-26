@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react'
 import {
   Box, AppBar, Toolbar, Typography,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
-  Fab, Tooltip,
+  Fab, Tooltip, Avatar, Menu, MenuItem,
 } from '@mui/material'
 import TuneIcon        from '@mui/icons-material/Tune'
 import MapIcon         from '@mui/icons-material/Map'
@@ -9,9 +10,15 @@ import ListIcon        from '@mui/icons-material/List'
 import MyLocationIcon  from '@mui/icons-material/MyLocation'
 import EditLocationIcon from '@mui/icons-material/EditLocation'
 import MenuBookIcon    from '@mui/icons-material/MenuBook'
+import AddBusinessIcon from '@mui/icons-material/AddBusiness'
+import PersonIcon      from '@mui/icons-material/Person'
+import LogoutIcon      from '@mui/icons-material/Logout'
 import DarkModeIcon    from '@mui/icons-material/DarkMode'
 import LightModeIcon   from '@mui/icons-material/LightMode'
 
+import { AuthDialog }             from '@/components/auth/AuthDialog'
+import { LegalNotice }            from '@/components/community/LegalNotice'
+import { SuggestionDialog }       from '@/components/community/SuggestionDialog'
 import { MapView }               from '@/components/map/MapView'
 import { RestaurantListView }    from '@/components/list/RestaurantListView'
 import { FilterPanel }           from '@/components/filters/FilterPanel'
@@ -19,7 +26,11 @@ import { RestaurantDetailSheet } from '@/components/filters/RestaurantDetailShee
 import { RoutePanel }            from '@/components/filters/RoutePanel'
 import { LocationCorrector }     from '@/components/location/LocationCorrector'
 import { useMapController }      from '@/controllers/useMapController'
+import { useGetMapMeQuery }      from '@/store/api/mapCommunityApi'
+import { clearCredentials, setUser } from '@/store/mapAuthSlice'
+import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import type { ThemeMode } from '@/theme'
+import type { MapRestaurant } from '@/types'
 
 interface Props {
   themeMode: ThemeMode
@@ -28,6 +39,37 @@ interface Props {
 
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const ctrl = useMapController()
+  const dispatch = useAppDispatch()
+  const user = useAppSelector(state => state.mapAuth.user)
+  const token = useAppSelector(state => state.mapAuth.token)
+  const { data: freshUser, isError: authExpired } = useGetMapMeQuery(undefined, { skip: !token })
+  const [authOpen, setAuthOpen] = useState(false)
+  const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null)
+  const [suggestionOpen, setSuggestionOpen] = useState(false)
+  const [suggestionRestaurant, setSuggestionRestaurant] = useState<MapRestaurant | null>(null)
+
+  const openAddSuggestion = () => {
+    setSuggestionRestaurant(null)
+    setSuggestionOpen(true)
+  }
+
+  const openEditSuggestion = (restaurant: MapRestaurant) => {
+    setSuggestionRestaurant(restaurant)
+    setSuggestionOpen(true)
+  }
+
+  const logout = () => {
+    dispatch(clearCredentials())
+    setAccountAnchor(null)
+  }
+
+  useEffect(() => {
+    if (freshUser) dispatch(setUser(freshUser))
+  }, [dispatch, freshUser])
+
+  useEffect(() => {
+    if (authExpired) dispatch(clearCredentials())
+  }, [authExpired, dispatch])
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -36,9 +78,15 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
       <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', zIndex: 1200 }}>
         <Toolbar sx={{ gap: 1 }}>
           <MenuBookIcon sx={{ color: 'primary.main', mr: 0.5 }} />
-          <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ flexGrow: 1, letterSpacing: 0 }}>
+          <Typography variant="h6" fontWeight={800} color="primary.main" noWrap sx={{ flexGrow: 1, minWidth: 0, letterSpacing: 0 }}>
             KashrutMap
           </Typography>
+
+          <Tooltip title="Предложить заведение">
+            <IconButton onClick={openAddSuggestion} sx={{ color: 'text.secondary' }}>
+              <AddBusinessIcon />
+            </IconButton>
+          </Tooltip>
 
           <Tooltip title={themeMode === 'light' ? 'Тёмная тема' : 'Светлая тема'}>
             <IconButton onClick={onToggleThemeMode} sx={{ color: 'text.secondary' }}>
@@ -69,8 +117,39 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               </Badge>
             </IconButton>
           </Tooltip>
+
+          {user ? (
+            <>
+              <Tooltip title={user.name}>
+                <IconButton onClick={(event) => setAccountAnchor(event.currentTarget)} sx={{ p: 0.5 }}>
+                  <Avatar src={user.avatarUrl ?? undefined} sx={{ width: 30, height: 30, bgcolor: 'primary.main', fontSize: 14 }}>
+                    {user.name.slice(0, 1).toUpperCase()}
+                  </Avatar>
+                </IconButton>
+              </Tooltip>
+              <Menu
+                anchorEl={accountAnchor}
+                open={Boolean(accountAnchor)}
+                onClose={() => setAccountAnchor(null)}
+              >
+                <MenuItem disabled>{user.name}</MenuItem>
+                <MenuItem onClick={logout}>
+                  <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+                  Выйти
+                </MenuItem>
+              </Menu>
+            </>
+          ) : (
+            <Tooltip title="Войти">
+              <IconButton onClick={() => setAuthOpen(true)} sx={{ color: 'text.secondary' }}>
+                <PersonIcon />
+              </IconButton>
+            </Tooltip>
+          )}
         </Toolbar>
       </AppBar>
+
+      <LegalNotice />
 
       {/* ── Content ── */}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
@@ -182,7 +261,10 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         hasLocation={!!ctrl.geo.position}
         onClose={() => ctrl.setSelected(null)}
         onStartRoute={ctrl.startRoute}
+        onSuggestEdit={openEditSuggestion}
+        onRequireAuth={() => setAuthOpen(true)}
         formatDist={ctrl.formatDist}
+        user={user}
       />
 
       {/* ── Filter drawer ── */}
@@ -198,6 +280,15 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         onSetCity={ctrl.setCity}
         onSetRadius={ctrl.setRadius}
         onReset={ctrl.resetFilters}
+      />
+
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
+      <SuggestionDialog
+        open={suggestionOpen}
+        restaurant={suggestionRestaurant}
+        isAuthenticated={Boolean(user)}
+        onClose={() => setSuggestionOpen(false)}
+        onRequireAuth={() => setAuthOpen(true)}
       />
     </Box>
   )
