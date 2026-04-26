@@ -18,8 +18,8 @@ export const TYPE_COLOR: Record<InspectionType, string> = {
 }
 
 export const RESULT_COLOR: Record<InspectionResult, string> = {
-  pending: '#888888',
-  open:    '#F39C12',
+  pending: '#9A9AB0',
+  open:    '#3498DB',
   pass:    '#2ECC71',
   fail:    '#E74C3C',
 }
@@ -38,5 +38,4 @@ export const DOC_CAT_COLOR: Record<DocumentCategory, string> = {
   Pesach:       '#E8C96D',
 }
 
-// Alias for components
 export const DOCUMENT_CATEGORY_COLOR = DOC_CAT_COLOR

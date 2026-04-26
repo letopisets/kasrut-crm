@@ -3,14 +3,13 @@ import jwt from 'jsonwebtoken'
 import { env } from '../config/env'
 import { usersRepo } from '../db/users.repo'
 import { serializeUser } from '../serializers/user.serializer'
+import { validate } from '../lib/validate'
+import { loginSchema } from '../schemas'
 
 export const authController = {
   async login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { email, password } = req.body as { email?: string; password?: string }
-      if (!email || !password) {
-        res.status(400).json({ error: 'Email and password required' }); return
-      }
+      const { email, password } = validate(loginSchema, req.body)
       const user = await usersRepo.findByEmail(email)
       if (!user || !usersRepo.verifyPassword(user, password)) {
         res.status(401).json({ error: 'Invalid credentials' }); return

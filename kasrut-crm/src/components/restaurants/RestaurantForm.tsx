@@ -6,7 +6,10 @@ import { useCreateRestaurantMutation, useUpdateRestaurantMutation } from '@/stor
 import { useAuthStore }  from '@/store/useAuthStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
-import { Modal, Input, Button } from '@/components/ui'
+import { Modal, Input } from '@/components/ui'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import CircularProgress from '@mui/material/CircularProgress'
 import type { Restaurant } from '@/types'
 
 const CITIES = ['Jerusalem', 'Haifa', 'Tel Aviv', 'Tzfat', 'Tiberias', 'Bnei Brak', 'Other']
@@ -27,7 +30,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const [createMutation, { isLoading: creating }] = useCreateRestaurantMutation()
   const [updateMutation, { isLoading: updating }] = useUpdateRestaurantMutation()
 
-  const isEdit   = !!initial
+  const isEdit    = !!initial
   const isLoading = creating || updating
 
   const [form, setForm] = useState({
@@ -70,7 +73,6 @@ export function RestaurantForm({ initial, onClose }: Props) {
     onClose()
   }
 
-  // Filter hechsherim/mashgichim by selected rabbanutId
   const filteredHechsherim = perm.isOwner
     ? hechsherim.filter(h => !form.rabbanutId || h.rabbanutId === form.rabbanutId)
     : hechsherim
@@ -82,7 +84,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const mashgiachOptions = filteredMashgichim.map(m => ({ value: m.id, label: m.name }))
   const rabbanutOptions  = rabbanuts.map(r => ({ value: r.id, label: r.name }))
 
-  const title = isEdit ? (t.addRest?.editTitle ?? 'Edit Restaurant') : t.addRest.title
+  const title = isEdit ? 'Edit Restaurant' : t.addRest.title
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -104,12 +106,19 @@ export function RestaurantForm({ initial, onClose }: Props) {
       <Input label={t.addRest.expires}   value={form.expires}     onChange={v => set('expires', v)} type="date" />
       <Input label={t.addRest.notes}     value={form.notes}       onChange={v => set('notes', v)} placeholder="..." />
 
-      <div className="form-actions">
-        <Button onClick={() => void handleSave()} disabled={!canSave || isLoading}>
-          {isLoading ? '…' : t.addRest.save}
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+        <Button
+          variant="contained"
+          onClick={() => void handleSave()}
+          disabled={!canSave || isLoading}
+          disableElevation
+        >
+          {isLoading ? <CircularProgress size={16} color="inherit" /> : t.addRest.save}
         </Button>
-        <Button variant="secondary" onClick={onClose}>{t.addRest.cancel}</Button>
-      </div>
+        <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
+          {t.addRest.cancel}
+        </Button>
+      </Box>
     </Modal>
   )
 }

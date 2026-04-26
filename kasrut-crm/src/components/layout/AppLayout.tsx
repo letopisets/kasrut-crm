@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/useAuthStore'
 import { useLangStore } from '@/store/useLangStore'
 import { Header } from './Header'
 import { RoleBanner } from './RoleBanner'
+import Box from '@mui/material/Box'
 
 export default function AppLayout() {
   const user = useAuthStore(s => s.user)
@@ -11,12 +12,21 @@ export default function AppLayout() {
   if (!user) return <Navigate to="/login" replace />
 
   return (
-    <div dir={lang === 'he' ? 'rtl' : 'ltr'} className="app-layout">
+    <Box
+      dir={lang === 'he' ? 'rtl' : 'ltr'}
+      sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}
+    >
       <Header />
       <RoleBanner />
-      <main className="app-main">
+      <Box
+        component="main"
+        sx={{
+          flex: 1,
+          p: { xs: '12px 10px', sm: '14px 14px', md: '20px 20px', lg: '26px 32px' },
+        }}
+      >
         <Outlet />
-      </main>
-    </div>
+      </Box>
+    </Box>
   )
 }

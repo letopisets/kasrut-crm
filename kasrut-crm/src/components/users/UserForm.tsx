@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useLang } from '@/i18n/useLang'
-import { Modal, Input, Button } from '@/components/ui'
+import { Modal, Input } from '@/components/ui'
 import type { Role } from '@/types'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 
 const ROLES: Role[] = ['owner', 'rabbanut', 'mashgiach']
 
@@ -52,9 +54,9 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
 
   return (
     <Modal title={t.users?.add ?? 'Add User'} onClose={onClose}>
-      <Input label={t.mashgichim?.name ?? 'Full Name'} value={form.name}  onChange={v => set('name', v)} />
-      <Input label={t.mashgichim?.email ?? 'Email'}    value={form.email} onChange={v => set('email', v)} type="email" />
-      <Input label="Password"                          value={form.password} onChange={v => set('password', v)} type="password" />
+      <Input label={t.mashgichim?.name  ?? 'Full Name'} value={form.name}     onChange={v => set('name', v)} />
+      <Input label={t.mashgichim?.email ?? 'Email'}     value={form.email}    onChange={v => set('email', v)} type="email" />
+      <Input label="Password"                           value={form.password} onChange={v => set('password', v)} type="password" />
       <Input
         label={t.users?.role ?? 'Role'}
         value={form.role}
@@ -69,14 +71,14 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
           options={rabbanutOptions}
         />
       )}
-      <div className="form-actions">
-        <Button onClick={handleSave} disabled={!form.name || !form.email || !form.password}>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.email || !form.password} disableElevation>
           {t.addRest?.save ?? 'Save'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>
+        <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
           {t.addRest?.cancel ?? 'Cancel'}
         </Button>
-      </div>
+      </Box>
     </Modal>
   )
 }

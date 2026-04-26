@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useLang } from '@/i18n/useLang'
-import { Modal, Input, Button } from '@/components/ui'
+import { Modal, Input } from '@/components/ui'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import type { Mashgiach } from '@/types'
 
 interface SelectOption { value: string; label: string }
@@ -19,25 +21,19 @@ export function MashgiachForm({ hechsherOptions, initial, onSave, onClose }: Pro
   const user = useAuthStore(s => s.user)
 
   const [form, setForm] = useState({
-    name:        initial?.name        ?? '',
-    phone:       initial?.phone       ?? '',
-    email:       initial?.email       ?? '',
-    area:        initial?.area        ?? '',
+    name:          initial?.name          ?? '',
+    phone:         initial?.phone         ?? '',
+    email:         initial?.email         ?? '',
+    area:          initial?.area          ?? '',
     hechsherimIds: initial?.hechsherimIds ?? [] as string[],
-    active:      initial?.active      ?? true,
-    rabbanutId:  initial?.rabbanutId  ?? user?.rabbanutId ?? 'rb1',
+    active:        initial?.active        ?? true,
+    rabbanutId:    initial?.rabbanutId    ?? user?.rabbanutId ?? 'rb1',
   })
 
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
-  const handleSave = () => {
-    if (!form.name || !form.phone) return
-    onSave(form)
-  }
-
-  const isEdit  = !!initial
-  const title   = isEdit ? 'Edit Mashgiach' : (t.mashgichim?.addTitle ?? 'Add Mashgiach')
+  const title = initial ? 'Edit Mashgiach' : (t.mashgichim?.addTitle ?? 'Add Mashgiach')
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -51,12 +47,14 @@ export function MashgiachForm({ hechsherOptions, initial, onSave, onClose }: Pro
         onChange={v => set('hechsherimIds', v ? [v] : [])}
         options={hechsherOptions}
       />
-      <div className="form-actions">
-        <Button onClick={handleSave} disabled={!form.name || !form.phone}>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+        <Button variant="contained" onClick={() => onSave(form)} disabled={!form.name || !form.phone} disableElevation>
           {t.addRest?.save ?? 'Save'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>{t.addRest?.cancel ?? 'Cancel'}</Button>
-      </div>
+        <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
+          {t.addRest?.cancel ?? 'Cancel'}
+        </Button>
+      </Box>
     </Modal>
   )
 }

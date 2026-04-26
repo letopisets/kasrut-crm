@@ -1,5 +1,6 @@
 import type { Mashgiach, Hechsher } from '@/types'
 import { MashgiachCard } from './MashgiachCard'
+import Grid from '@mui/material/Grid'
 
 interface Props {
   mashgichim:  Mashgiach[]
@@ -12,18 +13,19 @@ interface Props {
 
 export function MashgiachGrid({ mashgichim, hechsherim, canEdit, onToggle, onDelete, onEdit }: Props) {
   return (
-    <div className="mashgiach-grid">
+    <Grid container spacing={1.75}>
       {mashgichim.map(m => (
-        <MashgiachCard
-          key={m.id}
-          mashgiach={m}
-          hechsherim={hechsherim.filter(h => m.hechsherimIds.includes(h.id))}
-          canEdit={canEdit}
-          onToggle={onToggle}
-          onDelete={onDelete}
-          onEdit={onEdit}
-        />
+        <Grid key={m.id} size={{ xs: 12, md: 6, xl: 4 }}>
+          <MashgiachCard
+            mashgiach={m}
+            hechsherim={hechsherim.filter(h => m.hechsherimIds.includes(h.id))}
+            canEdit={canEdit}
+            onToggle={onToggle}
+            onDelete={onDelete}
+            onEdit={onEdit}
+          />
+        </Grid>
       ))}
-    </div>
+    </Grid>
   )
 }

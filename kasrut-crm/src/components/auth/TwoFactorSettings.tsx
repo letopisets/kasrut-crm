@@ -1,11 +1,21 @@
 import { useState } from 'react'
 import { useAuthController } from '@/controllers/useAuthController'
 import { useLang } from '@/i18n/useLang'
+import { alpha } from '@mui/material/styles'
+import Box from '@mui/material/Box'
+import Paper from '@mui/material/Paper'
+import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
+import IconButton from '@mui/material/IconButton'
+import TextField from '@mui/material/TextField'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
+import CloseIcon from '@mui/icons-material/Close'
+import LockOpenIcon from '@mui/icons-material/LockOpen'
+import LockIcon from '@mui/icons-material/Lock'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 
-interface Props {
-  onClose: () => void
-}
-
+interface Props { onClose: () => void }
 type Step = 'status' | 'setup' | 'disable'
 
 export function TwoFactorSettings({ onClose }: Props) {
@@ -27,8 +37,7 @@ export function TwoFactorSettings({ onClose }: Props) {
       const data = await setup2fa()
       setQrDataUrl(data.qrDataUrl)
       setSecret(data.secret)
-      setCode('')
-      setCodeError('')
+      setCode(''); setCodeError('')
       setStep('setup')
     } catch { /* handled by RTK */ }
   }
@@ -40,15 +49,7 @@ export function TwoFactorSettings({ onClose }: Props) {
       await enable2fa(code)
       setSuccess(true)
       setTimeout(onClose, 1200)
-    } catch {
-      setCodeError(tf?.codeMustBe6 ?? 'Invalid code')
-    }
-  }
-
-  const handleDisableStep = () => {
-    setCode('')
-    setCodeError('')
-    setStep('disable')
+    } catch { setCodeError(tf?.codeMustBe6 ?? 'Invalid code') }
   }
 
   const handleDisable = async () => {
@@ -58,147 +59,149 @@ export function TwoFactorSettings({ onClose }: Props) {
       await disable2fa(code)
       setSuccess(true)
       setTimeout(onClose, 1200)
-    } catch {
-      setCodeError(tf?.codeMustBe6 ?? 'Invalid code')
-    }
+    } catch { setCodeError(tf?.codeMustBe6 ?? 'Invalid code') }
   }
+
+  const OtpInput = ({ autoFocus = false }: { autoFocus?: boolean }) => (
+    <TextField
+      fullWidth
+      value={code}
+      onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+      onKeyDown={e => e.key === 'Enter' && void (step === 'setup' ? handleEnable() : handleDisable())}
+      inputProps={{
+        inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
+        style: { fontSize: 24, fontWeight: 700, letterSpacing: 10, textAlign: 'center', padding: '12px 14px' },
+      }}
+      placeholder={tf?.codePlaceholder ?? '000000'}
+      autoFocus={autoFocus}
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          '& fieldset': { borderWidth: 2, borderColor: '#252840' },
+          '&.Mui-focused fieldset': { borderColor: '#E8C96D' },
+        },
+        '& input::placeholder': { letterSpacing: 8, fontSize: 20, color: '#50526A' },
+      }}
+    />
+  )
 
   if (success) {
     return (
-      <div className="tf-modal">
-        <div className="tf-success">✓</div>
-      </div>
+      <Paper sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
+        <CheckCircleIcon sx={{ fontSize: 48, color: '#2ECC71' }} />
+      </Paper>
     )
   }
 
+  const Header = ({ title }: { title: string }) => (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.primary' }}>{title}</Typography>
+      <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+    </Box>
+  )
+
   if (step === 'setup') {
     return (
-      <div className="tf-modal">
-        <div className="tf-modal-header">
-          <h3>{tf?.setupTitle ?? 'Set up 2FA'}</h3>
-          <button className="btn-ghost" onClick={onClose}>✕</button>
-        </div>
-
-        <p className="tf-instruction">{tf?.setupInstruction}</p>
-
+      <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Header title={tf?.setupTitle ?? 'Set up 2FA'} />
+        <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.5 }}>
+          {tf?.setupInstruction}
+        </Typography>
         {qrDataUrl && (
-          <div className="tf-qr-wrapper">
-            <img src={qrDataUrl} alt="QR Code" className="tf-qr" />
-          </div>
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 1, background: '#fff', borderRadius: 1.5 }}>
+            <Box component="img" src={qrDataUrl} alt="QR" sx={{ width: 180, height: 180 }} />
+          </Box>
         )}
-
         {secret && (
-          <div className="tf-secret-row">
-            <span className="tf-secret-label">{tf?.manualSecret ?? 'Manual key:'}</span>
-            <code className="tf-secret-code">{secret}</code>
-          </div>
+          <Box>
+            <Typography sx={{ fontSize: 11, color: '#50526A', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.5 }}>
+              {tf?.manualSecret ?? 'Manual key:'}
+            </Typography>
+            <Box sx={{
+              fontFamily: 'monospace', fontSize: 12, color: 'text.secondary',
+              background: '#1E2235', borderRadius: 1, p: '6px 10px', wordBreak: 'break-all',
+            }}>
+              {secret}
+            </Box>
+          </Box>
         )}
-
-        <input
-          className="totp-input"
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={6}
-          placeholder={tf?.codePlaceholder ?? '000000'}
-          value={code}
-          onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-          onKeyDown={e => e.key === 'Enter' && void handleEnable()}
-          autoFocus
-        />
-
-        {codeError && <p className="totp-error">{codeError}</p>}
-
-        <div className="tf-actions">
-          <button
-            className="btn-primary"
+        <OtpInput autoFocus />
+        {codeError && <Alert severity="error" sx={{ fontSize: 12 }}>{codeError}</Alert>}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Button
+            variant="contained"
             onClick={() => void handleEnable()}
             disabled={enableLoading || code.length !== 6}
           >
-            {enableLoading ? '...' : (tf?.enableBtn ?? 'Enable 2FA')}
-          </button>
-          <button className="btn-ghost" onClick={() => setStep('status')}>
+            {enableLoading ? <CircularProgress size={16} color="inherit" /> : (tf?.enableBtn ?? 'Enable 2FA')}
+          </Button>
+          <Button variant="text" sx={{ color: 'text.secondary' }} onClick={() => setStep('status')}>
             {tf?.backToLogin ?? '← Back'}
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Box>
+      </Paper>
     )
   }
 
   if (step === 'disable') {
     return (
-      <div className="tf-modal">
-        <div className="tf-modal-header">
-          <h3>{tf?.disableTitle ?? 'Disable 2FA'}</h3>
-          <button className="btn-ghost" onClick={onClose}>✕</button>
-        </div>
-
-        <p className="tf-instruction">{tf?.disableInstruction}</p>
-
-        <input
-          className="totp-input"
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={6}
-          placeholder={tf?.codePlaceholder ?? '000000'}
-          value={code}
-          onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-          onKeyDown={e => e.key === 'Enter' && void handleDisable()}
-          autoFocus
-        />
-
-        {codeError && <p className="totp-error">{codeError}</p>}
-
-        <div className="tf-actions">
-          <button
-            className="btn-danger"
+      <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Header title={tf?.disableTitle ?? 'Disable 2FA'} />
+        <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.5 }}>
+          {tf?.disableInstruction}
+        </Typography>
+        <OtpInput autoFocus />
+        {codeError && <Alert severity="error" sx={{ fontSize: 12 }}>{codeError}</Alert>}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Button
+            variant="outlined"
+            color="error"
             onClick={() => void handleDisable()}
             disabled={disableLoading || code.length !== 6}
           >
-            {disableLoading ? '...' : (tf?.disableBtn ?? 'Disable 2FA')}
-          </button>
-          <button className="btn-ghost" onClick={() => setStep('status')}>
+            {disableLoading ? <CircularProgress size={16} color="inherit" /> : (tf?.disableBtn ?? 'Disable 2FA')}
+          </Button>
+          <Button variant="text" sx={{ color: 'text.secondary' }} onClick={() => setStep('status')}>
             {tf?.backToLogin ?? '← Back'}
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Box>
+      </Paper>
     )
   }
 
-  // status step
   return (
-    <div className="tf-modal">
-      <div className="tf-modal-header">
-        <h3>{tf?.settingsTitle ?? 'Two-Factor Authentication'}</h3>
-        <button className="btn-ghost" onClick={onClose}>✕</button>
-      </div>
-
-      <div className="tf-status-row">
-        <span className={isEnabled ? 'tf-status tf-status--on' : 'tf-status tf-status--off'}>
-          {isEnabled ? '🔒' : '🔓'}
-        </span>
-        <span className="tf-status-text">
+    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Header title={tf?.settingsTitle ?? 'Two-Factor Authentication'} />
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        p: '12px 14px', background: '#1E2235', borderRadius: 1.5,
+      }}>
+        {isEnabled
+          ? <LockIcon sx={{ color: '#2ECC71', fontSize: 22 }} />
+          : <LockOpenIcon sx={{ color: '#50526A', fontSize: 22, opacity: 0.5 }} />}
+        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
           {isEnabled ? (tf?.enabled ?? '2FA is enabled') : (tf?.disabled ?? '2FA is disabled')}
-        </span>
-      </div>
-
-      <div className="tf-actions">
+        </Typography>
+      </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {!isEnabled && (
-          <button
-            className="btn-primary"
+          <Button
+            variant="contained"
             onClick={() => void handleSetup()}
             disabled={setupLoading}
           >
-            {setupLoading ? '...' : (tf?.enableBtn ?? 'Enable 2FA')}
-          </button>
+            {setupLoading ? <CircularProgress size={16} color="inherit" /> : (tf?.enableBtn ?? 'Enable 2FA')}
+          </Button>
         )}
         {isEnabled && (
-          <button className="btn-danger" onClick={handleDisableStep}>
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => { setCode(''); setCodeError(''); setStep('disable') }}
+          >
             {tf?.disableBtn ?? 'Disable 2FA'}
-          </button>
+          </Button>
         )}
-      </div>
-    </div>
+      </Box>
+    </Paper>
   )
 }

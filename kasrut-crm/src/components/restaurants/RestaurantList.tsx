@@ -1,5 +1,6 @@
 import type { Restaurant, Hechsher, Mashgiach, Rabbanut } from '@/types'
 import { RestaurantCard } from './RestaurantCard'
+import Grid from '@mui/material/Grid'
 
 interface Props {
   restaurants: Restaurant[]
@@ -13,19 +14,20 @@ interface Props {
 
 export function RestaurantList({ restaurants, hechsherim, mashgichim, rabbanuts, canEdit, onEdit, onDelete }: Props) {
   return (
-    <div className="restaurant-grid">
+    <Grid container spacing={1.75}>
       {restaurants.map(r => (
-        <RestaurantCard
-          key={r.id}
-          restaurant={r}
-          hechsherim={hechsherim}
-          mashgichim={mashgichim}
-          rabbanuts={rabbanuts}
-          canEdit={canEdit}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
+        <Grid key={r.id} size={{ xs: 12, md: 6, xl: 4 }}>
+          <RestaurantCard
+            restaurant={r}
+            hechsherim={hechsherim}
+            mashgichim={mashgichim}
+            rabbanuts={rabbanuts}
+            canEdit={canEdit}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        </Grid>
       ))}
-    </div>
+    </Grid>
   )
 }

@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import { documentsRepo } from '../db/documents.repo'
 import { serializeDocument, serializeDocuments } from '../serializers/document.serializer'
+import { validate } from '../lib/validate'
+import { createDocumentSchema } from '../schemas'
 
 export const documentController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -20,7 +22,8 @@ export const documentController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const d = await documentsRepo.create(req.body)
+      const body = validate(createDocumentSchema, req.body)
+      const d = await documentsRepo.create(body)
       res.status(201).json(serializeDocument(d))
     } catch (e) { next(e) }
   },

@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import { inspectionsRepo } from '../db/inspections.repo'
 import { serializeInspection, serializeInspections } from '../serializers/inspection.serializer'
-import type { InspectionResult } from '../models/types'
+import { validate } from '../lib/validate'
+import { createInspectionSchema, updateInspectionSchema } from '../schemas'
 
 export const inspectionController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -27,14 +28,15 @@ export const inspectionController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const i = await inspectionsRepo.create(req.body)
+      const body = validate(createInspectionSchema, req.body)
+      const i = await inspectionsRepo.create(body)
       res.status(201).json(serializeInspection(i))
     } catch (e) { next(e) }
   },
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const body = req.body as { result?: InspectionResult } & Record<string, unknown>
+      const body = validate(updateInspectionSchema, req.body)
       const i = body.result !== undefined
         ? await inspectionsRepo.setResult(req.params.id, body.result)
         : await inspectionsRepo.update(req.params.id, body)
