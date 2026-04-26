@@ -1,10 +1,16 @@
 import { Router } from 'express'
 import { mapController } from '../controllers/map.controller'
+import { authenticateMapJWT } from '../middleware/mapAuth'
 
 const router = Router()
 
 // Public — no auth required
 // GET /api/map/restaurants?city=ירושלים&hechsher=בד"ץ העדה החרדית&foodType=meat,dairy
 router.get('/restaurants', mapController.listRestaurants)
+router.get('/restaurants/:restaurantId/reviews', mapController.listReviews)
+
+// Community actions — public users authenticated via Google/Apple
+router.post('/suggestions', authenticateMapJWT, mapController.createSuggestion)
+router.post('/restaurants/:restaurantId/reviews', authenticateMapJWT, mapController.upsertReview)
 
 export default router

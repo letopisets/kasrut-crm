@@ -6,7 +6,7 @@ import { PrismaPg }     from '@prisma/adapter-pg'
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma  = new PrismaClient({ adapter })
 
-const HASH = bcrypt.hashSync('password', 8)
+const HASH = bcrypt.hashSync('password', 12)
 
 async function main() {
   // ── Wipe in dependency order ───────────────────────────────────────────────

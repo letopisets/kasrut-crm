@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kashrutcrm_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kashrutcrm_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: kasrut-api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-kashrutcrm_db}?schema=public"
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      CORS_ORIGINS: "http://localhost,http://map.localhost,http://crm.localhost,http://localhost:${NGINX_PORT:-8080},http://map.localhost:${NGINX_PORT:-8080},http://crm.localhost:${NGINX_PORT:-8080}"
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      SEED_DB: ${SEED_DB:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kasrut-map:
+    build:
+      context: .
+      dockerfile: kasrut-map/Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_APPLE_REDIRECT_URI: ${VITE_APPLE_REDIRECT_URI:-http://localhost:8080/}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  kasrut-crm:
+    build:
+      context: .
+      dockerfile: kasrut-crm/Dockerfile
+      args:
+        VITE_API_URL: /api
+    depends_on:
+      api:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      kasrut-map:
+        condition: service_started
+      kasrut-crm:
+        condition: service_started
+      api:
+        condition: service_healthy
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  postgres-data:
+  redis-data:

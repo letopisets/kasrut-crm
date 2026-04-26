@@ -43,7 +43,7 @@ export const usersRepo = {
       data: {
         name:         input.name,
         email:        input.email.toLowerCase(),
-        passwordHash: bcrypt.hashSync(input.password, 8),
+        passwordHash: bcrypt.hashSync(input.password, 12),
         role:         input.role,
         rabbanutId:   input.rabbanutId,
       },

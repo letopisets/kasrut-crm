@@ -7,6 +7,10 @@ export type InspectionResult = 'pending' | 'open' | 'pass' | 'fail'
 export type InspectionType   = 'planned' | 'urgent'
 export type DocumentCategory = 'Instructions' | 'Forms' | 'Regulations' | 'Pesach'
 export type DocExt = 'PDF' | 'DOCX' | 'XLSX'
+export type MapAuthProvider = 'google' | 'apple'
+export type MapSuggestionType = 'add' | 'update'
+export type MapSuggestionStatus = 'pending' | 'approved' | 'rejected'
+export type MapPasswordResetChannel = 'email' | 'phone'
 
 export interface User {
   id:               string
@@ -100,4 +104,13 @@ export interface JWTPayload {
   rabbanutId?:string
   iat:        number
   exp:        number
+}
+
+export interface MapJWTPayload {
+  sub:   string   // map_users.id
+  typ:   'map_user'
+  name:  string
+  email: string
+  iat:   number
+  exp:   number
 }

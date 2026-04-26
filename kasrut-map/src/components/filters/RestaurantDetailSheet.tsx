@@ -4,10 +4,12 @@ import {
 } from '@mui/material'
 import CloseIcon       from '@mui/icons-material/Close'
 import DirectionsIcon  from '@mui/icons-material/Directions'
+import EditIcon        from '@mui/icons-material/Edit'
 import PhoneIcon       from '@mui/icons-material/Phone'
 import AccessTimeIcon  from '@mui/icons-material/AccessTime'
 import PlaceIcon       from '@mui/icons-material/Place'
-import type { MapRestaurant } from '@/types'
+import { ReviewsPanel } from '@/components/community/ReviewsPanel'
+import type { MapRestaurant, MapUser } from '@/types'
 import { FOOD_TYPE_LABEL, FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_LABEL, KASHRUT_COLOR } from '@/lib/constants'
 
 interface Props {
@@ -15,10 +17,22 @@ interface Props {
   hasLocation:  boolean
   onClose:      () => void
   onStartRoute: (r: MapRestaurant) => void
+  onSuggestEdit:(r: MapRestaurant) => void
+  onRequireAuth:() => void
   formatDist:   (m: number) => string
+  user:         MapUser | null
 }
 
-export function RestaurantDetailSheet({ restaurant: r, hasLocation, onClose, onStartRoute, formatDist }: Props) {
+export function RestaurantDetailSheet({
+  restaurant: r,
+  hasLocation,
+  onClose,
+  onStartRoute,
+  onSuggestEdit,
+  onRequireAuth,
+  formatDist,
+  user,
+}: Props) {
   return (
     <SwipeableDrawer
       anchor="bottom"
@@ -28,9 +42,9 @@ export function RestaurantDetailSheet({ restaurant: r, hasLocation, onClose, onS
       disableSwipeToOpen
       PaperProps={{
         sx: {
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          maxHeight: '60vh',
+          borderTopLeftRadius: 8,
+          borderTopRightRadius: 8,
+          maxHeight: '82vh',
           p: 0,
         },
       }}
@@ -119,10 +133,28 @@ export function RestaurantDetailSheet({ restaurant: r, hasLocation, onClose, onS
             startIcon={<DirectionsIcon />}
             disabled={!hasLocation}
             onClick={() => onStartRoute(r)}
-            sx={{ borderRadius: 3, fontWeight: 700, py: 1.25 }}
+            sx={{ borderRadius: 1, fontWeight: 700, py: 1.25 }}
           >
             {hasLocation ? 'Построить маршрут' : 'Включите геолокацию'}
           </Button>
+
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<EditIcon />}
+            onClick={() => onSuggestEdit(r)}
+            sx={{ borderRadius: 1, mt: 1 }}
+          >
+            Предложить правку
+          </Button>
+
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+            Перед заказом проверьте действующую теудат кашрут непосредственно в заведении.
+          </Typography>
+
+          <Divider sx={{ my: 2.5 }} />
+
+          <ReviewsPanel restaurantId={r.id} user={user} onRequireAuth={onRequireAuth} />
         </Box>
       )}
     </SwipeableDrawer>
