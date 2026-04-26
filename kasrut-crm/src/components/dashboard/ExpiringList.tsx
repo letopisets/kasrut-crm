@@ -6,7 +6,10 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge, HechsherTag } from '@/components/ui'
 import { daysUntil } from '@/lib/daysUntil'
-import { STATUS_COLOR } from '@/lib/statusColor'
+import { STATUS_COLORS } from '@/theme'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Paper from '@mui/material/Paper'
 
 export function ExpiringList() {
   const navigate    = useNavigate()
@@ -19,10 +22,12 @@ export function ExpiringList() {
   const expiring = restaurants.filter(r => r.status !== 'ok')
 
   return (
-    <div className="card">
-      <div className="list-widget-title" style={{ color: 'var(--gold)' }}>{t.expiring}</div>
+    <Paper sx={{ p: 2.75, border: '1px solid #252840' }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 1.75, color: '#E8C96D' }}>{t.expiring}</Typography>
 
-      {expiring.length === 0 && <div className="list-empty">—</div>}
+      {expiring.length === 0 && (
+        <Typography sx={{ fontSize: 12, color: 'text.disabled', py: 1.75 }}>—</Typography>
+      )}
 
       {expiring.map(r => {
         const hechsher = hechsherim.find(h => h.id === r.hechsherId)
@@ -30,20 +35,31 @@ export function ExpiringList() {
         const days     = daysUntil(r.expires)
 
         return (
-          <div key={r.id} className="list-item" onClick={() => navigate('/restaurants')}>
-            <div>
-              <div className="list-item-name">{r.name}</div>
-              <div className="list-item-sub">
+          <Box
+            key={r.id}
+            onClick={() => navigate('/restaurants')}
+            sx={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              py: 1, borderBottom: '1px solid #1C1F32', cursor: 'pointer',
+              '&:last-child': { borderBottom: 'none' },
+            }}
+          >
+            <Box>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{r.name}</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625, mt: 0.25 }}>
                 {hechsher && <HechsherTag hechsher={hechsher} small />}
                 {perm.isOwner && rabbanut && (
                   <Badge label={rabbanut.city} color={rabbanut.color} small />
                 )}
-              </div>
-            </div>
-            <Badge label={days <= 0 ? t.today : `${days} ${t.days}`} color={STATUS_COLOR[r.status]} />
-          </div>
+              </Box>
+            </Box>
+            <Badge
+              label={days <= 0 ? t.today : `${days} ${t.days}`}
+              color={STATUS_COLORS[r.status]}
+            />
+          </Box>
         )
       })}
-    </div>
+    </Paper>
   )
 }

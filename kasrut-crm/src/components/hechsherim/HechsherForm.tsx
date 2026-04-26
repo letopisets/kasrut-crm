@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useLang } from '@/i18n/useLang'
-import { Modal, Input, Button } from '@/components/ui'
+import { Modal, Input } from '@/components/ui'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import type { Hechsher, HechsherType } from '@/types'
 
 const HECHSHER_TYPES: HechsherType[] = ['Rabbanut', 'Badatz', 'Mehadrin', 'Private']
@@ -43,26 +45,18 @@ export function HechsherForm({ rabbanutOptions, onSave, onClose }: Props) {
       <Input label={t.hechsherim?.contact   ?? 'Contact'}    value={form.contact}   onChange={v => set('contact', v)} />
       <Input label={t.hechsherim?.phone     ?? 'Phone'}      value={form.phone}     onChange={v => set('phone', v)} />
       <Input label={t.hechsherim?.email     ?? 'Email'}      value={form.email}     onChange={v => set('email', v)} />
-      <Input
-        label={t.hechsherim?.type ?? 'Type'}
-        value={form.type}
-        onChange={v => set('type', v as HechsherType)}
-        options={typeOptions}
-      />
+      <Input label={t.hechsherim?.type ?? 'Type'} value={form.type} onChange={v => set('type', v as HechsherType)} options={typeOptions} />
       {rabbanutOptions.length > 1 && (
-        <Input
-          label={t.hechsherim?.rabbanut ?? 'Rabbanut'}
-          value={form.rabbanutId}
-          onChange={v => set('rabbanutId', v)}
-          options={rabbanutOptions}
-        />
+        <Input label="Rabbanut" value={form.rabbanutId} onChange={v => set('rabbanutId', v)} options={rabbanutOptions} />
       )}
-      <div className="form-actions">
-        <Button onClick={handleSave} disabled={!form.name || !form.shortName || !form.type}>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.shortName || !form.type} disableElevation>
           {t.addRest?.save ?? 'Save'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>{t.addRest?.cancel ?? 'Cancel'}</Button>
-      </div>
+        <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
+          {t.addRest?.cancel ?? 'Cancel'}
+        </Button>
+      </Box>
     </Modal>
   )
 }

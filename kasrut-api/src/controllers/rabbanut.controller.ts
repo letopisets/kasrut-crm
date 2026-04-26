@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import { rabbanutRepo } from '../db/rabbanuts.repo'
 import { serializeRabbanut, serializeRabbanuts } from '../serializers/rabbanut.serializer'
+import { validate } from '../lib/validate'
+import { createRabbanutSchema, updateRabbanutSchema } from '../schemas'
 
 export const rabbanutController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -21,14 +23,16 @@ export const rabbanutController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const r = await rabbanutRepo.create(req.body)
+      const body = validate(createRabbanutSchema, req.body)
+      const r = await rabbanutRepo.create(body)
       res.status(201).json(serializeRabbanut(r))
     } catch (e) { next(e) }
   },
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const r = await rabbanutRepo.update(req.params.id, req.body)
+      const body = validate(updateRabbanutSchema, req.body)
+      const r = await rabbanutRepo.update(req.params.id, body)
       if (!r) { res.status(404).json({ error: 'Not found' }); return }
       res.json(serializeRabbanut(r))
     } catch (e) { next(e) }

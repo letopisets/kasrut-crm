@@ -2,6 +2,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useRestaurantStore } from '@/store/useRestaurantStore'
 import { useLang } from '@/i18n/useLang'
 import { RestaurantDetailContent } from '@/components/restaurants/RestaurantDetail'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
 export default function RestaurantDetail() {
   const { id }     = useParams()
@@ -11,23 +14,23 @@ export default function RestaurantDetail() {
 
   if (!restaurant) {
     return (
-      <div className="empty-state">
-        —{' '}
-        <button onClick={() => navigate('/restaurants')} className="btn-ghost">{t.back}</button>
-      </div>
+      <Box sx={{ textAlign: 'center', py: 8, color: 'text.disabled', fontSize: 13 }}>
+        — <Button size="small" onClick={() => navigate('/restaurants')} sx={{ color: 'text.secondary' }}>{t.back}</Button>
+      </Box>
     )
   }
 
   return (
-    <div>
-      <button
+    <Box>
+      <Button
+        startIcon={<ArrowBackIcon />}
         onClick={() => navigate('/restaurants')}
-        className="btn-ghost"
-        style={{ marginBottom: 16, display: 'inline-block' }}
+        size="small"
+        sx={{ color: 'text.secondary', mb: 2 }}
       >
         {t.back}
-      </button>
+      </Button>
       <RestaurantDetailContent restaurant={restaurant} />
-    </div>
+    </Box>
   )
 }

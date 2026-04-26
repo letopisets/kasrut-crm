@@ -3,7 +3,10 @@ import { useRestaurantStore } from '@/store/useRestaurantStore'
 import { useMashgiachStore } from '@/store/useMashgiachStore'
 import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
-import { TYPE_COLOR } from '@/lib/statusColor'
+import { TYPE_COLORS } from '@/theme'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Paper from '@mui/material/Paper'
 
 export function UpcomingInspections() {
   const t           = useLang()
@@ -12,10 +15,12 @@ export function UpcomingInspections() {
   const mashgichim  = useMashgiachStore(s => s.mashgichim)
 
   return (
-    <div className="card">
-      <div className="list-widget-title" style={{ color: 'var(--role-rabbanut)' }}>{t.upcoming}</div>
+    <Paper sx={{ p: 2.75, border: '1px solid #252840' }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 1.75, color: '#3498DB' }}>{t.upcoming}</Typography>
 
-      {inspections.length === 0 && <div className="list-empty">—</div>}
+      {inspections.length === 0 && (
+        <Typography sx={{ fontSize: 12, color: 'text.disabled', py: 1.75 }}>—</Typography>
+      )}
 
       {inspections.map(ins => {
         const rest      = restaurants.find(r => r.id === ins.restaurantId)
@@ -23,15 +28,22 @@ export function UpcomingInspections() {
         const dateLabel = ins.date.slice(5).replace('-', '/')
 
         return (
-          <div key={ins.id} className="list-item">
-            <div>
-              <div className="list-item-name">{rest?.name ?? '—'}</div>
-              <div className="list-item-sub">{mashgiach?.name ?? '—'}</div>
-            </div>
-            <Badge label={dateLabel} color={TYPE_COLOR[ins.type]} small />
-          </div>
+          <Box
+            key={ins.id}
+            sx={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              py: 1, borderBottom: '1px solid #1C1F32',
+              '&:last-child': { borderBottom: 'none' },
+            }}
+          >
+            <Box>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{rest?.name ?? '—'}</Typography>
+              <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.25 }}>{mashgiach?.name ?? '—'}</Typography>
+            </Box>
+            <Badge label={dateLabel} color={TYPE_COLORS[ins.type]} small />
+          </Box>
         )
       })}
-    </div>
+    </Paper>
   )
 }

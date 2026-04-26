@@ -8,7 +8,11 @@ import { Badge } from '@/components/ui'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { ExpiringList } from '@/components/dashboard/ExpiringList'
 import { UpcomingInspections } from '@/components/dashboard/UpcomingInspections'
-import { STATUS_COLOR, ROLE_COLOR } from '@/lib/statusColor'
+import { STATUS_COLORS, ROLE_COLORS } from '@/theme'
+import { alpha } from '@mui/material/styles'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Grid from '@mui/material/Grid'
 
 export default function Dashboard() {
   const t           = useLang()
@@ -19,62 +23,72 @@ export default function Dashboard() {
   const rabbanuts   = useRabbanutStore(s => s.rabbanuts)
 
   const stats = [
-    { icon: '✓',  value: scopedRests.filter(r => r.status === 'ok').length,  color: STATUS_COLOR.ok,       label: t.stats[0], sub: t.statsSub[0] },
-    { icon: '⏳', value: scopedRests.filter(r => r.status !== 'ok').length,  color: STATUS_COLOR.warning,  label: t.stats[1], sub: t.statsSub[1] },
-    { icon: '🔍', value: scopedInsps.length,                                  color: ROLE_COLOR.rabbanut,   label: t.stats[2], sub: t.statsSub[2] },
-    { icon: '📄', value: 7,                                                    color: STATUS_COLOR.critical, label: t.stats[3], sub: t.statsSub[3] },
+    { icon: '✓',  value: scopedRests.filter(r => r.status === 'ok').length,  color: STATUS_COLORS.ok,       label: t.stats[0], sub: t.statsSub[0] },
+    { icon: '⏳', value: scopedRests.filter(r => r.status !== 'ok').length,  color: STATUS_COLORS.warning,  label: t.stats[1], sub: t.statsSub[1] },
+    { icon: '🔍', value: scopedInsps.length,                                  color: ROLE_COLORS.rabbanut,   label: t.stats[2], sub: t.statsSub[2] },
+    { icon: '📄', value: 7,                                                    color: STATUS_COLORS.critical, label: t.stats[3], sub: t.statsSub[3] },
   ]
 
   return (
-    <div>
-      <div className="dashboard-head">
-        <h2 className="page-title">{t.dashboard.title}</h2>
-        <p className="page-sub">{t.dashboard.sub}</p>
-      </div>
+    <Box>
+      <Box sx={{ mb: 2.5 }}>
+        <Typography variant="h2" sx={{ fontSize: { xs: 16, sm: 18, lg: 21 }, fontWeight: 700, letterSpacing: '-0.3px' }}>
+          {t.dashboard.title}
+        </Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: 12, mt: 0.5 }}>{t.dashboard.sub}</Typography>
+      </Box>
 
       {perm.isOwner && (
-        <div className="rabbanut-grid">
+        <Grid container spacing={1.5} sx={{ mb: 2 }}>
           {rabbanuts.map(rb => {
             const rbRests = allRests.filter(r => r.rabbanutId === rb.id)
             const rbCrit  = rbRests.filter(r => r.status !== 'ok').length
             return (
-              <div
-                key={rb.id}
-                className="rabbanut-card"
-                style={{ '--c': rb.color } as React.CSSProperties}
-              >
-                <div className="rabbanut-card-info">
-                  <div className="rabbanut-card-name">{rb.name}</div>
-                  <div className="rabbanut-card-sub">{rb.city} · {rbRests.length} est.</div>
-                </div>
-                <div className="rabbanut-card-right">
-                  <Badge
-                    label={rb.active ? t.rabbanuts.active : t.rabbanuts.inactive}
-                    color={rb.active ? STATUS_COLOR.ok : '#666'}
-                    small
-                  />
-                  {rbCrit > 0 && (
-                    <div className="rabbanut-card-crit">
-                      <Badge label={`${rbCrit} ⚠`} color={STATUS_COLOR.critical} small />
-                    </div>
-                  )}
-                </div>
-              </div>
+              <Grid key={rb.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+                <Box sx={{
+                  background: '#161929',
+                  border: `1px solid ${alpha(rb.color, 0.14)}`,
+                  borderRadius: 2.5, px: 2, py: 1.75,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{rb.name}</Typography>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.25 }}>
+                      {rb.city} · {rbRests.length} est.
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5, flexShrink: 0 }}>
+                    <Badge
+                      label={rb.active ? t.rabbanuts.active : t.rabbanuts.inactive}
+                      color={rb.active ? STATUS_COLORS.ok : '#666'}
+                      small
+                    />
+                    {rbCrit > 0 && <Badge label={`${rbCrit} ⚠`} color={STATUS_COLORS.critical} small />}
+                  </Box>
+                </Box>
+              </Grid>
             )
           })}
-        </div>
+        </Grid>
       )}
 
-      <div className="stats-grid">
+      <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
         {stats.map((s, i) => (
-          <StatCard key={i} icon={s.icon} value={s.value} label={s.label} sub={s.sub} color={s.color} />
+          <Grid key={i} size={{ xs: 6, lg: 3 }}>
+            <StatCard icon={s.icon} value={s.value} label={s.label} sub={s.sub} color={s.color} />
+          </Grid>
         ))}
-      </div>
+      </Grid>
 
-      <div className="bottom-grid">
-        <ExpiringList />
-        <UpcomingInspections />
-      </div>
-    </div>
+      <Grid container spacing={1.75}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <ExpiringList />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <UpcomingInspections />
+        </Grid>
+      </Grid>
+    </Box>
   )
 }

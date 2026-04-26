@@ -8,13 +8,13 @@ import { errorHandler } from './middleware/errorHandler'
 export function createApp() {
   const app = express()
 
-  // Security
+  // Security headers
   app.use(helmet())
   app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }))
 
-  // Body parsing
-  app.use(express.json())
-  app.use(express.urlencoded({ extended: false }))
+  // Body parsing with explicit size limits
+  app.use(express.json({ limit: '512kb' }))
+  app.use(express.urlencoded({ extended: false, limit: '512kb' }))
 
   // Health check
   app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))

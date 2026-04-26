@@ -3,7 +3,11 @@ import { useRabbanutStore } from '@/store/useRabbanutStore'
 import { useMashgiachStore } from '@/store/useMashgiachStore'
 import { useRestaurantStore } from '@/store/useRestaurantStore'
 import { useLang } from '@/i18n/useLang'
-import { ROLE_COLOR } from '@/lib/statusColor'
+import { ROLE_COLORS } from '@/theme'
+import { alpha } from '@mui/material/styles'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
 
 export function RoleBanner() {
   const role              = useAuthStore(s => s.role)
@@ -15,7 +19,7 @@ export function RoleBanner() {
   const mashgichim  = useMashgiachStore(s => s.mashgichim)
   const restaurants = useRestaurantStore(s => s.restaurants)
   const t           = useLang()
-  const rc          = ROLE_COLOR[role]
+  const rc          = ROLE_COLORS[role]
 
   const myRabbanut  = rabbanuts.find(rb => rb.id === user?.rabbanutId)
   const myMashgiach = mashgichim.find(m => m.id === user?.id)
@@ -24,52 +28,94 @@ export function RoleBanner() {
     : 0
 
   return (
-    <div className="role-banner" style={{ '--c': rc } as React.CSSProperties}>
-
-      <div className="role-banner-info" style={{ color: rc }}>
-        <span className="role-banner-name">{t.roles[role]}</span>
-        <span className="role-banner-dot">·</span>
-        <span className="role-banner-desc">{t.roleDesc[role]}</span>
+    <Box
+      sx={{
+        px: { xs: '14px', md: '18px', lg: '32px' },
+        py: '6px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 0.75,
+        minHeight: 34,
+        flexShrink: 0,
+        background: alpha(rc, 0.03),
+        borderBottom: `1px solid ${alpha(rc, 0.09)}`,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11, color: rc }}>
+        <Typography component="span" sx={{ fontWeight: 700, fontSize: 11, color: rc }}>{t.roles[role]}</Typography>
+        <Typography component="span" sx={{ color: 'text.disabled', fontSize: 11 }}>·</Typography>
+        <Typography component="span" sx={{ color: 'text.secondary', fontSize: 11 }}>{t.roleDesc[role]}</Typography>
 
         {role === 'rabbanut' && myRabbanut && (
           <>
-            <span className="role-banner-dot">·</span>
-            <span className="role-banner-extra">{myRabbanut.name}</span>
+            <Typography component="span" sx={{ color: 'text.disabled', fontSize: 11 }}>·</Typography>
+            <Typography component="span" sx={{ fontSize: 11, color: rc }}>{myRabbanut.name}</Typography>
           </>
         )}
 
         {role === 'mashgiach' && myMashgiach && (
           <>
-            <span className="role-banner-dot">·</span>
-            <span className="role-banner-extra">
+            <Typography component="span" sx={{ color: 'text.disabled', fontSize: 11 }}>·</Typography>
+            <Typography component="span" sx={{ fontSize: 11, color: rc }}>
               {myMashgiach.name} · {t.myEstablishments}: {myRestCount}
-            </span>
+            </Typography>
           </>
         )}
-      </div>
+      </Box>
 
       {role === 'owner' && (
-        <div className="role-banner-filters">
-          <span className="role-banner-label">{t.allRabbanuts}:</span>
-          <button
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary', mr: 0.5 }}>{t.allRabbanuts}:</Typography>
+          <FilterTab
+            active={rabbanutFilter === ''}
+            color={rc}
             onClick={() => setRabbanutFilter('')}
-            className={rabbanutFilter === '' ? 'filter-tab filter-tab--active' : 'filter-tab'}
-            style={rabbanutFilter === '' ? { '--c': rc } as React.CSSProperties : undefined}
           >
             All
-          </button>
+          </FilterTab>
           {rabbanuts.map(rb => (
-            <button
+            <FilterTab
               key={rb.id}
+              active={rabbanutFilter === rb.id}
+              color={rb.color}
               onClick={() => setRabbanutFilter(rb.id)}
-              className={rabbanutFilter === rb.id ? 'filter-tab filter-tab--active' : 'filter-tab'}
-              style={rabbanutFilter === rb.id ? { '--c': rb.color } as React.CSSProperties : undefined}
             >
               {rb.city}
-            </button>
+            </FilterTab>
           ))}
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
+  )
+}
+
+function FilterTab({ children, active, color, onClick }: {
+  children: React.ReactNode
+  active: boolean
+  color: string
+  onClick: () => void
+}) {
+  return (
+    <Button
+      onClick={onClick}
+      sx={{
+        minWidth: 0,
+        px: 1.25, py: '3px',
+        fontSize: '0.6875rem',
+        fontWeight: active ? 700 : 500,
+        color: active ? color : '#50526A',
+        background: active ? alpha(color, 0.09) : 'transparent',
+        border: '1px solid',
+        borderColor: active ? alpha(color, 0.25) : 'transparent',
+        borderRadius: '5px',
+        textTransform: 'none',
+        lineHeight: 1.5,
+        '&:hover': { color: '#9A9AB0' },
+      }}
+    >
+      {children}
+    </Button>
   )
 }

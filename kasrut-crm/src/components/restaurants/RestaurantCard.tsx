@@ -3,7 +3,14 @@ import type { Restaurant, Hechsher, Mashgiach, Rabbanut } from '@/types'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge, HechsherTag } from '@/components/ui'
-import { STATUS_COLOR } from '@/lib/statusColor'
+import { STATUS_COLORS } from '@/theme'
+import { alpha } from '@mui/material/styles'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
+import EditIcon from '@mui/icons-material/Edit'
+import CloseIcon from '@mui/icons-material/Close'
 
 interface Props {
   restaurant: Restaurant
@@ -22,60 +29,99 @@ export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanut
   const hechsher  = hechsherim.find(h => h.id === r.hechsherId)
   const mashgiach = mashgichim.find(m => m.id === r.mashgiachId)
   const rabbanut  = rabbanuts.find(rb => rb.id === r.rabbanutId)
+  const sc        = STATUS_COLORS[r.status]
 
   return (
-    <div
+    <Box
       onClick={() => navigate(`/restaurants/${r.id}`)}
-      className="restaurant-card"
-      style={{ '--c': STATUS_COLOR[r.status] } as React.CSSProperties}
+      sx={{
+        background: '#161929',
+        border: `1px solid #252840`,
+        borderTop: `3px solid ${sc}`,
+        borderRadius: 2.5,
+        p: 2.25,
+        cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', gap: 1.5,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          background: '#1E2235',
+          borderColor: '#353858',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+          transform: 'translateY(-2px)',
+        },
+      }}
     >
-      <div className="rest-card-header">
-        <div className="rest-card-name-wrap">
-          <div className="rest-card-name">{r.name}</div>
-          <div className="rest-card-address">{r.address}, {r.city}</div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Badge label={t.status[r.status]} color={STATUS_COLOR[r.status]} small />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {r.name}
+          </Typography>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
+            {r.address}, {r.city}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          <Badge label={t.status[r.status]} color={sc} small />
           {canEdit && (
             <>
-              <button
-                className="mashgiach-edit"
-                onClick={e => { e.stopPropagation(); onEdit(r) }}
-                title="Edit"
-              >✎</button>
-              <button
-                className="btn-ghost--danger"
-                onClick={e => { e.stopPropagation(); onDelete(r.id) }}
-                title="Delete"
-              >✕</button>
+              <Tooltip title="Edit">
+                <IconButton
+                  size="small"
+                  onClick={e => { e.stopPropagation(); onEdit(r) }}
+                  sx={{ color: '#50526A', '&:hover': { color: '#9A9AB0' } }}
+                >
+                  <EditIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Delete">
+                <IconButton
+                  size="small"
+                  onClick={e => { e.stopPropagation(); onDelete(r.id) }}
+                  sx={{ color: alpha('#E74C3C', 0.6), '&:hover': { color: '#E74C3C' } }}
+                >
+                  <CloseIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
             </>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      <div className="rest-card-tags">
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minHeight: 22 }}>
         {hechsher
           ? <HechsherTag hechsher={hechsher} small />
-          : <span className="rest-card-no-tag">—</span>}
+          : <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>—</Typography>}
         {perm.isOwner && rabbanut && (
           <Badge label={rabbanut.city} color={rabbanut.color} small />
         )}
-      </div>
+      </Box>
 
-      <div className="card-info-grid">
-        <div>
-          <div className="card-info-label">{t.restaurants.cols.level}</div>
-          <div className="card-info-value">{r.level}</div>
-        </div>
-        <div>
-          <div className="card-info-label">{t.restaurants.cols.mashgiach}</div>
-          <div className="card-info-truncated">{mashgiach?.name ?? '—'}</div>
-        </div>
-        <div>
-          <div className="card-info-label">{t.restaurants.cols.expires}</div>
-          <div className="card-info-value" style={{ fontWeight: 400 }}>{r.expires}</div>
-        </div>
-      </div>
-    </div>
+      <Box sx={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 14px',
+        pt: 1.25, borderTop: '1px solid #1C1F32',
+      }}>
+        <Box>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase', mb: 0.25 }}>
+            {t.restaurants.cols.level}
+          </Typography>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>{r.level}</Typography>
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase', mb: 0.25 }}>
+            {t.restaurants.cols.mashgiach}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {mashgiach?.name ?? '—'}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase', mb: 0.25 }}>
+            {t.restaurants.cols.expires}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{r.expires}</Typography>
+        </Box>
+      </Box>
+    </Box>
   )
 }

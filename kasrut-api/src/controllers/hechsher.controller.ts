@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import { hechsherimRepo } from '../db/hechsherim.repo'
 import { serializeHechsher, serializeHechsherim } from '../serializers/hechsher.serializer'
+import { validate } from '../lib/validate'
+import { createHechsherSchema, updateHechsherSchema } from '../schemas'
 
 export const hechsherController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -21,14 +23,16 @@ export const hechsherController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const h = await hechsherimRepo.create(req.body)
+      const body = validate(createHechsherSchema, req.body)
+      const h = await hechsherimRepo.create(body)
       res.status(201).json(serializeHechsher(h))
     } catch (e) { next(e) }
   },
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const h = await hechsherimRepo.update(req.params.id, req.body)
+      const body = validate(updateHechsherSchema, req.body)
+      const h = await hechsherimRepo.update(req.params.id, body)
       if (!h) { res.status(404).json({ error: 'Not found' }); return }
       res.json(serializeHechsher(h))
     } catch (e) { next(e) }

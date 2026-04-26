@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useLang } from '@/i18n/useLang'
-import { Modal, Input, Button } from '@/components/ui'
+import { Modal, Input } from '@/components/ui'
 import type { KashrutDocument, DocumentCategory } from '@/types'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 
 const CATEGORIES: DocumentCategory[] = ['Instructions', 'Forms', 'Regulations', 'Pesach']
 const EXTS = ['PDF', 'DOCX', 'XLSX'] as const
@@ -35,29 +37,31 @@ export function DocumentUpload({ onSave, onClose }: Props) {
   const extOptions      = EXTS.map(e => ({ value: e, label: e }))
 
   return (
-    <Modal title={t.documents?.uploadTitle ?? 'Upload Document'} onClose={onClose}>
-      <Input label={t.documents?.name     ?? 'Name'}     value={form.name}     onChange={v => set('name', v)} />
+    <Modal title="Upload Document" onClose={onClose}>
+      <Input label="Name"     value={form.name}     onChange={v => set('name', v)} />
       <Input
-        label={t.documents?.category ?? 'Category'}
+        label="Category"
         value={form.category}
         onChange={v => set('category', v as DocumentCategory)}
         options={categoryOptions}
       />
       <Input
-        label={t.documents?.ext ?? 'Format'}
+        label="Format"
         value={form.ext}
         onChange={v => set('ext', v as typeof EXTS[number])}
         options={extOptions}
       />
-      <Input label={t.documents?.date ?? 'Date'} value={form.date} onChange={v => set('date', v)} type="date" />
-      <Input label={t.documents?.url  ?? 'URL'}  value={form.url}  onChange={v => set('url', v)} placeholder="https://..." />
+      <Input label="Date" value={form.date} onChange={v => set('date', v)} type="date" />
+      <Input label="URL"  value={form.url}  onChange={v => set('url', v)} />
 
-      <div className="form-actions">
-        <Button onClick={handleSave} disabled={!form.name || !form.category}>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.category} disableElevation>
           {t.addRest?.save ?? 'Save'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>{t.addRest?.cancel ?? 'Cancel'}</Button>
-      </div>
+        <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
+          {t.addRest?.cancel ?? 'Cancel'}
+        </Button>
+      </Box>
     </Modal>
   )
 }

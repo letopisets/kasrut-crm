@@ -3,7 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthController } from '@/controllers/useAuthController'
 import { useLangStore } from '@/store/useLangStore'
 import { useLang } from '@/i18n/useLang'
-import { ROLE_COLOR } from '@/lib/statusColor'
+import { ROLE_COLORS } from '@/theme'
+import { alpha } from '@mui/material/styles'
+import Box from '@mui/material/Box'
+import Paper from '@mui/material/Paper'
+import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
+import TextField from '@mui/material/TextField'
+import Select from '@mui/material/Select'
+import MenuItem from '@mui/material/MenuItem'
+import FormControl from '@mui/material/FormControl'
+import FormLabel from '@mui/material/FormLabel'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
+import InputLabel from '@mui/material/InputLabel'
 import type { Role } from '@/types'
 import type { Lang } from '@/store/useLangStore'
 
@@ -61,7 +74,7 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!email || !password) return
-    try { await login(email, password) } catch { /* error shown via RTK state */ }
+    try { await login(email, password) } catch { /* handled by RTK */ }
   }
 
   const handleVerify = async () => {
@@ -79,138 +92,268 @@ export default function Login() {
 
   const isRtl    = lang === 'he'
   const errMsg   = extractError(error)
-  const roleColor = ROLE_COLOR[role]
+  const rc       = ROLE_COLORS[role]
 
   const LangBar = () => (
-    <div className="login-lang">
+    <Box sx={{
+      position: 'absolute', top: 18,
+      right: isRtl ? 'auto' : 22,
+      left:  isRtl ? 22 : 'auto',
+      display: 'flex', gap: 0.375,
+    }}>
       {LANGS.map(l => (
-        <button
+        <Button
           key={l}
           onClick={() => setLang(l)}
-          className={lang === l ? 'filter-btn filter-btn--active' : 'filter-btn'}
-          style={lang === l ? { '--c': 'var(--gold)' } as React.CSSProperties : undefined}
+          size="small"
+          sx={{
+            minWidth: 0, px: 1.25, py: '5px',
+            fontSize: '0.75rem',
+            fontWeight: lang === l ? 700 : 500,
+            color: lang === l ? '#E8C96D' : '#50526A',
+            background: lang === l ? alpha('#E8C96D', 0.08) : 'transparent',
+            border: '1px solid',
+            borderColor: lang === l ? alpha('#E8C96D', 0.25) : '#252840',
+            borderRadius: 1,
+            '&:hover': { color: '#9A9AB0' },
+          }}
         >
           {l.toUpperCase()}
-        </button>
+        </Button>
       ))}
-    </div>
+    </Box>
   )
 
   const Logo = () => (
-    <div className="login-logo">
-      <div className="login-logo-brand">
-        <div className="login-logo-icon">כ</div>
-        <h1 className="login-logo-name">{t.appName}</h1>
-      </div>
-      <p className="login-logo-sub">{t.appSub}</p>
-    </div>
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25, mb: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
+        <Box sx={{
+          width: 60, height: 60, borderRadius: 2,
+          background: 'linear-gradient(135deg, #C9A84C, #E8C96D)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 28, fontWeight: 900, color: '#161929',
+          boxShadow: '0 4px 24px rgba(232,201,109,0.2)',
+        }}>
+          כ
+        </Box>
+        <Typography variant="h1" sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem' }, fontWeight: 800, color: '#E8C96D', lineHeight: 1.1 }}>
+          {t.appName}
+        </Typography>
+      </Box>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{t.appSub}</Typography>
+    </Box>
   )
 
-  // ── 2FA step ──────────────────────────────────────────────────
+  // ── 2FA step ─────────────────────────────────────────────────
   if (twoFactorPending) {
     return (
-      <div dir={isRtl ? 'rtl' : 'ltr'} className="login-page">
+      <Box
+        dir={isRtl ? 'rtl' : 'ltr'}
+        sx={{
+          minHeight: '100vh', bgcolor: 'background.default',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          color: 'text.primary', p: '48px 24px',
+          position: 'relative',
+        }}
+      >
         <LangBar />
         <Logo />
-        <div className="totp-card">
-          <div className="totp-card-icon">🔐</div>
-          <h2 className="totp-card-title">{tf?.title ?? 'Two-Factor Authentication'}</h2>
-          <p className="totp-card-sub">{tf?.subtitle ?? 'Enter the code from your authenticator app'}</p>
-          <input
-            className="totp-input"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={6}
-            placeholder={tf?.codePlaceholder ?? '000000'}
+
+        <Paper
+          sx={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            gap: 2, p: { xs: 3, sm: '40px 36px' },
+            maxWidth: 380, width: '100%',
+            border: '1px solid #252840',
+            borderRadius: 3.5,
+          }}
+        >
+          <Typography sx={{ fontSize: 40, lineHeight: 1 }}>🔐</Typography>
+          <Typography variant="h2" sx={{ fontSize: 20, fontWeight: 700, textAlign: 'center' }}>
+            {tf?.title ?? 'Two-Factor Authentication'}
+          </Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', textAlign: 'center' }}>
+            {tf?.subtitle ?? 'Enter the code from your authenticator app'}
+          </Typography>
+
+          <TextField
+            fullWidth
             value={totpCode}
             onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
             onKeyDown={e => e.key === 'Enter' && void handleVerify()}
+            inputProps={{
+              inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
+              style: {
+                fontSize: 28, fontWeight: 700, letterSpacing: 12,
+                textAlign: 'center', padding: '14px 16px',
+              },
+            }}
+            placeholder={tf?.codePlaceholder ?? '000000'}
             autoFocus
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': { borderWidth: 2, borderColor: '#252840' },
+                '&.Mui-focused fieldset': { borderColor: '#E8C96D' },
+              },
+              '& input::placeholder': { letterSpacing: 8, fontSize: 22, color: '#50526A' },
+            }}
           />
+
           {(totpError || error) && (
-            <p className="totp-error">{totpError || 'Invalid code'}</p>
+            <Alert severity="error" sx={{ width: '100%', fontSize: 12 }}>
+              {totpError || 'Invalid code'}
+            </Alert>
           )}
-          <button
-            className="btn-primary totp-verify-btn"
+
+          <Button
+            fullWidth
+            variant="contained"
             onClick={() => void handleVerify()}
             disabled={isLoading || totpCode.length !== 6}
+            sx={{ py: 1.5, fontSize: 15, fontWeight: 600 }}
           >
-            {isLoading ? '...' : (tf?.verifyBtn ?? 'Verify')}
-          </button>
-          <button className="btn-ghost totp-back-btn" onClick={cancelTwoFactor}>
+            {isLoading ? <CircularProgress size={18} color="inherit" /> : (tf?.verifyBtn ?? 'Verify')}
+          </Button>
+
+          <Button
+            variant="text"
+            onClick={cancelTwoFactor}
+            sx={{ color: 'text.secondary', fontSize: 13 }}
+          >
             {tf?.backToLogin ?? '← Back'}
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Paper>
+      </Box>
     )
   }
 
   // ── Main login form ────────────────────────────────────────────
   return (
-    <div dir={isRtl ? 'rtl' : 'ltr'} className="login-page">
+    <Box
+      dir={isRtl ? 'rtl' : 'ltr'}
+      sx={{
+        minHeight: '100vh', bgcolor: 'background.default',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        color: 'text.primary', p: { xs: '48px 16px', sm: '48px 24px' },
+        position: 'relative',
+      }}
+    >
       <LangBar />
       <Logo />
 
-      <div className="lf-card" style={{ '--c': roleColor } as React.CSSProperties}>
-        <h2 className="lf-title">{t.login?.title ?? 'Авторизация'}</h2>
+      <Paper
+        sx={{
+          width: '100%',
+          maxWidth: { xs: '90vw', sm: 480 },
+          display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2.5,
+          p: { xs: '20px 16px 24px', sm: '28px 32px' },
+          border: '1px solid',
+          borderColor: alpha(rc, 0.18),
+          borderTop: `3px solid ${rc}`,
+          borderRadius: 3.5,
+          transition: 'border-top-color 0.25s ease',
+        }}
+      >
+        <Typography variant="h2" sx={{ fontSize: 18, fontWeight: 700, textAlign: 'center', letterSpacing: '-0.2px' }}>
+          {t.login?.title ?? 'Авторизация'}
+        </Typography>
 
         {/* Role selector */}
-        <div className="lf-group">
-          <label className="lf-label">{t.login?.roleLabel ?? 'Выберите роль'}</label>
-          <div className="lf-select-wrap">
-            <select
-              className="lf-select"
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+          <FormControl fullWidth size="small">
+            <InputLabel sx={{ fontSize: '0.8125rem', color: '#50526A' }}>
+              {t.login?.roleLabel ?? 'Выберите роль'}
+            </InputLabel>
+            <Select
               value={role}
+              label={t.login?.roleLabel ?? 'Выберите роль'}
               onChange={e => handleRoleChange(e.target.value as Role)}
+              sx={{
+                background: '#1E2235',
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#252840' },
+                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#3A3D5A' },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: rc },
+              }}
             >
               {PROFILES.map(r => (
-                <option key={r} value={r}>{t.roles[r]}</option>
+                <MenuItem key={r} value={r}>{t.roles[r]}</MenuItem>
               ))}
-            </select>
-            <span className="lf-select-arrow">▾</span>
-          </div>
-          <p className="lf-role-desc" style={{ '--c': roleColor } as React.CSSProperties}>
+            </Select>
+          </FormControl>
+
+          <Box sx={{
+            fontSize: 12, color: rc,
+            background: alpha(rc, 0.08),
+            borderInlineStart: `2px solid ${rc}`,
+            borderRadius: '0 6px 6px 0',
+            px: 1.25, py: 0.75,
+            lineHeight: 1.5,
+            transition: 'color 0.25s, background 0.25s',
+          }}>
             {t.roleDesc[role]}
-          </p>
-        </div>
+          </Box>
+        </Box>
 
         {/* Email */}
-        <div className="lf-group">
-          <label className="lf-label">Email</label>
-          <input
-            className="lf-input"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && void handleLogin()}
-            autoComplete="email"
-          />
-        </div>
+        <TextField
+          fullWidth
+          label="Email"
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && void handleLogin()}
+          autoComplete="email"
+          sx={{
+            '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: rc },
+            '& .MuiInputLabel-root.Mui-focused': { color: rc },
+          }}
+        />
 
         {/* Password */}
-        <div className="lf-group">
-          <label className="lf-label">{t.login?.password ?? 'Пароль'}</label>
-          <input
-            className="lf-input"
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && void handleLogin()}
-            autoComplete="current-password"
-          />
-        </div>
+        <TextField
+          fullWidth
+          label={t.login?.password ?? 'Пароль'}
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && void handleLogin()}
+          autoComplete="current-password"
+          sx={{
+            '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: rc },
+            '& .MuiInputLabel-root.Mui-focused': { color: rc },
+          }}
+        />
 
-        {errMsg && <p className="lf-error">{errMsg}</p>}
+        {errMsg && <Alert severity="error">{errMsg}</Alert>}
 
-        <button
-          className="lf-btn"
+        <Button
+          fullWidth
+          variant="outlined"
           onClick={() => void handleLogin()}
           disabled={isLoading || !email || !password}
+          sx={{
+            py: 1.25,
+            fontSize: '1rem',
+            fontWeight: 700,
+            letterSpacing: '0.3px',
+            color: rc,
+            borderColor: alpha(rc, 0.3),
+            background: alpha(rc, 0.12),
+            borderRadius: 2,
+            '&:hover:not(:disabled)': {
+              background: alpha(rc, 0.22),
+              borderColor: alpha(rc, 0.5),
+            },
+            '&.Mui-disabled': { opacity: 0.45 },
+          }}
         >
-          {isLoading ? '...' : (t.login?.enterBtn ?? 'Войти')}
-        </button>
-      </div>
-    </div>
+          {isLoading
+            ? <CircularProgress size={18} sx={{ color: rc }} />
+            : (t.login?.enterBtn ?? 'Войти')}
+        </Button>
+      </Paper>
+    </Box>
   )
 }

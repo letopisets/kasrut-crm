@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import { usersRepo } from '../db/users.repo'
 import { serializeUser, serializeUsers } from '../serializers/user.serializer'
+import { validate } from '../lib/validate'
+import { createUserSchema, updateUserSchema } from '../schemas'
 import type { Role } from '../models/types'
 
 export const userController = {
@@ -21,14 +23,16 @@ export const userController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const u = await usersRepo.create(req.body)
+      const body = validate(createUserSchema, req.body)
+      const u = await usersRepo.create(body)
       res.status(201).json(serializeUser(u))
     } catch (e) { next(e) }
   },
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const u = await usersRepo.update(req.params.id, req.body)
+      const body = validate(updateUserSchema, req.body)
+      const u = await usersRepo.update(req.params.id, body)
       if (!u) { res.status(404).json({ error: 'Not found' }); return }
       res.json(serializeUser(u))
     } catch (e) { next(e) }

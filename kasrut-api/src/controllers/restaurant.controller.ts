@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from 'express'
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
 import { invalidatePattern } from '../lib/cache'
+import { validate } from '../lib/validate'
+import { createRestaurantSchema, updateRestaurantSchema } from '../schemas'
 
 const invalidateMapCache = () => invalidatePattern('map:restaurants:*')
 
@@ -30,7 +32,7 @@ export const restaurantController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const body = req.body as Parameters<typeof restaurantsRepo.create>[0]
+      const body = validate(createRestaurantSchema, req.body)
       if (req.user?.role === 'rabbanut' && body.rabbanutId !== req.user.rabbanutId) {
         res.status(403).json({ error: 'Forbidden' }); return
       }
@@ -42,7 +44,8 @@ export const restaurantController = {
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const r = await restaurantsRepo.update(req.params.id, req.body)
+      const body = validate(updateRestaurantSchema, req.body)
+      const r = await restaurantsRepo.update(req.params.id, body)
       if (!r) { res.status(404).json({ error: 'Not found' }); return }
       void invalidateMapCache()
       res.json(serializeRestaurant(r))

@@ -1,3 +1,6 @@
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
+
 export interface SelectOption {
   value: string
   label: string
@@ -13,33 +16,36 @@ interface InputProps {
 }
 
 export function Input({ label, value, onChange, type = 'text', options, placeholder }: InputProps) {
-  return (
-    <div className="input-group">
-      <label className="input-label">{label}</label>
+  if (options) {
+    return (
+      <TextField
+        select
+        fullWidth
+        size="small"
+        label={label}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      >
+        <MenuItem value=""><em>—</em></MenuItem>
+        {options.map(o => {
+          const val = typeof o === 'string' ? o : o.value
+          const lbl = typeof o === 'string' ? o : o.label
+          return <MenuItem key={val} value={val}>{lbl}</MenuItem>
+        })}
+      </TextField>
+    )
+  }
 
-      {options ? (
-        <select
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="input-field"
-          style={!value ? { color: 'var(--text-muted)', cursor: 'pointer' } : { cursor: 'pointer' }}
-        >
-          <option value="">—</option>
-          {options.map(o => {
-            const val = typeof o === 'string' ? o : o.value
-            const lbl = typeof o === 'string' ? o : o.label
-            return <option key={val} value={val}>{lbl}</option>
-          })}
-        </select>
-      ) : (
-        <input
-          type={type}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder ?? ''}
-          className="input-field"
-        />
-      )}
-    </div>
+  return (
+    <TextField
+      fullWidth
+      size="small"
+      label={label}
+      type={type}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      InputLabelProps={type === 'date' ? { shrink: true } : undefined}
+    />
   )
 }

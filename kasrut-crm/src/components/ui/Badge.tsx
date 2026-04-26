@@ -1,3 +1,4 @@
+import { alpha } from '@mui/material/styles'
 import type { Hechsher } from '@/types'
 
 interface BadgeProps {
@@ -9,8 +10,18 @@ interface BadgeProps {
 export function Badge({ label, color, small = false }: BadgeProps) {
   return (
     <span
-      className={small ? 'badge badge-sm' : 'badge'}
-      style={{ '--c': color } as React.CSSProperties}
+      style={{
+        display: 'inline-block',
+        background: alpha(color, 0.09),
+        color,
+        border: `1px solid ${alpha(color, 0.21)}`,
+        padding: small ? '2px 8px' : '3px 11px',
+        borderRadius: 20,
+        fontSize: small ? 10 : 11,
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+        lineHeight: 1.4,
+      }}
     >
       {label}
     </span>

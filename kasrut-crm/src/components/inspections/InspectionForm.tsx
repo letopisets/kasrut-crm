@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { useGetRestaurantsQuery }    from '@/store/api/restaurantsApi'
-import { useGetMashgichimQuery }     from '@/store/api/mashgichimApi'
+import { useGetRestaurantsQuery }      from '@/store/api/restaurantsApi'
+import { useGetMashgichimQuery }       from '@/store/api/mashgichimApi'
 import { useCreateInspectionMutation } from '@/store/api/inspectionsApi'
-import { useAuthStore } from '@/store/useAuthStore'
-import { useLang } from '@/i18n/useLang'
-import { Modal, Input, Button } from '@/components/ui'
+import { useAuthStore }  from '@/store/useAuthStore'
+import { useLang }       from '@/i18n/useLang'
+import { Modal, Input }  from '@/components/ui'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import CircularProgress from '@mui/material/CircularProgress'
 import type { InspectionType } from '@/types'
 
 interface Props { onClose: () => void }
@@ -20,10 +23,8 @@ export function InspectionForm({ onClose }: Props) {
   const [restaurantId, setRestaurantId] = useState('')
   const [date,         setDate]         = useState('')
   const [type,         setType]         = useState<InspectionType>('planned')
-  const [mashgiachId,  setMashgiachId]  = useState(
-    user?.role === 'mashgiach' ? user.id : ''
-  )
-  const [notes, setNotes] = useState('')
+  const [mashgiachId,  setMashgiachId]  = useState(user?.role === 'mashgiach' ? user.id : '')
+  const [notes,        setNotes]        = useState('')
 
   const canSave = !!(restaurantId && date && mashgiachId)
 
@@ -50,12 +51,14 @@ export function InspectionForm({ onClose }: Props) {
       )}
       <Input label={t.inspections.notes} value={notes} onChange={setNotes} />
 
-      <div className="form-actions">
-        <Button onClick={() => void handleSave()} disabled={!canSave || isLoading}>
-          {isLoading ? '…' : t.inspections.save}
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+        <Button variant="contained" onClick={() => void handleSave()} disabled={!canSave || isLoading} disableElevation>
+          {isLoading ? <CircularProgress size={16} color="inherit" /> : t.inspections.save}
         </Button>
-        <Button variant="secondary" onClick={onClose}>{t.inspections.cancel}</Button>
-      </div>
+        <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
+          {t.inspections.cancel}
+        </Button>
+      </Box>
     </Modal>
   )
 }
