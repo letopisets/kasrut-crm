@@ -1,14 +1,37 @@
-FROM node:22-alpine
+# syntax=docker/dockerfile:1
+
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
 
 WORKDIR /app/kasrut-api
 
 COPY kasrut-api/package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 COPY kasrut-api/ ./
 
-ENV DATABASE_URL="postgresql://postgres:postgres@postgres:5432/kashrutcrm_db?schema=public"
-RUN npx prisma generate && npm run build
+# prisma generate only reads the schema — placeholder URL is enough
+ENV DATABASE_URL="postgresql://x:x@x:5432/x"
+RUN npx prisma generate \
+ && npm run build \
+ && npx tsc -p tsconfig.seed.json
+
+# ── Stage 2: runtime (production deps only) ───────────────────────────────────
+FROM node:22-alpine AS runtime
+
+WORKDIR /app/kasrut-api
+
+COPY kasrut-api/package*.json   ./
+COPY kasrut-api/prisma          ./prisma
+COPY kasrut-api/prisma.config.ts ./
+
+ENV DATABASE_URL="postgresql://x:x@x:5432/x"
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev && npx prisma generate
+
+# Copy compiled application and seed from builder
+COPY --from=builder /app/kasrut-api/dist ./dist
 
 COPY docker/api-entrypoint.sh /usr/local/bin/api-entrypoint.sh
 RUN chmod +x /usr/local/bin/api-entrypoint.sh

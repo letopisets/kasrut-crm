@@ -75,14 +75,13 @@ export const updateHechsherSchema = createHechsherSchema.partial()
 
 // Mashgiach
 export const createMashgiachSchema = z.object({
-  name:                  z.string().min(1).max(100).trim(),
+  name:          z.string().min(1).max(100).trim(),
   phone,
   email,
-  area:                  z.string().max(100).trim(),
-  hechsherimIds:         z.array(id).default([]),
-  assignedRestaurantIds: z.array(id).default([]),
-  active:                z.boolean(),
-  rabbanutId:            id,
+  area:          z.string().max(100).trim(),
+  hechsherimIds: z.array(id),
+  active:        z.boolean(),
+  rabbanutId:    id,
 })
 export const updateMashgiachSchema  = createMashgiachSchema.partial()
 export const assignMashgiachSchema  = z.object({ restaurantId: id })

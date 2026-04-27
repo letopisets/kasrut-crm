@@ -3,6 +3,10 @@ import type { Hechsher } from '@/types'
 
 export const hechsherimApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
+    getHechsherById: build.query<Hechsher, string>({
+      query: (id) => `/hechsherim/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'Hechsher', id }],
+    }),
     getHechsherim: build.query<Hechsher[], { rabbanutId?: string; type?: string } | void>({
       query: (params) => {
         const q = new URLSearchParams()
@@ -31,6 +35,7 @@ export const hechsherimApi = baseApi.injectEndpoints({
 })
 
 export const {
+  useGetHechsherByIdQuery,
   useGetHechsherimQuery,
   useCreateHechsherMutation,
   useUpdateHechsherMutation,

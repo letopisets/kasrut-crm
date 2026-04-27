@@ -91,10 +91,15 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
                     {STEP_ICON[step.instruction.startsWith('Начните') ? 'depart' : step.instruction.startsWith('Вы') ? 'arrive' : 'turn'] ?? '⬆️'}
                   </Typography>
                   <ListItemText
-                    primary={step.instruction}
-                    secondary={step.distance > 0 ? formatDist(step.distance) : undefined}
-                    primaryTypographyProps={{ variant: 'body2', fontWeight: i === 0 || i === route.steps.length - 1 ? 600 : 400 }}
-                    secondaryTypographyProps={{ variant: 'caption', color: 'text.disabled' }}
+                    disableTypography
+                    primary={
+                      <Typography variant="body2" fontWeight={i === 0 || i === route.steps.length - 1 ? 600 : 400}>
+                        {step.instruction}
+                      </Typography>
+                    }
+                    secondary={step.distance > 0 ? (
+                      <Typography variant="caption" color="text.disabled">{formatDist(step.distance)}</Typography>
+                    ) : undefined}
                   />
                 </ListItem>
               ))}
