@@ -11,5 +11,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-Dockerfile
-docker-compose.override.yml
+docker-compose*.yml
+**/.DS_Store
+**/coverage
+**/.nyc_output
+**/__tests__
+**/*.test.ts
+**/*.spec.ts

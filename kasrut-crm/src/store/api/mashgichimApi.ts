@@ -5,6 +5,10 @@ type CreateInput = Omit<Mashgiach, 'id' | 'assignedRestaurantIds'>
 
 export const mashgichimApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
+    getMashgiachById: build.query<Mashgiach, string>({
+      query: (id) => `/mashgichim/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'Mashgiach', id }],
+    }),
     getMashgichim: build.query<Mashgiach[], { rabbanutId?: string; active?: boolean } | void>({
       query: (params) => {
         const q = new URLSearchParams()
@@ -37,6 +41,7 @@ export const mashgichimApi = baseApi.injectEndpoints({
 })
 
 export const {
+  useGetMashgiachByIdQuery,
   useGetMashgichimQuery,
   useCreateMashgiachMutation,
   useUpdateMashgiachMutation,

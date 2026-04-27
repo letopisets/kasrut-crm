@@ -3,6 +3,10 @@ import type { Rabbanut } from '@/types'
 
 export const rabbanutApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
+    getRabbanutById: build.query<Rabbanut, string>({
+      query: (id) => `/rabbanuts/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'Rabbanut', id }],
+    }),
     getRabbanuts: build.query<Rabbanut[], { active?: boolean } | void>({
       query: (params) => {
         const q = new URLSearchParams()
@@ -34,6 +38,7 @@ export const rabbanutApi = baseApi.injectEndpoints({
 })
 
 export const {
+  useGetRabbanutByIdQuery,
   useGetRabbanutsQuery,
   useCreateRabbanutMutation,
   useUpdateRabbanutMutation,

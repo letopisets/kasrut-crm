@@ -73,10 +73,17 @@ export function LocationCorrector({ onApply, onCancel }: Props) {
               {results.map(r => (
                 <ListItemButton key={r.place_id} onClick={() => handleSelect(r)} divider>
                   <ListItemText
-                    primary={r.display_name.split(',')[0]}
-                    secondary={r.display_name.split(',').slice(1, 3).join(',')}
-                    primaryTypographyProps={{ variant: 'body2', fontWeight: 600, noWrap: true }}
-                    secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
+                    disableTypography
+                    primary={
+                      <Typography variant="body2" fontWeight={600} noWrap>
+                        {r.display_name.split(',')[0]}
+                      </Typography>
+                    }
+                    secondary={
+                      <Typography variant="caption" noWrap>
+                        {r.display_name.split(',').slice(1, 3).join(',')}
+                      </Typography>
+                    }
                   />
                 </ListItemButton>
               ))}
