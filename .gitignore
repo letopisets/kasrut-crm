@@ -12,8 +12,10 @@ build/
 .env
 .env.local
 .env.production
+.env.hetzner
 kasrut-crm/.env
 kasrut-api/.env
+kasrut-map/.env
 
 # Prisma generated client (regenerated via prisma generate)
 kasrut-api/src/generated/
@@ -32,4 +34,6 @@ Thumbs.db
 
 # Test coverage
 coverage/
-.env
+
+# Runtime backups
+backups/

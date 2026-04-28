@@ -7,7 +7,7 @@ export interface Restaurant {
   city: string
   level: 'Regular' | 'Mehadrin'
   hechsherId: string
-  mashgiachId: string
+  mashgiachId?: string
   kitniyot: 'ללא חשש קטניות' | 'מכיל קטניות'
   expires: string       // ISO дата
   status: CertStatus

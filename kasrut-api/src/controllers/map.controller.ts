@@ -11,6 +11,8 @@ import {
 import { withCache }                from '../lib/cache'
 import type { KashrutLevel, MapFilter } from '../db/map.repo'
 
+const HECHSHERIM_CACHE_TTL = 600 // 10 minutes
+
 const CACHE_TTL = 300 // 5 minutes
 
 function parseCsv<T extends string>(value: string | undefined): T[] | undefined {
@@ -61,6 +63,15 @@ const reviewSchema = z.object({
 })
 
 export const mapController = {
+  async listHechsherim(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await withCache('map:hechsherim', HECHSHERIM_CACHE_TTL, () =>
+        mapRepo.findHechsherim()
+      )
+      res.json(data)
+    } catch (e) { next(e) }
+  },
+
   async listRestaurants(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const q = req.query as Record<string, string>

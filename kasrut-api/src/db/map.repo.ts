@@ -1,6 +1,12 @@
 import { prisma } from '../lib/prisma'
 import type { FoodType } from '../generated/prisma/client'
 
+export interface MapHechsherRow {
+  id:        string
+  name:      string
+  shortName: string
+}
+
 export type KashrutLevel = 'mehadrin' | 'badatz' | 'regular'
 
 export interface MapRestaurantRow {
@@ -32,6 +38,13 @@ export interface MapFilter {
 }
 
 export const mapRepo = {
+  async findHechsherim(): Promise<MapHechsherRow[]> {
+    return await prisma.hechsher.findMany({
+      select: { id: true, name: true, shortName: true },
+      orderBy: { name: 'asc' },
+    })
+  },
+
   async findForMap(filter: MapFilter): Promise<MapRestaurantRow[]> {
     const rows = await prisma.restaurant.findMany({
       where: {
