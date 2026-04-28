@@ -7,7 +7,7 @@ export const serializeRestaurant = (r: Restaurant) => ({
   city:           r.city,
   level:          r.level,
   hechsherId:     r.hechsherId,
-  mashgiachId:    r.mashgiachId,
+  mashgiachId:    r.mashgiachId ?? null,
   kitniyot:       r.kitniyot,
   expires:        r.expires,
   status:         r.status,

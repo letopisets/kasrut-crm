@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Alert, Button, Dialog, DialogActions, DialogContent,
+  Alert, Autocomplete, Button, Dialog, DialogActions, DialogContent,
   DialogTitle, Stack, TextField, Typography,
 } from '@mui/material'
 import { useSubmitSuggestionMutation } from '@/store/api/mapCommunityApi'
+import { useGetMapHechsherimQuery } from '@/store/api/restaurantsApi'
 import type { MapRestaurant, MapSuggestionPayload } from '@/types'
 
 interface Props {
@@ -31,6 +32,9 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitSuggestion, submitState] = useSubmitSuggestionMutation()
+
+  const { data: hechsherim = [] } = useGetMapHechsherimQuery()
+  const hechsherNames = useMemo(() => hechsherim.map(h => h.name), [hechsherim])
 
   const mode = restaurant ? 'update' : 'add'
   const title = mode === 'add' ? 'Предложить новое заведение' : 'Предложить правку'
@@ -125,13 +129,27 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
             required={mode === 'add'}
             fullWidth
           />
-          <TextField
-            label="Хекшер"
+
+          <Autocomplete
+            freeSolo
+            options={hechsherNames}
             value={hechsher}
-            onChange={(e) => setHechsher(e.target.value)}
-            placeholder="Например: בד״ץ העדה החרדית"
-            fullWidth
+            onInputChange={(_, value) => setHechsher(value)}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Кашрут (хекшер)"
+                placeholder="Выберите из списка или введите новый"
+                fullWidth
+                helperText={
+                  hechsher.trim() && !hechsherNames.includes(hechsher.trim())
+                    ? 'Новый кашрут — будет добавлен на проверку'
+                    : undefined
+                }
+              />
+            )}
           />
+
           <TextField
             label="Статус кашрута"
             value={kashrutStatus}

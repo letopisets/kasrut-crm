@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGetHechsherimQuery }  from '@/store/api/hechsherimApi'
+import { useGetHechsherimQuery, useCreateHechsherMutation } from '@/store/api/hechsherimApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
 import { useCreateRestaurantMutation, useUpdateRestaurantMutation } from '@/store/api/restaurantsApi'
@@ -7,10 +7,12 @@ import { useAuthStore }  from '@/store/useAuthStore'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
+import { HechsherForm } from '@/components/hechsherim/HechsherForm'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import type { Restaurant } from '@/types'
+import type { Hechsher } from '@/types'
 
 const CITIES = ['Jerusalem', 'Haifa', 'Tel Aviv', 'Tzfat', 'Tiberias', 'Bnei Brak', 'Other']
 
@@ -29,9 +31,12 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const { data: rabbanuts  = [] } = useGetRabbanutsQuery()
   const [createMutation, { isLoading: creating }] = useCreateRestaurantMutation()
   const [updateMutation, { isLoading: updating }] = useUpdateRestaurantMutation()
+  const [createHechsher] = useCreateHechsherMutation()
 
   const isEdit    = !!initial
   const isLoading = creating || updating
+
+  const [showAddHechsher, setShowAddHechsher] = useState(false)
 
   const [form, setForm] = useState({
     name:        initial?.name        ?? '',
@@ -59,7 +64,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
       city:        form.city,
       level:       form.level as 'Regular' | 'Mehadrin',
       hechsherId:  form.hechsherId,
-      mashgiachId: form.mashgiachId,
+      mashgiachId: form.mashgiachId || undefined,
       kitniyot:    form.kitniyot || 'ללא חשש קטניות',
       expires:     form.expires,
       notes:       form.notes,
@@ -71,6 +76,14 @@ export function RestaurantForm({ initial, onClose }: Props) {
       await createMutation(payload).unwrap()
     }
     onClose()
+  }
+
+  const handleAddHechsher = async (data: Omit<Hechsher, 'id'>) => {
+    try {
+      const h = await createHechsher(data).unwrap()
+      set('hechsherId', h.id)
+      setShowAddHechsher(false)
+    } catch {}
   }
 
   const filteredHechsherim = perm.isOwner
@@ -87,38 +100,67 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const title = isEdit ? 'Edit Restaurant' : t.addRest.title
 
   return (
-    <Modal title={title} onClose={onClose}>
-      {perm.isOwner && (
-        <Input
-          label={t.nav.rabbanuts ?? 'Rabbanut'}
-          value={form.rabbanutId}
-          onChange={v => { set('rabbanutId', v); set('hechsherId', ''); set('mashgiachId', '') }}
-          options={rabbanutOptions}
+    <>
+      <Modal title={title} onClose={onClose}>
+        {perm.isOwner && (
+          <Input
+            label={t.nav.rabbanuts ?? 'Rabbanut'}
+            value={form.rabbanutId}
+            onChange={v => { set('rabbanutId', v); set('hechsherId', ''); set('mashgiachId', '') }}
+            options={rabbanutOptions}
+          />
+        )}
+        <Input label={t.addRest.name}      value={form.name}        onChange={v => set('name', v)} />
+        <Input label={t.addRest.address}   value={form.address}     onChange={v => set('address', v)} />
+        <Input label={t.addRest.city}      value={form.city}        onChange={v => set('city', v)} options={CITIES} />
+        <Input label={t.addRest.level}     value={form.level}       onChange={v => set('level', v as typeof form['level'])} options={['Regular', 'Mehadrin']} />
+
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+          <Box sx={{ flex: 1 }}>
+            <Input
+              label={t.addRest.hechsher}
+              value={form.hechsherId}
+              onChange={v => set('hechsherId', v)}
+              options={hechsherOptions}
+            />
+          </Box>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setShowAddHechsher(true)}
+            sx={{ mt: 0.25, whiteSpace: 'nowrap', minWidth: 'auto', fontSize: '0.75rem' }}
+          >
+            + {t.hechsherim?.addTitle ?? 'Добавить кашрут'}
+          </Button>
+        </Box>
+
+        <Input label={t.addRest.mashgiach} value={form.mashgiachId} onChange={v => set('mashgiachId', v)} options={mashgiachOptions} />
+        <Input label={t.addRest.kitniyot}  value={form.kitniyot}    onChange={v => set('kitniyot', v as typeof form['kitniyot'])} options={['ללא חשש קטניות', 'מכיל קטניות']} />
+        <Input label={t.addRest.expires}   value={form.expires}     onChange={v => set('expires', v)} type="date" />
+        <Input label={t.addRest.notes}     value={form.notes}       onChange={v => set('notes', v)} placeholder="..." />
+
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+          <Button
+            variant="contained"
+            onClick={() => void handleSave()}
+            disabled={!canSave || isLoading}
+            disableElevation
+          >
+            {isLoading ? <CircularProgress size={16} color="inherit" /> : t.addRest.save}
+          </Button>
+          <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
+            {t.addRest.cancel}
+          </Button>
+        </Box>
+      </Modal>
+
+      {showAddHechsher && (
+        <HechsherForm
+          rabbanutOptions={rabbanutOptions}
+          onSave={handleAddHechsher}
+          onClose={() => setShowAddHechsher(false)}
         />
       )}
-      <Input label={t.addRest.name}      value={form.name}        onChange={v => set('name', v)} />
-      <Input label={t.addRest.address}   value={form.address}     onChange={v => set('address', v)} />
-      <Input label={t.addRest.city}      value={form.city}        onChange={v => set('city', v)} options={CITIES} />
-      <Input label={t.addRest.level}     value={form.level}       onChange={v => set('level', v as typeof form['level'])} options={['Regular', 'Mehadrin']} />
-      <Input label={t.addRest.hechsher}  value={form.hechsherId}  onChange={v => set('hechsherId', v)} options={hechsherOptions} />
-      <Input label={t.addRest.mashgiach} value={form.mashgiachId} onChange={v => set('mashgiachId', v)} options={mashgiachOptions} />
-      <Input label={t.addRest.kitniyot}  value={form.kitniyot}    onChange={v => set('kitniyot', v as typeof form['kitniyot'])} options={['ללא חשש קטניות', 'מכיל קטניות']} />
-      <Input label={t.addRest.expires}   value={form.expires}     onChange={v => set('expires', v)} type="date" />
-      <Input label={t.addRest.notes}     value={form.notes}       onChange={v => set('notes', v)} placeholder="..." />
-
-      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
-        <Button
-          variant="contained"
-          onClick={() => void handleSave()}
-          disabled={!canSave || isLoading}
-          disableElevation
-        >
-          {isLoading ? <CircularProgress size={16} color="inherit" /> : t.addRest.save}
-        </Button>
-        <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
-          {t.addRest.cancel}
-        </Button>
-      </Box>
-    </Modal>
+    </>
   )
 }

@@ -1,5 +1,5 @@
 import { baseApi } from './baseApi'
-import type { MapRestaurant, MapFilters } from '@/types'
+import type { MapRestaurant, MapFilters, MapHechsher } from '@/types'
 
 /** Build query string from filters */
 function toQueryString(f: MapFilters): string {
@@ -18,7 +18,11 @@ export const restaurantsApi = baseApi.injectEndpoints({
       query: (filters) => `/map/restaurants${toQueryString(filters)}`,
       providesTags: ['Restaurant'],
     }),
+    getMapHechsherim: build.query<MapHechsher[], void>({
+      query: () => '/map/hechsherim',
+      providesTags: ['Restaurant'],
+    }),
   }),
 })
 
-export const { useGetMapRestaurantsQuery } = restaurantsApi
+export const { useGetMapRestaurantsQuery, useGetMapHechsherimQuery } = restaurantsApi

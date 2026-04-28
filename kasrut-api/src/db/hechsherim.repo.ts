@@ -32,7 +32,19 @@ export const hechsherimRepo = {
   },
 
   async create(input: Omit<Hechsher, 'id'>): Promise<Hechsher> {
-    const h = await prisma.hechsher.create({ data: input })
+    const h = await prisma.hechsher.create({
+      data: {
+        name:       input.name,
+        shortName:  input.shortName,
+        city:       input.city    ?? '',
+        contact:    input.contact ?? '',
+        phone:      input.phone   ?? '',
+        email:      input.email   ?? '',
+        type:       input.type,
+        color:      input.color,
+        rabbanutId: input.rabbanutId,
+      },
+    })
     return toHechsher(h)
   },
 

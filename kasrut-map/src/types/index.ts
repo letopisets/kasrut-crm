@@ -1,6 +1,12 @@
 export type FoodType     = 'meat' | 'dairy' | 'pareve' | 'takeaway'
 export type KashrutLevel = 'mehadrin' | 'badatz' | 'regular'
 
+export interface MapHechsher {
+  id:        string
+  name:      string
+  shortName: string
+}
+
 export interface MapRestaurant {
   id:           string
   name:         string

@@ -38,10 +38,10 @@ export interface Hechsher {
   id:         string
   name:       string
   shortName:  string
-  city:       string
-  contact:    string
-  phone:      string
-  email:      string
+  city?:      string
+  contact?:   string
+  phone?:     string
+  email?:     string
   type:       HechsherType
   color:      string
   rabbanutId: string
@@ -60,19 +60,19 @@ export interface Mashgiach {
 }
 
 export interface Restaurant {
-  id:            string
-  name:          string
-  address:       string
-  city:          string
-  level:         'Regular' | 'Mehadrin'
-  hechsherId:    string
-  mashgiachId:   string
-  kitniyot:      string
-  expires:       string
-  status:        CertStatus
-  rabbanutId:    string
-  notes?:        string
-  lastInspection?:string
+  id:              string
+  name:            string
+  address:         string
+  city:            string
+  level:           'Regular' | 'Mehadrin'
+  hechsherId:      string
+  mashgiachId?:    string
+  kitniyot:        string
+  expires:         string
+  status:          CertStatus
+  rabbanutId:      string
+  notes?:          string
+  lastInspection?: string
 }
 
 export interface Inspection {

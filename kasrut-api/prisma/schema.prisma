@@ -171,7 +171,7 @@ model Restaurant {
   city           String
   level          String     // 'Regular' | 'Mehadrin'
   hechsherId     String
-  mashgiachId    String
+  mashgiachId    String?
   kitniyot       String
   expires        DateTime
   status         CertStatus @default(ok)
@@ -186,7 +186,7 @@ model Restaurant {
   hours          String?
 
   hechsher    Hechsher    @relation(fields: [hechsherId],  references: [id])
-  mashgiach   Mashgiach   @relation(fields: [mashgiachId], references: [id])
+  mashgiach   Mashgiach?  @relation(fields: [mashgiachId], references: [id], onDelete: SetNull)
   rabbanut    Rabbanut    @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
   inspections Inspection[]
   mapSuggestions MapRestaurantSuggestion[]
