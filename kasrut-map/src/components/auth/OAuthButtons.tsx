@@ -113,25 +113,7 @@ export function OAuthButtons({
         )}
       </Box>
 
-      {/* Apple */}
-      <Button
-        fullWidth
-        variant="contained"
-        startIcon={<AppleIcon sx={{ fontSize: 20 }} />}
-        onClick={handleAppleLogin}
-        disabled={!appleActive || busy}
-        sx={{
-          borderRadius: 1, height: 44, textTransform: 'none',
-          fontSize: 14, fontWeight: 500,
-          bgcolor: '#111', '&:hover': { bgcolor: '#222' },
-          '&.Mui-disabled': {
-            bgcolor: alpha('#111', 0.5),
-            color:   alpha('#fff', 0.3),
-          },
-        }}
-      >
-        Войти через Apple
-      </Button>
+      {/* Apple — hidden until configured */}
     </Stack>
   )
 }

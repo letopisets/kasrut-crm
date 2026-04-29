@@ -1,0 +1,11 @@
+{
+  "name": "KashrutMap",
+  "short_name": "KashrutMap",
+  "description": "Map of kosher restaurants with kashrut details, filters, lists, and routes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e8a507",
+  "lang": "ru"
+}
