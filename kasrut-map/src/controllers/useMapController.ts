@@ -8,7 +8,7 @@ const DEFAULT_FILTERS: MapFilters = {
   hechsher: [],
   foodType: [],
   city:     'Все',
-  radius:   null,
+  radius:   5_000,
 }
 
 /** Haversine distance in metres between two [lat,lng] points */
