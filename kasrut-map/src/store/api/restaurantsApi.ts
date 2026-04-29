@@ -1,23 +1,30 @@
 import { baseApi } from './baseApi'
 import type { MapHechsher, MapOptions, MapRestaurantQuery, MapRestaurantsResponse } from '@/types'
 
+const QUERY_COORD_PRECISION = 4
+
+function formatCoord(value: number): string {
+  const factor = 10 ** QUERY_COORD_PRECISION
+  return String(Math.round(value * factor) / factor)
+}
+
 /** Build query string from filters */
 function toQueryString(f: MapRestaurantQuery): string {
   const params = new URLSearchParams()
-  if (f.city && f.city !== 'Все')   params.set('city', f.city)
+  if (f.city)                        params.set('city', f.city)
   if (f.hechsher.length)             params.set('hechsher',     f.hechsher.join(','))
   if (f.foodType.length)             params.set('foodType',     f.foodType.join(','))
   if (f.limit)                       params.set('limit',        String(f.limit))
   if (f.radius && f.userPosition) {
-    params.set('lat',                String(f.userPosition[0]))
-    params.set('lng',                String(f.userPosition[1]))
+    params.set('lat',                formatCoord(f.userPosition[0]))
+    params.set('lng',                formatCoord(f.userPosition[1]))
     params.set('radius',             String(f.radius))
   }
   if (f.viewport) {
-    params.set('north',              String(f.viewport.bounds.north))
-    params.set('south',              String(f.viewport.bounds.south))
-    params.set('east',               String(f.viewport.bounds.east))
-    params.set('west',               String(f.viewport.bounds.west))
+    params.set('north',              formatCoord(f.viewport.bounds.north))
+    params.set('south',              formatCoord(f.viewport.bounds.south))
+    params.set('east',               formatCoord(f.viewport.bounds.east))
+    params.set('west',               formatCoord(f.viewport.bounds.west))
   }
   const qs = params.toString()
   return qs ? `?${qs}` : ''

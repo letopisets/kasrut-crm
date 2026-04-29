@@ -22,7 +22,8 @@ const ru: MapTranslations = {
   citySection: 'Город',
   radiusSection: 'Радиус поиска',
   showResults: 'Показать результаты',
-  radiusLabels: ['500 м', '1 км', '2 км', '5 км', '10 км', '20 км', 'Все'],
+  allCities: 'Все города',
+  radiusLabels: ['500 м', '1 км', '2 км', '5 км', '10 км', '20 км', '25 км', 'Все'],
 
   foodType: { meat: 'Мясной', dairy: 'Молочный', pareve: 'Паревэ', takeaway: 'На вынос' },
   kashrutLevel: { mehadrin: 'Mehadrin', badatz: 'Badatz', regular: 'Regular' },

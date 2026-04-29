@@ -22,7 +22,8 @@ const he: MapTranslations = {
   citySection: 'עיר',
   radiusSection: 'רדיוס חיפוש',
   showResults: 'הצג תוצאות',
-  radiusLabels: ["500 מ'", '1 ק"מ', '2 ק"מ', '5 ק"מ', '10 ק"מ', '20 ק"מ', 'הכל'],
+  allCities: 'כל הערים',
+  radiusLabels: ["500 מ'", '1 ק"מ', '2 ק"מ', '5 ק"מ', '10 ק"מ', '20 ק"מ', '25 ק"מ', 'הכל'],
 
   foodType: { meat: 'בשרי', dairy: 'חלבי', pareve: 'פרווה', takeaway: 'לקחת' },
   kashrutLevel: { mehadrin: 'מהדרין', badatz: 'בד"ץ', regular: 'רגיל' },

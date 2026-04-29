@@ -20,7 +20,8 @@ export interface MapTranslations {
   citySection: string
   radiusSection: string
   showResults: string
-  radiusLabels: readonly [string, string, string, string, string, string, string]
+  allCities: string
+  radiusLabels: readonly [string, string, string, string, string, string, string, string]
 
   foodType: { meat: string; dairy: string; pareve: string; takeaway: string }
   kashrutLevel: { mehadrin: string; badatz: string; regular: string }

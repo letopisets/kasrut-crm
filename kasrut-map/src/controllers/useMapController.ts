@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import { useGetMapOptionsQuery, useGetMapRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGeolocation }           from '@/hooks/useGeolocation'
 import { useRoute }                  from '@/hooks/useRoute'
+import { useAppSelector }            from '@/store/hooks'
 import type {
   MapRestaurant,
   MapFilters,
@@ -14,11 +15,12 @@ import type {
 const DEFAULT_FILTERS: MapFilters = {
   hechsher: [],
   foodType: [],
-  city:     'Все',
-  radius:   5_000,
+  city:     '',
+  radius:   25_000,
 }
 
 const MAP_RESTAURANT_LIMIT = 750
+const QUERY_COORD_PRECISION = 4
 const EMPTY_RESTAURANTS_RESPONSE: MapRestaurantsResponse = {
   restaurants: [],
   total: 0,
@@ -35,6 +37,42 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   }, [value, delayMs])
 
   return debounced
+}
+
+function roundCoord(value: number): number {
+  const factor = 10 ** QUERY_COORD_PRECISION
+  return Math.round(value * factor) / factor
+}
+
+function positionKey(position: [number, number] | null): string {
+  return position ? `${roundCoord(position[0])}:${roundCoord(position[1])}` : ''
+}
+
+function positionFromKey(key: string): [number, number] | null {
+  if (!key) return null
+  const [lat, lng] = key.split(':').map(Number)
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null
+}
+
+function normalizeViewport(viewport: MapViewport): MapViewport {
+  return {
+    bounds: {
+      north: roundCoord(viewport.bounds.north),
+      south: roundCoord(viewport.bounds.south),
+      east:  roundCoord(viewport.bounds.east),
+      west:  roundCoord(viewport.bounds.west),
+    },
+    zoom: Math.round(viewport.zoom * 100) / 100,
+  }
+}
+
+function sameViewport(a: MapViewport | null, b: MapViewport): boolean {
+  return Boolean(a) &&
+    a!.zoom === b.zoom &&
+    a!.bounds.north === b.bounds.north &&
+    a!.bounds.south === b.bounds.south &&
+    a!.bounds.east === b.bounds.east &&
+    a!.bounds.west === b.bounds.west
 }
 
 /** Haversine distance in metres between two [lat,lng] points */
@@ -60,8 +98,20 @@ export function useMapController() {
 
   const geo    = useGeolocation()
   const router = useRoute()
+  const lang   = useAppSelector(s => s.mapLang.lang)
   const didAutoPan = useRef(false)
   const debouncedViewport = useDebouncedValue(viewport, 300)
+  const queryUserPositionKey = positionKey(geo.position)
+  const queryUserPosition = useMemo(
+    () => positionFromKey(queryUserPositionKey),
+    [queryUserPositionKey],
+  )
+  const debouncedQueryUserPosition = useDebouncedValue(queryUserPosition, 1_000)
+
+  const setStableViewport = useCallback((nextViewport: MapViewport) => {
+    const normalized = normalizeViewport(nextViewport)
+    setViewport(current => sameViewport(current, normalized) ? current : normalized)
+  }, [])
 
   // Auto-pan to user's position on the very first GPS fix
   useEffect(() => {
@@ -74,9 +124,9 @@ export function useMapController() {
   const restaurantQuery = useMemo<MapRestaurantQuery>(() => ({
     ...filters,
     viewport: debouncedViewport,
-    userPosition: geo.position,
+    userPosition: debouncedQueryUserPosition,
     limit: MAP_RESTAURANT_LIMIT,
-  }), [debouncedViewport, filters, geo.position])
+  }), [debouncedQueryUserPosition, debouncedViewport, filters])
 
   const {
     data: restaurantPayload = EMPTY_RESTAURANTS_RESPONSE,
@@ -88,13 +138,13 @@ export function useMapController() {
 
   const availableHechshers = useMemo(() => (
     [...new Set(options.hechshers.filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'he'))
-  ), [options.hechshers])
+      .sort((a, b) => a.localeCompare(b, lang))
+  ), [options.hechshers, lang])
 
   const availableCities = useMemo(() => (
-    ['Все', ...new Set(options.cities.filter(Boolean))]
-      .sort((a, b) => (a === 'Все' ? -1 : b === 'Все' ? 1 : a.localeCompare(b, 'he')))
-  ), [options.cities])
+    [...new Set(options.cities.filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, lang))
+  ), [options.cities, lang])
 
   /** Attach distance from user, apply radius filter, sort nearest first */
   const restaurants = useMemo<MapRestaurant[]>(() => {
@@ -154,7 +204,7 @@ export function useMapController() {
   const activeFilterCount =
     filters.hechsher.length +
     filters.foodType.length +
-    (filters.city !== 'Все' ? 1 : 0) +
+    (filters.city !== '' ? 1 : 0) +
     (filters.radius !== null ? 1 : 0)
 
   return {
@@ -174,7 +224,7 @@ export function useMapController() {
     // selected
     selected, setSelected,
     // viewport
-    viewport, setViewport,
+    viewport, setViewport: setStableViewport,
     // geolocation
     geo,
     // location correction

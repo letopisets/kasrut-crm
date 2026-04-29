@@ -10,7 +10,21 @@ interface GeoState {
 const GEO_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
   timeout:            15_000,
-  maximumAge:         0,
+  maximumAge:         30_000,
+}
+
+const MIN_POSITION_UPDATE_METERS = 75
+const MIN_ACCURACY_IMPROVEMENT_METERS = 50
+
+/** Haversine distance in metres between two [lat,lng] points */
+function haversine([lat1, lng1]: [number, number], [lat2, lng2]: [number, number]): number {
+  const R = 6_371_000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+    * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 export function useGeolocation() {
@@ -29,11 +43,27 @@ export function useGeolocation() {
     }
 
     watchIdRef.current = navigator.geolocation.watchPosition(
-      (p) => setState({
-        position: [p.coords.latitude, p.coords.longitude],
-        accuracy: p.coords.accuracy,
-        error: null,
-        loading: false,
+      (p) => setState(prev => {
+        const position: [number, number] = [p.coords.latitude, p.coords.longitude]
+        const moved = prev.position ? haversine(prev.position, position) : Infinity
+        const accuracyImproved = prev.accuracy !== null
+          ? prev.accuracy - p.coords.accuracy >= MIN_ACCURACY_IMPROVEMENT_METERS
+          : true
+
+        // GPS can drift by a few metres every second. Ignore that noise so map
+        // restaurant queries are not refetched while the user is effectively still.
+        if (prev.position && moved < MIN_POSITION_UPDATE_METERS && !accuracyImproved) {
+          return prev.loading || prev.error
+            ? { ...prev, loading: false, error: null }
+            : prev
+        }
+
+        return {
+          position,
+          accuracy: p.coords.accuracy,
+          error: null,
+          loading: false,
+        }
       }),
       (e) => setState(s => ({ ...s, error: e.message, loading: false })),
       GEO_OPTIONS,
