@@ -7,6 +7,7 @@ import {
   serializeMapReview,
   serializeMapReviewsPayload,
   serializeMapSuggestion,
+  serializeMapSuggestionFull,
 } from '../serializers/mapCommunity.serializer'
 import { withCache }                from '../lib/cache'
 import type { KashrutLevel, MapFilter } from '../db/map.repo'
@@ -117,6 +118,34 @@ export const mapController = {
 
       const suggestion = await mapCommunityRepo.createSuggestion(req.mapUser.sub, parsed.data)
       res.status(201).json(serializeMapSuggestion(suggestion))
+    } catch (e) { next(e) }
+  },
+
+  async listSuggestions(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const status = req.query.status as string | undefined
+      const allowed = ['pending', 'approved', 'rejected']
+      const filter = allowed.includes(status ?? '') ? { status: status as 'pending' | 'approved' | 'rejected' } : {}
+      const suggestions = await mapCommunityRepo.listSuggestions(filter)
+      res.json(suggestions.map(serializeMapSuggestionFull))
+    } catch (e) { next(e) }
+  },
+
+  async reviewSuggestion(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id
+      const { status, reviewerNote } = req.body as { status?: unknown; reviewerNote?: unknown }
+      if (status !== 'approved' && status !== 'rejected') {
+        res.status(400).json({ error: 'status must be "approved" or "rejected"' })
+        return
+      }
+      const note = typeof reviewerNote === 'string' ? reviewerNote.trim() || null : null
+      const result = await mapCommunityRepo.reviewSuggestion(id, { status, reviewerNote: note })
+      if (!result) {
+        res.status(404).json({ error: 'Suggestion not found or already reviewed' })
+        return
+      }
+      res.json(serializeMapSuggestionFull(result))
     } catch (e) { next(e) }
   },
 

@@ -12,6 +12,7 @@ import Hechsherim        from '@/pages/Hechsherim'
 import Documents         from '@/pages/Documents'
 import Rabbanuts         from '@/pages/Rabbanuts'
 import Users             from '@/pages/Users'
+import Suggestions       from '@/pages/Suggestions'
 
 function App() {
   return (
@@ -43,6 +44,9 @@ function App() {
           } />
           <Route path="users"         element={
             <ProtectedRoute page="users"><Users /></ProtectedRoute>
+          } />
+          <Route path="suggestions"   element={
+            <ProtectedRoute page="suggestions"><Suggestions /></ProtectedRoute>
           } />
         </Route>
         <Route path="/login" element={<Login />} />

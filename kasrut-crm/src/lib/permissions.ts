@@ -10,14 +10,14 @@ interface Permissions {
 export const PERMISSIONS: Record<Role, Permissions> = {
   owner: {
     tabs: ['dashboard','restaurants','inspections',
-           'mashgichim','hechsherim','documents','rabbanuts','users'],
+           'mashgichim','hechsherim','documents','rabbanuts','users','suggestions'],
     canEdit: true,
     seeAll: true,
     isOwner: true,
   },
   rabbanut: {
     tabs: ['dashboard','restaurants','inspections',
-           'mashgichim','hechsherim','documents'],
+           'mashgichim','hechsherim','documents','suggestions'],
     canEdit: true,
     seeAll: false,
     isOwner: false,

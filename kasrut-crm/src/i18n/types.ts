@@ -10,6 +10,7 @@ export interface Translations {
     documents: string
     rabbanuts: string
     users: string
+    suggestions: string
   }
   roles: { owner: string; rabbanut: string; mashgiach: string }
   roleDesc: { owner: string; rabbanut: string; mashgiach: string }
@@ -147,6 +148,33 @@ export interface Translations {
     lastLogin: string
     count?: string
     all?: string
+  }
+  suggestions?: {
+    title: string
+    sub: string
+    all: string
+    pending: string
+    approved: string
+    rejected: string
+    typeAdd: string
+    typeUpdate: string
+    proposedName: string
+    proposedAddress: string
+    proposedCity: string
+    proposedHechsher: string
+    proposedStatus: string
+    notes: string
+    user: string
+    restaurant: string
+    approve: string
+    reject: string
+    reviewerNote: string
+    reviewerNotePlaceholder: string
+    confirm: string
+    cancel: string
+    empty: string
+    alreadyReviewed: string
+    count: string
   }
   noAccess: string
   myEstablishments: string
