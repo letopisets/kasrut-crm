@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Marker } from 'react-leaflet'
 import L from 'leaflet'
 import type { MapRestaurant } from '@/types'
@@ -26,15 +26,20 @@ function makeIcon(foodType: MapRestaurant['foodType'], selected: boolean): L.Div
   })
 }
 
-export function RestaurantMarker({ restaurant: r, selected, onClick }: Props) {
+function RestaurantMarkerComponent({ restaurant: r, selected, onClick }: Props) {
   const icon = useMemo(() => makeIcon(r.foodType, selected), [r.foodType, selected])
+  const eventHandlers = useMemo(() => ({
+    click: () => onClick(r),
+  }), [onClick, r])
 
   return (
     <Marker
       position={[r.lat, r.lng]}
       icon={icon}
-      eventHandlers={{ click: () => onClick(r) }}
+      eventHandlers={eventHandlers}
       zIndexOffset={selected ? 1000 : 0}
     />
   )
 }
+
+export const RestaurantMarker = memo(RestaurantMarkerComponent)

@@ -5,7 +5,10 @@ import { invalidatePattern } from '../lib/cache'
 import { validate } from '../lib/validate'
 import { createRestaurantSchema, updateRestaurantSchema } from '../schemas'
 
-const invalidateMapCache = () => invalidatePattern('map:restaurants:*')
+const invalidateMapCache = () => Promise.all([
+  invalidatePattern('map:restaurants:*'),
+  invalidatePattern('map:options'),
+])
 
 export const restaurantController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {

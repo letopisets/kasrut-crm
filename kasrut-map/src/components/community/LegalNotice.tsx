@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Alert } from '@mui/material'
+import { useMapLang } from '@/i18n/useMapLang'
 
 const STORAGE_KEY = 'legalNoticeDismissed'
 
 export function LegalNotice() {
+  const t = useMapLang()
   const [visible, setVisible] = useState(() => localStorage.getItem(STORAGE_KEY) !== 'true')
 
   if (!visible) return null
@@ -24,7 +26,7 @@ export function LegalNotice() {
         '& .MuiAlert-message': { py: 0.25, fontSize: '0.85rem' },
       }}
     >
-      Информация справочная. Перед заказом проверьте действующую теудат кашрут и название хекшера непосредственно в заведении.
+      {t.legalNotice}
     </Alert>
   )
 }

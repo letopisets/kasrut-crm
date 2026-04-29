@@ -4,6 +4,7 @@ import {
 } from '@mui/material'
 import CloseIcon      from '@mui/icons-material/Close'
 import NavigationIcon from '@mui/icons-material/Navigation'
+import { useMapLang } from '@/i18n/useMapLang'
 import type { MapRestaurant, RouteData } from '@/types'
 
 interface Props {
@@ -28,6 +29,8 @@ const STEP_ICON: Record<string, string> = {
 }
 
 export function RoutePanel({ open, destination, route, loading, error, onClose, formatDist, formatTime }: Props) {
+  const t = useMapLang()
+
   return (
     <Drawer
       anchor="right"
@@ -49,7 +52,7 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
         <NavigationIcon sx={{ color: 'primary.main' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="subtitle2" fontWeight={700} noWrap>
-            {destination?.name ?? 'Маршрут'}
+            {destination?.name ?? t.routeTitle}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
             {destination?.address}
@@ -88,7 +91,9 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
                   sx={{ px: 2, py: 1, alignItems: 'flex-start', gap: 1 }}
                 >
                   <Typography sx={{ fontSize: 18, lineHeight: 1, mt: 0.25, minWidth: 24, textAlign: 'center' }}>
-                    {STEP_ICON[step.instruction.startsWith('Начните') ? 'depart' : step.instruction.startsWith('Вы') ? 'arrive' : 'turn'] ?? '⬆️'}
+                    {STEP_ICON[step.instruction.startsWith('Начните') || step.instruction.startsWith('Start') || step.instruction.startsWith('התחל') ? 'depart'
+                      : step.instruction.startsWith('Вы') || step.instruction.startsWith('You') || step.instruction.startsWith('הגעת') ? 'arrive'
+                      : 'turn'] ?? '⬆️'}
                   </Typography>
                   <ListItemText
                     disableTypography

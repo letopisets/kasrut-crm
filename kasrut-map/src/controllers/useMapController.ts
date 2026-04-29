@@ -1,14 +1,40 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useGetMapRestaurantsQuery } from '@/store/api/restaurantsApi'
+import { useGetMapOptionsQuery, useGetMapRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGeolocation }           from '@/hooks/useGeolocation'
 import { useRoute }                  from '@/hooks/useRoute'
-import type { MapRestaurant, MapFilters, FoodType } from '@/types'
+import type {
+  MapRestaurant,
+  MapFilters,
+  FoodType,
+  MapRestaurantQuery,
+  MapRestaurantsResponse,
+  MapViewport,
+} from '@/types'
 
 const DEFAULT_FILTERS: MapFilters = {
   hechsher: [],
   foodType: [],
   city:     'Все',
   radius:   5_000,
+}
+
+const MAP_RESTAURANT_LIMIT = 750
+const EMPTY_RESTAURANTS_RESPONSE: MapRestaurantsResponse = {
+  restaurants: [],
+  total: 0,
+  limit: MAP_RESTAURANT_LIMIT,
+  limited: false,
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs)
+    return () => window.clearTimeout(timer)
+  }, [value, delayMs])
+
+  return debounced
 }
 
 /** Haversine distance in metres between two [lat,lng] points */
@@ -30,10 +56,12 @@ export function useMapController() {
   const [routePanelOpen, setRoutePanelOpen] = useState(false)
   const [correcting,    setCorrecting]    = useState(false)
   const [panToUser,     setPanToUser]     = useState(false)
+  const [viewport,      setViewport]      = useState<MapViewport | null>(null)
 
   const geo    = useGeolocation()
   const router = useRoute()
   const didAutoPan = useRef(false)
+  const debouncedViewport = useDebouncedValue(viewport, 300)
 
   // Auto-pan to user's position on the very first GPS fix
   useEffect(() => {
@@ -43,22 +71,34 @@ export function useMapController() {
     }
   }, [geo.position])
 
-  const { data: raw = [], isLoading } = useGetMapRestaurantsQuery(filters)
-  const { data: optionRows = [] } = useGetMapRestaurantsQuery(DEFAULT_FILTERS)
+  const restaurantQuery = useMemo<MapRestaurantQuery>(() => ({
+    ...filters,
+    viewport: debouncedViewport,
+    userPosition: geo.position,
+    limit: MAP_RESTAURANT_LIMIT,
+  }), [debouncedViewport, filters, geo.position])
+
+  const {
+    data: restaurantPayload = EMPTY_RESTAURANTS_RESPONSE,
+    isLoading,
+    isFetching,
+  } = useGetMapRestaurantsQuery(restaurantQuery, { skip: !debouncedViewport })
+
+  const { data: options = { cities: [], hechshers: [] } } = useGetMapOptionsQuery()
 
   const availableHechshers = useMemo(() => (
-    [...new Set(optionRows.map(r => r.hechsher).filter(Boolean))]
+    [...new Set(options.hechshers.filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, 'he'))
-  ), [optionRows])
+  ), [options.hechshers])
 
   const availableCities = useMemo(() => (
-    ['Все', ...new Set(optionRows.map(r => r.city).filter(Boolean))]
+    ['Все', ...new Set(options.cities.filter(Boolean))]
       .sort((a, b) => (a === 'Все' ? -1 : b === 'Все' ? 1 : a.localeCompare(b, 'he')))
-  ), [optionRows])
+  ), [options.cities])
 
   /** Attach distance from user, apply radius filter, sort nearest first */
   const restaurants = useMemo<MapRestaurant[]>(() => {
-    const withDist = raw.map(r => ({
+    const withDist = restaurantPayload.restaurants.map(r => ({
       ...r,
       distance: geo.position ? haversine(geo.position, [r.lat, r.lng]) : undefined,
     }))
@@ -67,7 +107,7 @@ export function useMapController() {
       : withDist
     if (!geo.position) return filtered
     return [...filtered].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
-  }, [raw, geo.position, filters.radius])
+  }, [restaurantPayload.restaurants, geo.position, filters.radius])
 
   const goToMyLocation  = () => { geo.refresh(); setPanToUser(true) }
   const startCorrection = () => { setCorrecting(true); setView('map') }
@@ -125,9 +165,16 @@ export function useMapController() {
     activeFilterCount, toggleHechsher, toggleFoodType, setCity, setRadius, resetFilters,
     availableHechshers, availableCities,
     // data
-    restaurants, isLoading,
+    restaurants,
+    isLoading,
+    isFetching,
+    restaurantTotal: restaurantPayload.total,
+    restaurantLimit: restaurantPayload.limit,
+    restaurantResultLimited: restaurantPayload.limited,
     // selected
     selected, setSelected,
+    // viewport
+    viewport, setViewport,
     // geolocation
     geo,
     // location correction

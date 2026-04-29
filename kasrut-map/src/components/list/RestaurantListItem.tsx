@@ -2,7 +2,8 @@ import { Card, CardContent, Box, Typography, Chip, Stack, IconButton } from '@mu
 import DirectionsIcon from '@mui/icons-material/Directions'
 import PlaceIcon from '@mui/icons-material/Place'
 import type { MapRestaurant } from '@/types'
-import { FOOD_TYPE_LABEL, FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_LABEL, KASHRUT_COLOR } from '@/lib/constants'
+import { FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_COLOR } from '@/lib/constants'
+import { useMapLang } from '@/i18n/useMapLang'
 
 interface Props {
   restaurant:   MapRestaurant
@@ -12,13 +13,14 @@ interface Props {
 }
 
 export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, formatDist }: Props) {
+  const t = useMapLang()
+
   return (
     <Card
       variant="outlined"
       sx={{ bgcolor: 'background.paper', borderColor: 'divider', borderRadius: 2 }}
     >
       <CardContent sx={{ pb: '12px !important', p: 0 }}>
-        {/* Clickable area — everything except the route button */}
         <Box
           onClick={() => onSelect(r)}
           sx={{
@@ -27,7 +29,6 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
             borderRadius: 2,
           }}
         >
-          {/* Header row */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="subtitle1" fontWeight={700} noWrap>
@@ -47,10 +48,9 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
             )}
           </Box>
 
-          {/* Tags row */}
           <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap mb={1.5}>
             <Chip
-              label={`${FOOD_TYPE_EMOJI[r.foodType]} ${FOOD_TYPE_LABEL[r.foodType]}`}
+              label={`${FOOD_TYPE_EMOJI[r.foodType]} ${t.foodType[r.foodType]}`}
               size="small"
               sx={{
                 bgcolor: `${FOOD_TYPE_COLOR[r.foodType]}22`,
@@ -60,7 +60,7 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
               }}
             />
             <Chip
-              label={KASHRUT_LABEL[r.kashrutLevel]}
+              label={t.kashrutLevel[r.kashrutLevel]}
               size="small"
               sx={{
                 bgcolor: `${KASHRUT_COLOR[r.kashrutLevel]}22`,
@@ -73,7 +73,6 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
           </Stack>
         </Box>
 
-        {/* Footer — outside clickable area to avoid nesting buttons */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, pb: 1.5 }}>
           {r.hours && (
             <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
@@ -84,7 +83,7 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
             size="small"
             color="primary"
             onClick={() => onStartRoute(r)}
-            title="Построить маршрут"
+            title={t.buildRoute}
             sx={{ ml: 'auto', bgcolor: 'rgba(232,165,7,0.1)', '&:hover': { bgcolor: 'rgba(232,165,7,0.2)' } }}
           >
             <DirectionsIcon fontSize="small" />

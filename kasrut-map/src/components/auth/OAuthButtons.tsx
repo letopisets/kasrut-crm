@@ -5,6 +5,7 @@ import {
 import AppleIcon from '@mui/icons-material/Apple'
 import { alpha } from '@mui/material/styles'
 import { loadScript } from './oauthScripts'
+import { useMapLang } from '@/i18n/useMapLang'
 import type { MapAuthProviderConfig } from '@/types'
 
 function GoogleG() {
@@ -32,6 +33,7 @@ export function OAuthButtons({
   google, apple, busy, configLoading,
   onGoogleCredential, onAppleCredential, onError,
 }: Props) {
+  const t = useMapLang()
   const googleButtonRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -53,10 +55,10 @@ export function OAuthButtons({
           text: 'signin_with', shape: 'rectangular',
         })
       })
-      .catch(() => onError('Не удалось загрузить Google Sign-In.'))
+      .catch(() => onError(t.googleSignInError))
 
     return () => { cancelled = true }
-  }, [google?.enabled, google?.clientId, onError, onGoogleCredential])
+  }, [google?.enabled, google?.clientId, onError, onGoogleCredential, t.googleSignInError])
 
   const handleAppleLogin = async () => {
     if (!apple?.clientId) return
@@ -74,7 +76,7 @@ export function OAuthButtons({
       if (!idToken) throw new Error('Apple did not return id_token')
       onAppleCredential(idToken)
     } catch {
-      onError('Не удалось войти через Apple.')
+      onError(t.appleSignInError)
     }
   }
 
@@ -91,7 +93,6 @@ export function OAuthButtons({
 
   return (
     <Stack spacing={1.25}>
-      {/* Google — SDK renders its own button when active; show branded disabled otherwise */}
       <Box sx={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>
         {googleActive ? (
           <Box ref={googleButtonRef} sx={{ width: '100%' }} />
@@ -108,12 +109,23 @@ export function OAuthButtons({
               color:       alpha('#fff', 0.3),
             }}
           >
-            Войти через Google
+            {t.signInWithGoogle}
           </Button>
         )}
       </Box>
 
-      {/* Apple — hidden until configured */}
+      {appleActive && (
+        <Button
+          fullWidth
+          variant="outlined"
+          startIcon={<AppleIcon />}
+          onClick={handleAppleLogin}
+          disabled={busy}
+          sx={{ borderRadius: 1, height: 44, textTransform: 'none', fontSize: 14, fontWeight: 500 }}
+        >
+          Sign in with Apple
+        </Button>
+      )}
     </Stack>
   )
 }

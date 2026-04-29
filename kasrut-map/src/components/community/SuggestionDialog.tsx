@@ -5,6 +5,7 @@ import {
 } from '@mui/material'
 import { useSubmitSuggestionMutation } from '@/store/api/mapCommunityApi'
 import { useGetMapHechsherimQuery } from '@/store/api/restaurantsApi'
+import { useMapLang } from '@/i18n/useMapLang'
 import type { MapRestaurant, MapSuggestionPayload } from '@/types'
 
 interface Props {
@@ -15,14 +16,8 @@ interface Props {
   onRequireAuth: () => void
 }
 
-const STATUS_OPTIONS = [
-  'Кашрут действует',
-  'Кашрут требует проверки',
-  'Статус изменился',
-  'Заведение больше не кошерное',
-]
-
 export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, onRequireAuth }: Props) {
+  const t = useMapLang()
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
   const [city, setCity] = useState('')
@@ -37,7 +32,7 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
   const hechsherNames = useMemo(() => hechsherim.map(h => h.name), [hechsherim])
 
   const mode = restaurant ? 'update' : 'add'
-  const title = mode === 'add' ? 'Предложить новое заведение' : 'Предложить правку'
+  const title = mode === 'add' ? t.suggestNewTitle : t.suggestEditTitle
 
   useEffect(() => {
     if (!open) return
@@ -58,10 +53,7 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
   }, [address, city, hechsher, isAuthenticated, kashrutStatus, mode, name, notes])
 
   const handleSubmit = async () => {
-    if (!isAuthenticated) {
-      onRequireAuth()
-      return
-    }
+    if (!isAuthenticated) { onRequireAuth(); return }
 
     const payload: MapSuggestionPayload = {
       type: mode,
@@ -81,7 +73,7 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
       setSuccess(true)
       setError(null)
     } catch {
-      setError('Не удалось отправить предложение. Попробуйте ещё раз.')
+      setError(t.suggestionError)
     }
   }
 
@@ -93,37 +85,40 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
           {!isAuthenticated && (
             <Alert
               severity="info"
-              action={<Button color="inherit" size="small" onClick={onRequireAuth}>Войти</Button>}
+              action={<Button color="inherit" size="small" onClick={onRequireAuth}>{t.loginBtn}</Button>}
             >
-              Чтобы отправить предложение, войдите через Google или Apple.
+              {t.loginToSuggest}
             </Alert>
           )}
 
-          {success && <Alert severity="success">Спасибо. Предложение отправлено на проверку.</Alert>}
+          {success && <Alert severity="success">{t.suggestionSent}</Alert>}
           {error && <Alert severity="error">{error}</Alert>}
 
           {mode === 'update' && restaurant && (
             <Typography variant="body2" color="text.secondary">
-              Текущее заведение: {restaurant.name}, {restaurant.address}, {restaurant.city}
+              {t.currentEstablishment
+                .replace('{name}', restaurant.name)
+                .replace('{address}', restaurant.address)
+                .replace('{city}', restaurant.city)}
             </Typography>
           )}
 
           <TextField
-            label="Название"
+            label={t.nameField}
             value={name}
             onChange={(e) => setName(e.target.value)}
             required={mode === 'add'}
             fullWidth
           />
           <TextField
-            label="Адрес"
+            label={t.addressField}
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             required={mode === 'add'}
             fullWidth
           />
           <TextField
-            label="Город"
+            label={t.cityField}
             value={city}
             onChange={(e) => setCity(e.target.value)}
             required={mode === 'add'}
@@ -138,12 +133,12 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Кашрут (хекшер)"
-                placeholder="Выберите из списка или введите новый"
+                label={t.hechsherField}
+                placeholder={t.hechsherPlaceholder}
                 fullWidth
                 helperText={
                   hechsher.trim() && !hechsherNames.includes(hechsher.trim())
-                    ? 'Новый кашрут — будет добавлен на проверку'
+                    ? t.newHechsherHint
                     : undefined
                 }
               />
@@ -151,7 +146,7 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
           />
 
           <TextField
-            label="Статус кашрута"
+            label={t.kashrutStatusField}
             value={kashrutStatus}
             onChange={(e) => setKashrutStatus(e.target.value)}
             select
@@ -159,21 +154,22 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
             fullWidth
           >
             <option value="" />
-            {STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+            {t.statusOptions.map(option => <option key={option} value={option}>{option}</option>)}
           </TextField>
+
           <TextField
-            label="Комментарий"
+            label={t.notesField}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             multiline
             minRows={3}
-            placeholder="Что именно нужно проверить или изменить?"
+            placeholder={t.notesPlaceholder}
             fullWidth
           />
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} sx={{ borderRadius: 1 }}>{success ? 'Закрыть' : 'Отмена'}</Button>
+        <Button onClick={onClose} sx={{ borderRadius: 1 }}>{success ? t.closeBtn : t.cancelBtn}</Button>
         {!success && (
           <Button
             variant="contained"
@@ -181,7 +177,7 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
             disabled={!canSubmit || submitState.isLoading}
             sx={{ borderRadius: 1 }}
           >
-            Отправить
+            {t.submitBtn}
           </Button>
         )}
       </DialogActions>

@@ -22,6 +22,36 @@ export interface MapRestaurant {
   distance?:    number   // metres, computed at runtime
 }
 
+export interface MapBounds {
+  north: number
+  south: number
+  east:  number
+  west:  number
+}
+
+export interface MapViewport {
+  bounds: MapBounds
+  zoom:   number
+}
+
+export interface MapRestaurantQuery extends MapFilters {
+  viewport:     MapViewport | null
+  userPosition: [number, number] | null
+  limit:        number
+}
+
+export interface MapRestaurantsResponse {
+  restaurants: MapRestaurant[]
+  total:       number
+  limit:       number
+  limited:     boolean
+}
+
+export interface MapOptions {
+  cities:    string[]
+  hechshers: string[]
+}
+
 export type MapAuthProvider = 'google' | 'apple'
 
 export interface MapUser {

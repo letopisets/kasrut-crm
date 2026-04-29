@@ -1,4 +1,4 @@
-import type { MapRestaurantRow } from '../db/map.repo'
+import type { MapRestaurantPage, MapRestaurantRow } from '../db/map.repo'
 
 export const serializeMapRestaurant = (r: MapRestaurantRow) => ({
   id:           r.id,
@@ -16,3 +16,10 @@ export const serializeMapRestaurant = (r: MapRestaurantRow) => ({
 
 export const serializeMapRestaurants = (rs: MapRestaurantRow[]) =>
   rs.map(serializeMapRestaurant)
+
+export const serializeMapRestaurantsPage = (page: MapRestaurantPage) => ({
+  restaurants: serializeMapRestaurants(page.restaurants),
+  total: page.total,
+  limit: page.limit,
+  limited: page.limited,
+})

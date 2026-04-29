@@ -2,24 +2,92 @@ import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { mapRepo }                  from '../db/map.repo'
 import { mapCommunityRepo }         from '../db/mapCommunity.repo'
-import { serializeMapRestaurants }  from '../serializers/map.serializer'
+import { serializeMapRestaurantsPage }  from '../serializers/map.serializer'
 import {
   serializeMapReview,
   serializeMapReviewsPayload,
   serializeMapSuggestion,
   serializeMapSuggestionFull,
 } from '../serializers/mapCommunity.serializer'
-import { withCache }                from '../lib/cache'
-import type { KashrutLevel, MapFilter } from '../db/map.repo'
+import { invalidatePattern, withCache } from '../lib/cache'
+import type { KashrutLevel, MapBounds, MapFilter, MapPoint } from '../db/map.repo'
 
 const HECHSHERIM_CACHE_TTL = 600 // 10 minutes
+const MAP_OPTIONS_CACHE_TTL = 600 // 10 minutes
 
 const CACHE_TTL = 300 // 5 minutes
+const DEFAULT_RESTAURANT_LIMIT = 750
+const MAX_RESTAURANT_LIMIT = 1500
+
+const invalidateMapCache = () => Promise.all([
+  invalidatePattern('map:restaurants:*'),
+  invalidatePattern('map:options'),
+])
+
+function queryString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function roundCoord(value: number): number {
+  return Math.round(value * 100_000) / 100_000
+}
+
+function parseNumber(value: unknown, min: number, max: number): number | undefined {
+  const raw = queryString(value)
+  if (!raw) return undefined
+
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return undefined
+  return parsed
+}
+
+function parseLimit(value: unknown): number {
+  const parsed = parseNumber(value, 1, MAX_RESTAURANT_LIMIT)
+  return parsed ? Math.floor(parsed) : DEFAULT_RESTAURANT_LIMIT
+}
+
+function parseBounds(query: Record<string, unknown>): MapBounds | undefined {
+  const north = parseNumber(query.north, -90, 90)
+  const south = parseNumber(query.south, -90, 90)
+  const east = parseNumber(query.east, -180, 180)
+  const west = parseNumber(query.west, -180, 180)
+
+  if ([north, south, east, west].every(v => v === undefined)) return undefined
+  if (
+    north === undefined ||
+    south === undefined ||
+    east === undefined ||
+    west === undefined ||
+    south > north
+  ) {
+    throw new Error('Invalid map bounds')
+  }
+
+  return {
+    north: roundCoord(north),
+    south: roundCoord(south),
+    east: roundCoord(east),
+    west: roundCoord(west),
+  }
+}
+
+function parseCenter(query: Record<string, unknown>): MapPoint | undefined {
+  const lat = parseNumber(query.lat, -90, 90)
+  const lng = parseNumber(query.lng, -180, 180)
+
+  if (lat === undefined && lng === undefined) return undefined
+  if (lat === undefined || lng === undefined) throw new Error('Invalid map center')
+
+  return {
+    lat: roundCoord(lat),
+    lng: roundCoord(lng),
+  }
+}
 
 function parseCsv<T extends string>(value: string | undefined): T[] | undefined {
   if (!value) return undefined
   const parts = value.split(',').map(s => s.trim()).filter(Boolean) as T[]
-  return parts.length ? parts : undefined
+  return parts.length ? [...new Set(parts)].sort() : undefined
 }
 
 const suggestionSchema = z.object({
@@ -73,15 +141,29 @@ export const mapController = {
     } catch (e) { next(e) }
   },
 
+  async listOptions(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await withCache('map:options', MAP_OPTIONS_CACHE_TTL, () =>
+        mapRepo.findMapOptions()
+      )
+      res.json(data)
+    } catch (e) { next(e) }
+  },
+
   async listRestaurants(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const q = req.query as Record<string, string>
+      const q = req.query as Record<string, unknown>
+      const radius = parseNumber(q.radius, 1, 100_000)
 
       const filter: MapFilter = {
-        city:         q.city     || undefined,
-        kashrutLevel: parseCsv<KashrutLevel>(q.kashrutLevel),
-        hechsher:     parseCsv(q.hechsher),
-        foodType:     parseCsv(q.foodType),
+        city:         queryString(q.city) || undefined,
+        kashrutLevel: parseCsv<KashrutLevel>(queryString(q.kashrutLevel)),
+        hechsher:     parseCsv(queryString(q.hechsher)),
+        foodType:     parseCsv(queryString(q.foodType)),
+        bounds:       parseBounds(q),
+        center:       parseCenter(q),
+        radius,
+        limit:        parseLimit(q.limit),
       }
 
       // Build a stable cache key from the filter
@@ -91,8 +173,14 @@ export const mapController = {
         mapRepo.findForMap(filter)
       )
 
-      res.json(serializeMapRestaurants(data))
-    } catch (e) { next(e) }
+      res.json(serializeMapRestaurantsPage(data))
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith('Invalid map')) {
+        res.status(400).json({ error: e.message })
+        return
+      }
+      next(e)
+    }
   },
 
   async createSuggestion(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -145,6 +233,7 @@ export const mapController = {
         res.status(404).json({ error: 'Suggestion not found or already reviewed' })
         return
       }
+      if (status === 'approved') void invalidateMapCache()
       res.json(serializeMapSuggestionFull(result))
     } catch (e) { next(e) }
   },

@@ -1,0 +1,117 @@
+export interface MapTranslations {
+  appName: string
+  suggestBusiness: string
+  darkTheme: string
+  lightTheme: string
+  filtersTooltip: string
+  logout: string
+  loginTooltip: string
+  establishmentCount: string       // template: "{n} …"
+  establishmentCountLimited: string // template: "{shown} … {total} …"
+  updatingMap: string
+  correctLocation: string
+  myLocation: string
+  detectingLocation: string
+
+  filterTitle: string
+  resetAll: string
+  foodTypeSection: string
+  hechsherSection: string
+  citySection: string
+  radiusSection: string
+  showResults: string
+  radiusLabels: readonly [string, string, string, string, string, string, string]
+
+  foodType: { meat: string; dairy: string; pareve: string; takeaway: string }
+  kashrutLevel: { mehadrin: string; badatz: string; regular: string }
+
+  certificate: string
+  buildRoute: string
+  enableGeolocation: string
+  suggestEdit: string
+  detailWarning: string
+
+  reviewsTitle: string
+  avgRating: string                 // template: "{avg} / 5 · {count}"
+  noReviews: string
+  loadReviewsError: string
+  reviewSaved: string
+  rateError: string
+  saveReviewError: string
+  updateYourReview: string
+  yourReview: string
+  reviewPlaceholder: string
+  reviewPlaceholderGuest: string
+  saveReview: string
+  loginAndReview: string
+  loadingReviews: string
+
+  suggestNewTitle: string
+  suggestEditTitle: string
+  loginToSuggest: string
+  loginBtn: string
+  suggestionSent: string
+  suggestionError: string
+  currentEstablishment: string      // template: "{name}, {address}, {city}"
+  nameField: string
+  addressField: string
+  cityField: string
+  hechsherField: string
+  hechsherPlaceholder: string
+  newHechsherHint: string
+  kashrutStatusField: string
+  notesField: string
+  notesPlaceholder: string
+  closeBtn: string
+  cancelBtn: string
+  submitBtn: string
+  statusOptions: readonly [string, string, string, string]
+
+  routeTitle: string
+
+  legalNotice: string
+
+  accountTitle: string
+  authDescription: string
+  loginTab: string
+  registerTab: string
+  resetTab: string
+  oauthError: string
+  wrongCredentials: string
+  registerError: string
+  resetRequestError: string
+  resetConfirmError: string
+
+  emailField: string
+  passwordField: string
+  loginBtn2: string
+  forgotPassword: string
+
+  firstName: string
+  lastName: string
+  phoneField: string
+  passwordHint: string
+  registerBtn: string
+
+  sendCodeTo: string
+  emailOption: string
+  phoneOption: string
+  getCode: string
+  codeSent: string
+  devCodePrefix: string
+  resetCode: string
+  newPassword: string
+  changePassword: string
+
+  addressPlaceholder: string
+  cancelSearch: string
+  clickOnMap: string
+
+  noEstablishments: string
+  tryFilters: string
+  foundCount: string                // template: "{n} …"
+
+  signInWithGoogle: string
+  googleSignInError: string
+  appleSignInError: string
+}

@@ -10,7 +10,8 @@ import AccessTimeIcon  from '@mui/icons-material/AccessTime'
 import PlaceIcon       from '@mui/icons-material/Place'
 import { ReviewsPanel } from '@/components/community/ReviewsPanel'
 import type { MapRestaurant, MapUser } from '@/types'
-import { FOOD_TYPE_LABEL, FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_LABEL, KASHRUT_COLOR } from '@/lib/constants'
+import { FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_COLOR } from '@/lib/constants'
+import { useMapLang } from '@/i18n/useMapLang'
 
 interface Props {
   restaurant:   MapRestaurant | null
@@ -33,6 +34,8 @@ export function RestaurantDetailSheet({
   formatDist,
   user,
 }: Props) {
+  const t = useMapLang()
+
   return (
     <SwipeableDrawer
       anchor="bottom"
@@ -49,14 +52,12 @@ export function RestaurantDetailSheet({
         },
       }}
     >
-      {/* Puller handle */}
       <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
         <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
       </Box>
 
       {r && (
         <Box sx={{ px: 2.5, pb: 3, overflowY: 'auto' }}>
-          {/* Title row */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="h6" fontWeight={700}>{r.name}</Typography>
@@ -70,10 +71,9 @@ export function RestaurantDetailSheet({
             </IconButton>
           </Box>
 
-          {/* Badges */}
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap mb={2}>
             <Chip
-              label={`${FOOD_TYPE_EMOJI[r.foodType]} ${FOOD_TYPE_LABEL[r.foodType]}`}
+              label={`${FOOD_TYPE_EMOJI[r.foodType]} ${t.foodType[r.foodType]}`}
               size="small"
               sx={{
                 bgcolor: `${FOOD_TYPE_COLOR[r.foodType]}22`,
@@ -83,7 +83,7 @@ export function RestaurantDetailSheet({
               }}
             />
             <Chip
-              label={KASHRUT_LABEL[r.kashrutLevel]}
+              label={t.kashrutLevel[r.kashrutLevel]}
               size="small"
               sx={{
                 bgcolor: `${KASHRUT_COLOR[r.kashrutLevel]}22`,
@@ -105,10 +105,9 @@ export function RestaurantDetailSheet({
 
           <Divider sx={{ mb: 2 }} />
 
-          {/* Info rows */}
           <Stack spacing={1.25} mb={2.5}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary" minWidth={100}>Сертификат:</Typography>
+              <Typography variant="body2" color="text.secondary" minWidth={100}>{t.certificate}</Typography>
               <Typography variant="body2" fontWeight={600}>{r.hechsher}</Typography>
             </Box>
             {r.phone && (
@@ -125,7 +124,6 @@ export function RestaurantDetailSheet({
             )}
           </Stack>
 
-          {/* Route button */}
           <Button
             fullWidth
             variant="contained"
@@ -135,7 +133,7 @@ export function RestaurantDetailSheet({
             onClick={() => onStartRoute(r)}
             sx={{ borderRadius: 1, fontWeight: 700, py: 1.25 }}
           >
-            {hasLocation ? 'Построить маршрут' : 'Включите геолокацию'}
+            {hasLocation ? t.buildRoute : t.enableGeolocation}
           </Button>
 
           <Button
@@ -145,11 +143,11 @@ export function RestaurantDetailSheet({
             onClick={() => onSuggestEdit(r)}
             sx={{ borderRadius: 1, mt: 1 }}
           >
-            Предложить правку
+            {t.suggestEdit}
           </Button>
 
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-            Перед заказом проверьте действующую теудат кашрут непосредственно в заведении.
+            {t.detailWarning}
           </Typography>
 
           <Divider sx={{ my: 2.5 }} />
