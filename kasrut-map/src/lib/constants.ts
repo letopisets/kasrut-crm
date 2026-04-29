@@ -41,6 +41,7 @@ export const RADIUS_OPTIONS: { label: string; value: number | null }[] = [
   { label: '2 км',   value: 2000   },
   { label: '5 км',   value: 5000   },
   { label: '10 км',  value: 10000  },
+  { label: '20 км',  value: 20000  },
   { label: 'Все',    value: null   },
 ]
 

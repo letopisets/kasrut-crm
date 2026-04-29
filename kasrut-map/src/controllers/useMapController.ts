@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useGetMapRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGeolocation }           from '@/hooks/useGeolocation'
 import { useRoute }                  from '@/hooks/useRoute'
@@ -33,6 +33,15 @@ export function useMapController() {
 
   const geo    = useGeolocation()
   const router = useRoute()
+  const didAutoPan = useRef(false)
+
+  // Auto-pan to user's position on the very first GPS fix
+  useEffect(() => {
+    if (geo.position && !didAutoPan.current) {
+      didAutoPan.current = true
+      setPanToUser(true)
+    }
+  }, [geo.position])
 
   const { data: raw = [], isLoading } = useGetMapRestaurantsQuery(filters)
   const { data: optionRows = [] } = useGetMapRestaurantsQuery(DEFAULT_FILTERS)
@@ -47,14 +56,17 @@ export function useMapController() {
       .sort((a, b) => (a === 'Все' ? -1 : b === 'Все' ? 1 : a.localeCompare(b, 'he')))
   ), [optionRows])
 
-  /** Attach distance from user and apply radius filter */
+  /** Attach distance from user, apply radius filter, sort nearest first */
   const restaurants = useMemo<MapRestaurant[]>(() => {
     const withDist = raw.map(r => ({
       ...r,
       distance: geo.position ? haversine(geo.position, [r.lat, r.lng]) : undefined,
     }))
-    if (!filters.radius || !geo.position) return withDist
-    return withDist.filter(r => r.distance !== undefined && r.distance <= filters.radius!)
+    const filtered = (filters.radius && geo.position)
+      ? withDist.filter(r => r.distance !== undefined && r.distance <= filters.radius!)
+      : withDist
+    if (!geo.position) return filtered
+    return [...filtered].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
   }, [raw, geo.position, filters.radius])
 
   const goToMyLocation  = () => { geo.refresh(); setPanToUser(true) }

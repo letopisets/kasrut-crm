@@ -34,6 +34,8 @@ function MapClickHandler({ onMapClick }: { onMapClick: (pos: [number, number]) =
 
 interface Props {
   userPosition: [number, number] | null
+  gpsAccuracy:  number | null
+  initialCenter: [number, number]
   panToUser:    boolean
   correcting:   boolean
   restaurants:  MapRestaurant[]
@@ -52,12 +54,12 @@ const USER_ICON = L.divIcon({
   html: '<div class="km-user-dot"></div>',
 })
 
-export function MapView({ userPosition, panToUser, correcting, restaurants, selected, radius, route, onSelect, onPanHandled, onMapClick }: Props) {
+export function MapView({ userPosition, gpsAccuracy, initialCenter, panToUser, correcting, restaurants, selected, radius, route, onSelect, onPanHandled, onMapClick }: Props) {
   const userIcon = useMemo(() => USER_ICON, [])
 
   return (
     <MapContainer
-      center={userPosition ?? DEFAULT_CENTER}
+      center={userPosition ?? initialCenter}
       zoom={DEFAULT_ZOOM}
       style={{ width: '100%', height: '100%' }}
       className={correcting ? 'km-correcting' : undefined}
@@ -78,7 +80,7 @@ export function MapView({ userPosition, panToUser, correcting, restaurants, sele
 
       {userPosition && (
         <>
-          {/* Radius ring */}
+          {/* Radius ring (filter) */}
           {radius && (
             <Circle
               center={userPosition}
@@ -86,6 +88,17 @@ export function MapView({ userPosition, panToUser, correcting, restaurants, sele
               pathOptions={{
                 color: '#E8A507', fillColor: '#E8A507',
                 fillOpacity: 0.06, weight: 1.5, dashArray: '6 4',
+              }}
+            />
+          )}
+          {/* GPS accuracy circle — shows location precision (small = precise, large = IP-based) */}
+          {gpsAccuracy && gpsAccuracy > 50 && (
+            <Circle
+              center={userPosition}
+              radius={gpsAccuracy}
+              pathOptions={{
+                color: '#4A90D9', fillColor: '#4A90D9',
+                fillOpacity: 0.12, weight: 1, dashArray: undefined,
               }}
             />
           )}

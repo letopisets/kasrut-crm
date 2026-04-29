@@ -366,9 +366,13 @@ class ImportBuilder {
 function parseArgs() {
   const sourceFlagIndex = process.argv.findIndex(arg => arg === '--source')
   const sourceFromFlag = sourceFlagIndex >= 0 ? process.argv[sourceFlagIndex + 1] : undefined
+  const outFlagIndex = process.argv.findIndex(arg => arg === '--out')
+  const outFromFlag = outFlagIndex >= 0 ? process.argv[outFlagIndex + 1] : undefined
   return {
     sourceDir: path.resolve(sourceFromFlag ?? process.env.PDF_SOURCE_DIR ?? DEFAULT_SOURCE_DIR),
+    outDir: path.resolve(outFromFlag ?? process.env.PDF_EXPORT_DIR ?? path.join(process.cwd(), '..', 'docs', 'kashrut-export')),
     dryRun: process.argv.includes('--dry-run') || process.env.npm_config_dry_run === 'true',
+    exportFiles: process.argv.includes('--export') || process.env.npm_config_export === 'true',
   }
 }
 
@@ -722,6 +726,248 @@ async function loadIntoDatabase(builder: ImportBuilder) {
   }
 }
 
+function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: string) {
+  fs.mkdirSync(outDir, { recursive: true })
+
+  const authorities = [...builder.authorities.values()].map(row => ({
+    id: row.id,
+    name: row.name,
+    city: row.city,
+    contact: row.contact,
+    phone: row.phone,
+    email: row.email,
+    active: String(row.active),
+    color: row.color,
+  }))
+  const hechsherim = [...builder.hechsherim.values()].map(row => ({
+    id: row.id,
+    name: row.name,
+    shortName: row.shortName,
+    city: row.city,
+    contact: row.contact,
+    phone: row.phone,
+    email: row.email,
+    type: row.type,
+    color: row.color,
+    rabbanutId: row.rabbanutId,
+  }))
+  const mashgichim = [...builder.mashgichim.values()].map(row => ({
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    email: row.email,
+    area: row.area,
+    active: String(row.active),
+    rabbanutId: row.rabbanutId,
+  }))
+  const mashgiachHechsher = [...builder.mashgichim.values()].flatMap(row =>
+    [...row.hechsherIds].map(hechsherId => ({
+      mashgiachId: row.id,
+      hechsherId,
+    })),
+  )
+  const restaurants = [...builder.restaurants.entries()].map(([key, row]) => ({
+    id: idFor('r', key),
+    name: row.name,
+    address: row.address,
+    city: row.city,
+    level: row.level,
+    hechsherId: row.hechsherId,
+    mashgiachId: row.mashgiachId,
+    kitniyot: row.kitniyot,
+    expires: row.expires.toISOString(),
+    status: row.status,
+    rabbanutId: row.rabbanutId,
+    notes: row.notes,
+    lastInspection: row.lastInspection.toISOString(),
+    lat: row.lat,
+    lng: row.lng,
+    foodType: row.foodType,
+    phone: row.phone,
+    hours: row.hours,
+  }))
+  const documents = [...builder.documents.values()].map(row => ({
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    date: row.date.toISOString(),
+    size: row.size,
+    ext: row.ext,
+    url: row.url,
+  }))
+
+  const exports = [
+    ['rabbanuts', authorities],
+    ['hechsherim', hechsherim],
+    ['mashgichim', mashgichim],
+    ['mashgiach_hechsher', mashgiachHechsher],
+    ['restaurants', restaurants],
+    ['documents', documents],
+  ] as const
+
+  for (const [name, rows] of exports) {
+    fs.writeFileSync(path.join(outDir, `${name}.csv`), csv(rows), 'utf8')
+    fs.writeFileSync(path.join(outDir, `${name}.json`), `${JSON.stringify(rows, null, 2)}\n`, 'utf8')
+  }
+  fs.writeFileSync(path.join(outDir, 'import.sql'), buildImportSql({
+    authorities,
+    hechsherim,
+    mashgichim,
+    mashgiachHechsher,
+    restaurants,
+    documents,
+  }), 'utf8')
+
+  const byCity = groupCount(restaurants, row => row.city)
+  const bySource = groupCount(restaurants, row => {
+    const match = row.notes.match(/מקור: ([^|]+)/)
+    return match?.[1]?.trim() || 'unknown'
+  })
+  const byFoodType = groupCount(restaurants, row => row.foodType)
+
+  const summary = [
+    '# Kashrut PDF Export',
+    '',
+    `Source directory: \`${sourceDir}\``,
+    `Generated at: \`${new Date().toISOString()}\``,
+    '',
+    '## Tables',
+    '',
+    markdownTable([
+      { table: 'rabbanuts', rows: authorities.length },
+      { table: 'hechsherim', rows: hechsherim.length },
+      { table: 'mashgichim', rows: mashgichim.length },
+      { table: 'mashgiach_hechsher', rows: mashgiachHechsher.length },
+      { table: 'restaurants', rows: restaurants.length },
+      { table: 'documents', rows: documents.length },
+    ]),
+    '',
+    '## Restaurants by Source',
+    '',
+    markdownTable(bySource.slice(0, 50).map(([source, rows]) => ({ source, rows }))),
+    '',
+    '## Top Cities',
+    '',
+    markdownTable(byCity.slice(0, 50).map(([city, rows]) => ({ city, rows }))),
+    '',
+    '## Food Types',
+    '',
+    markdownTable(byFoodType.map(([foodType, rows]) => ({ foodType, rows }))),
+    '',
+    '## Exported Files',
+    '',
+    ...exports.flatMap(([name]) => [`- \`${name}.csv\``, `- \`${name}.json\``]),
+    '- `import.sql`',
+    '',
+  ].join('\n')
+
+  fs.writeFileSync(path.join(outDir, 'README.md'), summary, 'utf8')
+  console.log(`Exported parsed data to ${outDir}`)
+}
+
+function buildImportSql(data: {
+  authorities: Array<Record<string, unknown>>
+  hechsherim: Array<Record<string, unknown>>
+  mashgichim: Array<Record<string, unknown>>
+  mashgiachHechsher: Array<Record<string, unknown>>
+  restaurants: Array<Record<string, unknown>>
+  documents: Array<Record<string, unknown>>
+}) {
+  return [
+    '-- Generated by kasrut-api/scripts/import-pdf-data.ts',
+    `-- Generated at ${new Date().toISOString()}`,
+    'BEGIN;',
+    'SET CONSTRAINTS ALL DEFERRED;',
+    'DELETE FROM "inspections";',
+    'DELETE FROM "mashgiach_hechsher";',
+    'DELETE FROM "restaurants";',
+    'DELETE FROM "mashgichim";',
+    'DELETE FROM "hechsherim";',
+    'DELETE FROM "documents";',
+    'DELETE FROM "rabbanuts";',
+    insertSql('rabbanuts', ['id', 'name', 'city', 'contact', 'phone', 'email', 'active', 'color'], data.authorities),
+    `UPDATE "users" SET "rabbanutId" = ${sqlValue(JERUSALEM_RABBANUT_ID)} WHERE "email" IN ('admin@jer.il', 'cohen@jer.il');`,
+    insertSql('hechsherim', ['id', 'name', 'shortName', 'city', 'contact', 'phone', 'email', 'type', 'color', 'rabbanutId'], data.hechsherim),
+    insertSql('mashgichim', ['id', 'name', 'phone', 'email', 'area', 'active', 'rabbanutId'], data.mashgichim),
+    insertSql('mashgiach_hechsher', ['mashgiachId', 'hechsherId'], data.mashgiachHechsher),
+    insertSql('restaurants', [
+      'id',
+      'name',
+      'address',
+      'city',
+      'level',
+      'hechsherId',
+      'mashgiachId',
+      'kitniyot',
+      'expires',
+      'status',
+      'rabbanutId',
+      'notes',
+      'lastInspection',
+      'lat',
+      'lng',
+      'foodType',
+      'phone',
+      'hours',
+    ], data.restaurants),
+    insertSql('documents', ['id', 'name', 'category', 'date', 'size', 'ext', 'url'], data.documents),
+    'COMMIT;',
+    '',
+  ].filter(Boolean).join('\n')
+}
+
+function insertSql(table: string, columns: string[], rows: Array<Record<string, unknown>>) {
+  if (!rows.length) return ''
+  const values = rows.map(row => `(${columns.map(column => sqlValue(row[column])).join(', ')})`)
+  return [
+    `INSERT INTO "${table}" (${columns.map(column => `"${column}"`).join(', ')}) VALUES`,
+    `${values.join(',\n')};`,
+  ].join('\n')
+}
+
+function sqlValue(value: unknown) {
+  if (value == null) return 'NULL'
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL'
+  const text = String(value)
+  if (text === 'true' || text === 'false') return text.toUpperCase()
+  return `'${text.replace(/'/g, "''")}'`
+}
+
+function csv<T extends Record<string, unknown>>(rows: T[]) {
+  if (!rows.length) return ''
+  const headers = Object.keys(rows[0])
+  const body = rows.map(row => headers.map(header => csvCell(row[header])).join(','))
+  return `\ufeff${headers.join(',')}\n${body.join('\n')}\n`
+}
+
+function csvCell(value: unknown) {
+  const text = value == null ? '' : String(value)
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function markdownTable<T extends Record<string, unknown>>(rows: T[]) {
+  if (!rows.length) return '_No rows._'
+  const headers = Object.keys(rows[0])
+  const header = `| ${headers.join(' | ')} |`
+  const separator = `| ${headers.map(() => '---').join(' | ')} |`
+  const body = rows.map(row => `| ${headers.map(key => markdownCell(row[key])).join(' | ')} |`)
+  return [header, separator, ...body].join('\n')
+}
+
+function markdownCell(value: unknown) {
+  return String(value ?? '').replace(/\|/g, '\\|')
+}
+
+function groupCount<T>(rows: T[], keyFor: (row: T) => string) {
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const key = keyFor(row)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'he'))
+}
+
 function bootstrapStaticData(builder: ImportBuilder) {
   builder.ensureAuthority({
     id: JERUSALEM_RABBANUT_ID,
@@ -1001,13 +1247,17 @@ function formatSize(bytes: number) {
 }
 
 async function main() {
-  const { sourceDir, dryRun } = parseArgs()
+  const { sourceDir, outDir, dryRun, exportFiles } = parseArgs()
   const builder = new ImportBuilder()
   bootstrapStaticData(builder)
 
   const pdfs = await extractPdfs(sourceDir)
   parsePdfs(pdfs, builder)
   printSummary(builder, dryRun)
+
+  if (exportFiles) {
+    exportParsedData(builder, sourceDir, outDir)
+  }
 
   if (!dryRun) {
     await loadIntoDatabase(builder)
