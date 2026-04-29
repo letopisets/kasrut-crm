@@ -13,14 +13,15 @@ export type MapSuggestionStatus = 'pending' | 'approved' | 'rejected'
 export type MapPasswordResetChannel = 'email' | 'phone'
 
 export interface User {
-  id:               string
-  name:             string
-  email:            string
-  passwordHash:     string
-  role:             Role
-  rabbanutId?:      string
-  twoFactorSecret?: string
-  twoFactorEnabled: boolean
+  id:                   string
+  name:                 string
+  email:                string
+  passwordHash:         string
+  role:                 Role
+  rabbanutId?:          string
+  twoFactorSecret?:     string
+  twoFactorEnabled:     boolean
+  twoFactorBackupCodes: string[]
 }
 
 export interface Rabbanut {
@@ -102,6 +103,7 @@ export interface JWTPayload {
   name:       string
   email:      string
   rabbanutId?:string
+  jti?:       string   // unique token ID — used for blacklisting on logout
   iat:        number
   exp:        number
 }
