@@ -26,6 +26,7 @@ import { RestaurantDetailSheet } from '@/components/filters/RestaurantDetailShee
 import { RoutePanel }            from '@/components/filters/RoutePanel'
 import { LocationCorrector }     from '@/components/location/LocationCorrector'
 import { useMapController }      from '@/controllers/useMapController'
+import { useIpCenter }           from '@/hooks/useIpCenter'
 import { useGetMapMeQuery }      from '@/store/api/mapCommunityApi'
 import { clearCredentials, setUser } from '@/store/mapAuthSlice'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
@@ -39,6 +40,7 @@ interface Props {
 
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const ctrl = useMapController()
+  const ipCenter = useIpCenter()
   const dispatch = useAppDispatch()
   const user = useAppSelector(state => state.mapAuth.user)
   const token = useAppSelector(state => state.mapAuth.token)
@@ -161,6 +163,8 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         }}>
           <MapView
             userPosition={ctrl.geo.position}
+            gpsAccuracy={ctrl.geo.accuracy}
+            initialCenter={ipCenter}
             panToUser={ctrl.panToUser}
             correcting={ctrl.correcting}
             restaurants={ctrl.restaurants}

@@ -1,0 +1,11 @@
+﻿id,name,city,contact,phone,email,active,color
+"rb_jerusalem","רבנות ירושלים","ירושלים","מחלקת כשרות ירושלים","02-0000000","jerusalem@import.local","true","#3498DB"
+"rb_a9e9ff8ab624c1","רבנות ירושלים","ירושלים","רבנות ירושלים","","rb_a9e9ff8ab624c1@import.local","true","#2ECC71"
+"rb_a2cffdca6beacc","רבנות אילת","אילת","רבנות אילת","","rb_a2cffdca6beacc@import.local","true","#E74C3C"
+"rb_542290b9bb4133","בד""ץ מהדרין הרב רובין","אופקים","בד""ץ מהדרין הרב רובין","","rb_542290b9bb4133@import.local","true","#E8C96D"
+"rb_d7d851974986cf","רבנות נתניה","נתניה","רבנות נתניה","","rb_d7d851974986cf@import.local","true","#9B59B6"
+"rb_288e8a3c167cd5","בד""ץ העדה החרדית","דלתון","בד""ץ העדה החרדית","","rb_288e8a3c167cd5@import.local","true","#1ABC9C"
+"rb_fc139a1e3119ee","בד""ץ לנדא","חיפה","בד""ץ לנדא","","rb_fc139a1e3119ee@import.local","true","#F39C12"
+"rb_96167aea894dc8","כשרות חב""ד","מגדל העמק","כשרות חב""ד","","rb_96167aea894dc8@import.local","true","#E67E22"
+"rb_4b20b4bf49b2f0","רבנות בת ים","בת ים","רבנות בת ים","","rb_4b20b4bf49b2f0@import.local","true","#3498DB"
+"rb_050ad423fd1f6d","בד""ץ בית יוסף","בת ים","בד""ץ בית יוסף","","rb_050ad423fd1f6d@import.local","true","#2ECC71"

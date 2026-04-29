@@ -1,0 +1,902 @@
+[
+  {
+    "id": "m_558de56a3d26e4",
+    "name": "איתן רגב",
+    "phone": "0536206782",
+    "email": "m_558de56a3d26e4@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_3b29038d3a2a2a",
+    "name": "אליהו שיינבין",
+    "phone": "0528751588",
+    "email": "m_3b29038d3a2a2a@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_2ffa32eeeef560",
+    "name": "בר איפרגן",
+    "phone": "0532834332",
+    "email": "m_2ffa32eeeef560@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_02abf4fe1844bd",
+    "name": "טל משה",
+    "phone": "0527205585",
+    "email": "m_02abf4fe1844bd@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_312a860ddb1e9c",
+    "name": "מרדכי ביטון",
+    "phone": "0546553346",
+    "email": "m_312a860ddb1e9c@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_5d555e984bc7d7",
+    "name": "עובדיה אליאס",
+    "phone": "0534227362",
+    "email": "m_5d555e984bc7d7@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_6d68bf81be7ac0",
+    "name": "עידו מזרחי",
+    "phone": "0533389062",
+    "email": "m_6d68bf81be7ac0@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_62202c251ed2c3",
+    "name": "אהרון חי",
+    "phone": "0542888508",
+    "email": "m_62202c251ed2c3@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_f4f6dcd5592fec",
+    "name": "ירחמיאל שניאור",
+    "phone": "0509392012",
+    "email": "m_f4f6dcd5592fec@import.local",
+    "area": "אילת",
+    "active": "true",
+    "rabbanutId": "rb_a2cffdca6beacc"
+  },
+  {
+    "id": "m_import_default",
+    "name": "משגיח יבוא",
+    "phone": "",
+    "email": "m_import_default@import.local",
+    "area": "אופקים",
+    "active": "true",
+    "rabbanutId": "rb_542290b9bb4133"
+  },
+  {
+    "id": "m_075e4ef90a93b7",
+    "name": "משגיח 052-5865765",
+    "phone": "052-5865765",
+    "email": "m_075e4ef90a93b7@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_01a087c528e14f",
+    "name": "משגיח 054-8063111",
+    "phone": "054-8063111",
+    "email": "m_01a087c528e14f@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_c589bcbd86aaaa",
+    "name": "משגיח 054-6533722",
+    "phone": "054-6533722",
+    "email": "m_c589bcbd86aaaa@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_cef6ac9eb6ed48",
+    "name": "משגיח 054-5280323",
+    "phone": "054-5280323",
+    "email": "m_cef6ac9eb6ed48@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_5d90b0c3a1499c",
+    "name": "משגיח 054-7603927",
+    "phone": "054-7603927",
+    "email": "m_5d90b0c3a1499c@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_71d1d900bc9e16",
+    "name": "משגיח 050-4210404",
+    "phone": "050-4210404",
+    "email": "m_71d1d900bc9e16@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_cda8a847a3ed1a",
+    "name": "משגיח 058-4960610",
+    "phone": "058-4960610",
+    "email": "m_cda8a847a3ed1a@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_8a29f33b7d8e2d",
+    "name": "משגיח 053-3104625",
+    "phone": "053-3104625",
+    "email": "m_8a29f33b7d8e2d@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_2e0031d1b146c8",
+    "name": "משגיח 053-3122608",
+    "phone": "053-3122608",
+    "email": "m_2e0031d1b146c8@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_0cd22659e36f61",
+    "name": "משגיח 050-7799492",
+    "phone": "050-7799492",
+    "email": "m_0cd22659e36f61@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_cd7381ad9691c7",
+    "name": "משגיח 058-7184989",
+    "phone": "058-7184989",
+    "email": "m_cd7381ad9691c7@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_e946a4bd3980f1",
+    "name": "משגיח 053-3156570",
+    "phone": "053-3156570",
+    "email": "m_e946a4bd3980f1@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_b0997a267384d1",
+    "name": "משגיח 054-6276080",
+    "phone": "054-6276080",
+    "email": "m_b0997a267384d1@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_dd732c42d654c4",
+    "name": "משגיח 050-7608811",
+    "phone": "050-7608811",
+    "email": "m_dd732c42d654c4@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_9e029671efb580",
+    "name": "משגיח 053-3137474",
+    "phone": "053-3137474",
+    "email": "m_9e029671efb580@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_5d97dd3268844f",
+    "name": "משגיח 054-8434340",
+    "phone": "054-8434340",
+    "email": "m_5d97dd3268844f@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_f7d9a9e6952fc1",
+    "name": "משגיח 050-8884558",
+    "phone": "050-8884558",
+    "email": "m_f7d9a9e6952fc1@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_5b6fdb2927ebaf",
+    "name": "משגיח 053-3022183",
+    "phone": "053-3022183",
+    "email": "m_5b6fdb2927ebaf@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_11c2879f363d29",
+    "name": "משגיח 052-7629511",
+    "phone": "052-7629511",
+    "email": "m_11c2879f363d29@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_ba55da318c4230",
+    "name": "משגיח 052-7131205",
+    "phone": "052-7131205",
+    "email": "m_ba55da318c4230@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_2c8e37c667e7ef",
+    "name": "משגיח 052-7636809",
+    "phone": "052-7636809",
+    "email": "m_2c8e37c667e7ef@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_430f02f608c37e",
+    "name": "משגיח 052-6062150",
+    "phone": "052-6062150",
+    "email": "m_430f02f608c37e@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_618e1b22a732da",
+    "name": "משגיח 052-8085117",
+    "phone": "052-8085117",
+    "email": "m_618e1b22a732da@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_6e3fb8863938a5",
+    "name": "משגיח 054-8406197",
+    "phone": "054-8406197",
+    "email": "m_6e3fb8863938a5@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_aa35137e731448",
+    "name": "משגיח 052-9519060",
+    "phone": "052-9519060",
+    "email": "m_aa35137e731448@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_f78f0dd5a068f6",
+    "name": "משגיח 054-8446631",
+    "phone": "054-8446631",
+    "email": "m_f78f0dd5a068f6@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_8352fc2783045b",
+    "name": "משגיח 054-5855507",
+    "phone": "054-5855507",
+    "email": "m_8352fc2783045b@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_4c190560ff9b99",
+    "name": "משגיח 052-6778456",
+    "phone": "052-6778456",
+    "email": "m_4c190560ff9b99@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_875e5b1e3ca7bb",
+    "name": "משגיח 054-8478178",
+    "phone": "054-8478178",
+    "email": "m_875e5b1e3ca7bb@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_bfe55b6749a905",
+    "name": "משגיח 052-7143966",
+    "phone": "052-7143966",
+    "email": "m_bfe55b6749a905@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_ac4d97a5f3cb7a",
+    "name": "משגיח 054-8447999",
+    "phone": "054-8447999",
+    "email": "m_ac4d97a5f3cb7a@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_67adcc5080965c",
+    "name": "משגיח 050-3307220",
+    "phone": "050-3307220",
+    "email": "m_67adcc5080965c@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_9148c5c3703b4f",
+    "name": "משגיח 054-2043685",
+    "phone": "054-2043685",
+    "email": "m_9148c5c3703b4f@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_92c6305b1c1737",
+    "name": "משגיח 050-7847171",
+    "phone": "050-7847171",
+    "email": "m_92c6305b1c1737@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_a82724b0a56728",
+    "name": "משגיח 052-7497848",
+    "phone": "052-7497848",
+    "email": "m_a82724b0a56728@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_76e35b8a758a6b",
+    "name": "משגיח 054-8528810",
+    "phone": "054-8528810",
+    "email": "m_76e35b8a758a6b@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_11bebfeda93732",
+    "name": "משגיח 052-7101802",
+    "phone": "052-7101802",
+    "email": "m_11bebfeda93732@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_e8d5db778fcbc8",
+    "name": "משגיח 052-7118880",
+    "phone": "052-7118880",
+    "email": "m_e8d5db778fcbc8@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_f82465dc19aa36",
+    "name": "משגיח 054-8446128",
+    "phone": "054-8446128",
+    "email": "m_f82465dc19aa36@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_256cc3595275fc",
+    "name": "משגיח 054-4988242",
+    "phone": "054-4988242",
+    "email": "m_256cc3595275fc@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_de414c1ff0fc63",
+    "name": "משגיח 058-3233023",
+    "phone": "058-3233023",
+    "email": "m_de414c1ff0fc63@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_1ebc366f31fd08",
+    "name": "משגיח 052-6705130",
+    "phone": "052-6705130",
+    "email": "m_1ebc366f31fd08@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_eb292a71b8abee",
+    "name": "משגיח 054-7731528",
+    "phone": "054-7731528",
+    "email": "m_eb292a71b8abee@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_849f530c384e09",
+    "name": "משגיח 054-7731593",
+    "phone": "054-7731593",
+    "email": "m_849f530c384e09@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_d3cd554a871c70",
+    "name": "משגיח 054-3007182",
+    "phone": "054-3007182",
+    "email": "m_d3cd554a871c70@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_21ec7318ae0624",
+    "name": "משגיח 052-6866908",
+    "phone": "052-6866908",
+    "email": "m_21ec7318ae0624@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_bdce72f718d2c5",
+    "name": "משגיח 054-7393697",
+    "phone": "054-7393697",
+    "email": "m_bdce72f718d2c5@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_4e15a89ff0a034",
+    "name": "משגיח 058-4272830",
+    "phone": "058-4272830",
+    "email": "m_4e15a89ff0a034@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_f62baba2b3602a",
+    "name": "משגיח 052-7695159",
+    "phone": "052-7695159",
+    "email": "m_f62baba2b3602a@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_bd3f9130238f89",
+    "name": "משגיח 054-8155311",
+    "phone": "054-8155311",
+    "email": "m_bd3f9130238f89@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_02d4eb1e6ebd67",
+    "name": "משגיח 054-4930941",
+    "phone": "054-4930941",
+    "email": "m_02d4eb1e6ebd67@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_3e25c88a1d6d62",
+    "name": "משגיח 052-8894288",
+    "phone": "052-8894288",
+    "email": "m_3e25c88a1d6d62@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_ec99dd644a14be",
+    "name": "משגיח 058-7786889",
+    "phone": "058-7786889",
+    "email": "m_ec99dd644a14be@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_9988d2e1be23c4",
+    "name": "משגיח 054-8441970",
+    "phone": "054-8441970",
+    "email": "m_9988d2e1be23c4@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_e74dcbc0625523",
+    "name": "משגיח 054-8597355",
+    "phone": "054-8597355",
+    "email": "m_e74dcbc0625523@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_44845440514133",
+    "name": "משגיח 054-8427135",
+    "phone": "054-8427135",
+    "email": "m_44845440514133@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_d9eb029b80749c",
+    "name": "משגיח 054-8459970",
+    "phone": "054-8459970",
+    "email": "m_d9eb029b80749c@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_b7ca9c6337547a",
+    "name": "משגיח 052-2852282",
+    "phone": "052-2852282",
+    "email": "m_b7ca9c6337547a@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_a5ed65fd9cb0d1",
+    "name": "משגיח 053-2456132",
+    "phone": "053-2456132",
+    "email": "m_a5ed65fd9cb0d1@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_e1b1b23820e068",
+    "name": "משגיח 052-7127836",
+    "phone": "052-7127836",
+    "email": "m_e1b1b23820e068@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_cc8973826d0dcf",
+    "name": "משגיח 054-7512002",
+    "phone": "054-7512002",
+    "email": "m_cc8973826d0dcf@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_850e31f09cf190",
+    "name": "משגיח 054-3342259",
+    "phone": "054-3342259",
+    "email": "m_850e31f09cf190@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_26d7b70e8df70f",
+    "name": "משגיח 054-9631635",
+    "phone": "054-9631635",
+    "email": "m_26d7b70e8df70f@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_1cb0f59a814d83",
+    "name": "משגיח 052-2763072",
+    "phone": "052-2763072",
+    "email": "m_1cb0f59a814d83@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_9662baed9a54af",
+    "name": "משגיח 050-8814382",
+    "phone": "050-8814382",
+    "email": "m_9662baed9a54af@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_be07d6cee39d23",
+    "name": "משגיח 053-3110038",
+    "phone": "053-3110038",
+    "email": "m_be07d6cee39d23@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_aa07fed6dcf96a",
+    "name": "משגיח 053-4125989",
+    "phone": "053-4125989",
+    "email": "m_aa07fed6dcf96a@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_5e96b34e8438d7",
+    "name": "משגיח 052-2780892",
+    "phone": "052-2780892",
+    "email": "m_5e96b34e8438d7@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_c64be08dba175c",
+    "name": "משגיח 054-2450080",
+    "phone": "054-2450080",
+    "email": "m_c64be08dba175c@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_50f394624d726e",
+    "name": "משגיח 055-6686660",
+    "phone": "055-6686660",
+    "email": "m_50f394624d726e@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_b76d3ecce955d5",
+    "name": "משגיח 055-9844775",
+    "phone": "055-9844775",
+    "email": "m_b76d3ecce955d5@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_e0871f9e3b477a",
+    "name": "משגיח 054-3112226",
+    "phone": "054-3112226",
+    "email": "m_e0871f9e3b477a@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_0e7a0d9757e943",
+    "name": "משגיח 050-4124080",
+    "phone": "050-4124080",
+    "email": "m_0e7a0d9757e943@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_0cb435162dbbf6",
+    "name": "משגיח 052-4746520",
+    "phone": "052-4746520",
+    "email": "m_0cb435162dbbf6@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_a5e75228029495",
+    "name": "משגיח 052-2993391",
+    "phone": "052-2993391",
+    "email": "m_a5e75228029495@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_3652bb80fb3c60",
+    "name": "משגיח 050-8739090",
+    "phone": "050-8739090",
+    "email": "m_3652bb80fb3c60@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_3aed45402fdc75",
+    "name": "משגיח 054-8484971",
+    "phone": "054-8484971",
+    "email": "m_3aed45402fdc75@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_5d3c9ba00289df",
+    "name": "משגיח 052-7676981",
+    "phone": "052-7676981",
+    "email": "m_5d3c9ba00289df@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_0f0cec346eda91",
+    "name": "משגיח 058-3275327",
+    "phone": "058-3275327",
+    "email": "m_0f0cec346eda91@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_b70f5655ae2948",
+    "name": "משגיח 058-7602042",
+    "phone": "058-7602042",
+    "email": "m_b70f5655ae2948@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_4c7face9e05bc5",
+    "name": "משגיח 054-8415888",
+    "phone": "054-8415888",
+    "email": "m_4c7face9e05bc5@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_debb77cf86503e",
+    "name": "משגיח 055-6605959",
+    "phone": "055-6605959",
+    "email": "m_debb77cf86503e@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_47a1561afc8239",
+    "name": "משגיח 050-4114920",
+    "phone": "050-4114920",
+    "email": "m_47a1561afc8239@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_e12473e6e54e14",
+    "name": "משגיח 052-3207647",
+    "phone": "052-3207647",
+    "email": "m_e12473e6e54e14@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_9811a5c68d2318",
+    "name": "משגיח 054-6594170",
+    "phone": "054-6594170",
+    "email": "m_9811a5c68d2318@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_5f5e26788cc53d",
+    "name": "משגיח 050-7717151",
+    "phone": "050-7717151",
+    "email": "m_5f5e26788cc53d@import.local",
+    "area": "נתניה",
+    "active": "true",
+    "rabbanutId": "rb_d7d851974986cf"
+  },
+  {
+    "id": "m_29aa9bc9d9fbf9",
+    "name": "רז אלון",
+    "phone": "050-7266416",
+    "email": "m_29aa9bc9d9fbf9@import.local",
+    "area": "בת ים",
+    "active": "true",
+    "rabbanutId": "rb_4b20b4bf49b2f0"
+  },
+  {
+    "id": "m_d8f87ffa2b909a",
+    "name": "לאון יצחק",
+    "phone": "054-3332078",
+    "email": "m_d8f87ffa2b909a@import.local",
+    "area": "בת ים",
+    "active": "true",
+    "rabbanutId": "rb_050ad423fd1f6d"
+  },
+  {
+    "id": "m_45c0806e925442",
+    "name": "מאמו יצחק",
+    "phone": "050-3222020",
+    "email": "m_45c0806e925442@import.local",
+    "area": "בת ים",
+    "active": "true",
+    "rabbanutId": "rb_4b20b4bf49b2f0"
+  },
+  {
+    "id": "m_993e6f7311b31c",
+    "name": "ויצמן דוד",
+    "phone": "054-3332075",
+    "email": "m_993e6f7311b31c@import.local",
+    "area": "בת ים",
+    "active": "true",
+    "rabbanutId": "rb_4b20b4bf49b2f0"
+  }
+]

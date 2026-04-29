@@ -1,0 +1,11 @@
+﻿id,name,shortName,city,contact,phone,email,type,color,rabbanutId
+"h_8974387b56e05a","רבנות ירושלים","רבנות ירושלים","ירושלים","רבנות ירושלים","","rb_a9e9ff8ab624c1@import.local","Rabbanut","#2ECC71","rb_a9e9ff8ab624c1"
+"h_1cb26ba92e6d2e","רבנות אילת מהדרין","רבנות אילת מהדרין","אילת","רבנות אילת","","rb_a2cffdca6beacc@import.local","Mehadrin","#E74C3C","rb_a2cffdca6beacc"
+"h_42b135607c3a54","בד""ץ מהדרין הרב רובין","בד""ץ מהדרין הרב רובין","אופקים","בד""ץ מהדרין הרב רובין","","rb_542290b9bb4133@import.local","Badatz","#E8C96D","rb_542290b9bb4133"
+"h_d6e6f7efe6c151","מהדרין - רבנות נתניה","מהדרין - רבנות נתניה","נתניה","רבנות נתניה","","rb_d7d851974986cf@import.local","Mehadrin","#9B59B6","rb_d7d851974986cf"
+"h_0dc7b871049d03","בד""ץ העדה החרדית","בד""ץ העדה החרדית","דלתון","בד""ץ העדה החרדית","","rb_288e8a3c167cd5@import.local","Badatz","#1ABC9C","rb_288e8a3c167cd5"
+"h_943fe3047147c3","בד""ץ לנדא","בד""ץ לנדא","חיפה","בד""ץ לנדא","","rb_fc139a1e3119ee@import.local","Badatz","#F39C12","rb_fc139a1e3119ee"
+"h_7c3ca4f927a2da","כשרות חב""ד","כשרות חב""ד","מגדל העמק","כשרות חב""ד","","rb_96167aea894dc8@import.local","Mehadrin","#E67E22","rb_96167aea894dc8"
+"h_cb270691c26978","רבנות בת ים","רבנות בת ים","בת ים","רבנות בת ים","","rb_4b20b4bf49b2f0@import.local","Rabbanut","#3498DB","rb_4b20b4bf49b2f0"
+"h_af97830360cdc7","בד""ץ בית יוסף","בד""ץ בית יוסף","בת ים","בד""ץ בית יוסף","","rb_050ad423fd1f6d@import.local","Badatz","#2ECC71","rb_050ad423fd1f6d"
+"h_a4afc4834a0a88","בד""ץ לנדא","בד""ץ לנדא","בת ים","רבנות בת ים","","rb_4b20b4bf49b2f0@import.local","Badatz","#3498DB","rb_4b20b4bf49b2f0"

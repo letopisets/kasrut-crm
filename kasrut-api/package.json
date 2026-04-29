@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "seed": "ts-node-dev --transpile-only prisma/seed.ts",
     "import:pdf": "ts-node --transpile-only scripts/import-pdf-data.ts",
+    "export:pdf": "ts-node --transpile-only scripts/import-pdf-data.ts --source ../docs-kashrut --dry-run --export --out ../docs/kashrut-export",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "test": "jest",

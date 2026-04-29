@@ -1,0 +1,102 @@
+[
+  {
+    "id": "rb_jerusalem",
+    "name": "רבנות ירושלים",
+    "city": "ירושלים",
+    "contact": "מחלקת כשרות ירושלים",
+    "phone": "02-0000000",
+    "email": "jerusalem@import.local",
+    "active": "true",
+    "color": "#3498DB"
+  },
+  {
+    "id": "rb_a9e9ff8ab624c1",
+    "name": "רבנות ירושלים",
+    "city": "ירושלים",
+    "contact": "רבנות ירושלים",
+    "phone": "",
+    "email": "rb_a9e9ff8ab624c1@import.local",
+    "active": "true",
+    "color": "#2ECC71"
+  },
+  {
+    "id": "rb_a2cffdca6beacc",
+    "name": "רבנות אילת",
+    "city": "אילת",
+    "contact": "רבנות אילת",
+    "phone": "",
+    "email": "rb_a2cffdca6beacc@import.local",
+    "active": "true",
+    "color": "#E74C3C"
+  },
+  {
+    "id": "rb_542290b9bb4133",
+    "name": "בד\"ץ מהדרין הרב רובין",
+    "city": "אופקים",
+    "contact": "בד\"ץ מהדרין הרב רובין",
+    "phone": "",
+    "email": "rb_542290b9bb4133@import.local",
+    "active": "true",
+    "color": "#E8C96D"
+  },
+  {
+    "id": "rb_d7d851974986cf",
+    "name": "רבנות נתניה",
+    "city": "נתניה",
+    "contact": "רבנות נתניה",
+    "phone": "",
+    "email": "rb_d7d851974986cf@import.local",
+    "active": "true",
+    "color": "#9B59B6"
+  },
+  {
+    "id": "rb_288e8a3c167cd5",
+    "name": "בד\"ץ העדה החרדית",
+    "city": "דלתון",
+    "contact": "בד\"ץ העדה החרדית",
+    "phone": "",
+    "email": "rb_288e8a3c167cd5@import.local",
+    "active": "true",
+    "color": "#1ABC9C"
+  },
+  {
+    "id": "rb_fc139a1e3119ee",
+    "name": "בד\"ץ לנדא",
+    "city": "חיפה",
+    "contact": "בד\"ץ לנדא",
+    "phone": "",
+    "email": "rb_fc139a1e3119ee@import.local",
+    "active": "true",
+    "color": "#F39C12"
+  },
+  {
+    "id": "rb_96167aea894dc8",
+    "name": "כשרות חב\"ד",
+    "city": "מגדל העמק",
+    "contact": "כשרות חב\"ד",
+    "phone": "",
+    "email": "rb_96167aea894dc8@import.local",
+    "active": "true",
+    "color": "#E67E22"
+  },
+  {
+    "id": "rb_4b20b4bf49b2f0",
+    "name": "רבנות בת ים",
+    "city": "בת ים",
+    "contact": "רבנות בת ים",
+    "phone": "",
+    "email": "rb_4b20b4bf49b2f0@import.local",
+    "active": "true",
+    "color": "#3498DB"
+  },
+  {
+    "id": "rb_050ad423fd1f6d",
+    "name": "בד\"ץ בית יוסף",
+    "city": "בת ים",
+    "contact": "בד\"ץ בית יוסף",
+    "phone": "",
+    "email": "rb_050ad423fd1f6d@import.local",
+    "active": "true",
+    "color": "#2ECC71"
+  }
+]
