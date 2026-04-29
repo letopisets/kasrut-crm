@@ -1,9 +1,10 @@
 import { prisma } from '../lib/prisma'
-import type { MapPasswordResetChannel, MapSuggestionType } from '../models/types'
+import type { MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
 import type {
   MapAuthProvider as PrismaMapAuthProvider,
   MapPasswordResetChannel as PrismaMapPasswordResetChannel,
   MapSuggestionType as PrismaMapSuggestionType,
+  MapSuggestionStatus as PrismaMapSuggestionStatus,
 } from '../generated/prisma/client'
 import type { OAuthProfile } from '../services/mapOAuth.service'
 
@@ -221,6 +222,52 @@ export const mapCommunityRepo = {
         proposedLng: input.proposedLng ?? undefined,
         notes: input.notes || undefined,
       },
+    })
+  },
+
+  async listSuggestions(filter: { status?: MapSuggestionStatus }) {
+    return prisma.mapRestaurantSuggestion.findMany({
+      where: filter.status ? { status: filter.status as PrismaMapSuggestionStatus } : undefined,
+      include: {
+        mapUser: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  },
+
+  async reviewSuggestion(id: string, data: {
+    status: 'approved' | 'rejected'
+    reviewerNote?: string | null
+  }) {
+    return prisma.$transaction(async tx => {
+      const suggestion = await tx.mapRestaurantSuggestion.findUnique({ where: { id } })
+      if (!suggestion || suggestion.status !== 'pending') return null
+
+      if (
+        data.status === 'approved' &&
+        suggestion.type === 'update' &&
+        suggestion.restaurantId
+      ) {
+        const patch: Record<string, string> = {}
+        if (suggestion.proposedName)    patch.name    = suggestion.proposedName
+        if (suggestion.proposedAddress) patch.address = suggestion.proposedAddress
+        if (suggestion.proposedCity)    patch.city    = suggestion.proposedCity
+        if (Object.keys(patch).length > 0) {
+          await tx.restaurant.update({ where: { id: suggestion.restaurantId }, data: patch })
+        }
+      }
+
+      return tx.mapRestaurantSuggestion.update({
+        where: { id },
+        data: {
+          status: data.status as PrismaMapSuggestionStatus,
+          reviewerNote: data.reviewerNote ?? undefined,
+          reviewedAt: new Date(),
+        },
+        include: {
+          mapUser: { select: { id: true, name: true, email: true } },
+        },
+      })
     })
   },
 

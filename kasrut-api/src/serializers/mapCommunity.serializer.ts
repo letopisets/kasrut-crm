@@ -10,7 +10,7 @@ export const serializeMapUser = (u: MapUserRow) => ({
   avatarUrl: u.avatarUrl,
 })
 
-export const serializeMapSuggestion = (s: {
+type SuggestionBase = {
   id: string
   type: string
   status: string
@@ -24,7 +24,9 @@ export const serializeMapSuggestion = (s: {
   proposedLng: number | null
   notes: string | null
   createdAt: Date
-}) => ({
+}
+
+export const serializeMapSuggestion = (s: SuggestionBase) => ({
   id: s.id,
   type: s.type,
   status: s.status,
@@ -38,6 +40,17 @@ export const serializeMapSuggestion = (s: {
   proposedLng: s.proposedLng,
   notes: s.notes,
   createdAt: s.createdAt.toISOString(),
+})
+
+export const serializeMapSuggestionFull = (s: SuggestionBase & {
+  reviewerNote: string | null
+  reviewedAt: Date | null
+  mapUser: { id: string; name: string; email: string }
+}) => ({
+  ...serializeMapSuggestion(s),
+  reviewerNote: s.reviewerNote,
+  reviewedAt: s.reviewedAt?.toISOString() ?? null,
+  user: { id: s.mapUser.id, name: s.mapUser.name, email: s.mapUser.email },
 })
 
 export const serializeMapReview = (r: {
