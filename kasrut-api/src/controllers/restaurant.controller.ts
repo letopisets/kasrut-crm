@@ -29,6 +29,9 @@ export const restaurantController = {
     try {
       const r = await restaurantsRepo.findById(req.params.id)
       if (!r) { res.status(404).json({ error: 'Not found' }); return }
+      if (req.user?.role === 'rabbanut' && r.rabbanutId !== req.user.rabbanutId) {
+        res.status(403).json({ error: 'Forbidden' }); return
+      }
       res.json(serializeRestaurant(r))
     } catch (e) { next(e) }
   },
@@ -48,6 +51,19 @@ export const restaurantController = {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = validate(updateRestaurantSchema, req.body)
+
+      if (req.user?.role === 'rabbanut') {
+        const existing = await restaurantsRepo.findById(req.params.id)
+        if (!existing) { res.status(404).json({ error: 'Not found' }); return }
+        if (existing.rabbanutId !== req.user.rabbanutId) {
+          res.status(403).json({ error: 'Forbidden' }); return
+        }
+        // Prevent hijacking: rabbanut cannot reassign restaurant to another rabbanut
+        if (body.rabbanutId !== undefined && body.rabbanutId !== req.user.rabbanutId) {
+          res.status(403).json({ error: 'Forbidden' }); return
+        }
+      }
+
       const r = await restaurantsRepo.update(req.params.id, body)
       if (!r) { res.status(404).json({ error: 'Not found' }); return }
       void invalidateMapCache()

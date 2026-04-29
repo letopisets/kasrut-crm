@@ -36,6 +36,11 @@ COPY --from=builder /app/kasrut-api/dist ./dist
 COPY docker/api-entrypoint.sh /usr/local/bin/api-entrypoint.sh
 RUN chmod +x /usr/local/bin/api-entrypoint.sh
 
+# Run as non-root for container escape mitigation
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN chown -R appuser:appgroup /app/kasrut-api
+USER appuser
+
 EXPOSE 3000
 
 ENTRYPOINT ["api-entrypoint.sh"]

@@ -90,8 +90,9 @@ model User {
   passwordHash      String
   role              Role
   rabbanutId        String?
-  twoFactorSecret   String?
-  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret      String?
+  twoFactorEnabled     Boolean  @default(false)
+  twoFactorBackupCodes String[] @default([])
 
   rabbanut          Rabbanut? @relation(fields: [rabbanutId], references: [id], onDelete: SetNull)
 

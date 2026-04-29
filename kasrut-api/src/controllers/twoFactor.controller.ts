@@ -1,9 +1,25 @@
 import type { Request, Response, NextFunction } from 'express'
 import qrcode from 'qrcode'
 import jwt from 'jsonwebtoken'
+import bcrypt from 'bcryptjs'
+import { randomBytes } from 'crypto'
 import { usersRepo } from '../db/users.repo'
 import { env } from '../config/env'
 import { serializeUser } from '../serializers/user.serializer'
+import { signFullToken } from './auth.controller'
+
+const BACKUP_CODE_COUNT  = 8
+const BACKUP_CODE_BYTES  = 5  // 10 hex chars per code
+
+function generateBackupCodes(): string[] {
+  return Array.from({ length: BACKUP_CODE_COUNT }, () =>
+    randomBytes(BACKUP_CODE_BYTES).toString('hex').toUpperCase(),
+  )
+}
+
+function hashBackupCodes(codes: string[]): string[] {
+  return codes.map(c => bcrypt.hashSync(c, 10))
+}
 
 // otplib v13 API — synchronous helpers
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -29,8 +45,8 @@ export const twoFactorController = {
     try {
       if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
 
-      const secret   = generateSecret()
-      const otpauth  = generateURI({ strategy: 'totp', issuer: APP_NAME, label: req.user.email, secret })
+      const secret    = generateSecret()
+      const otpauth   = generateURI({ strategy: 'totp', issuer: APP_NAME, label: req.user.email, secret })
       const qrDataUrl = await qrcode.toDataURL(otpauth)
 
       await usersRepo.setTwoFactorSecret(req.user.sub, secret)
@@ -55,8 +71,13 @@ export const twoFactorController = {
         res.status(400).json({ error: 'Invalid code' }); return
       }
 
+      const plainCodes  = generateBackupCodes()
+      const hashedCodes = hashBackupCodes(plainCodes)
+      await usersRepo.setBackupCodes(req.user.sub, hashedCodes)
       const updated = await usersRepo.enableTwoFactor(req.user.sub)
-      res.json({ user: serializeUser(updated!) })
+      console.info(`[audit] 2fa_enabled userId=${req.user.sub}`)
+      // Return plain codes once — user must store them safely
+      res.json({ user: serializeUser(updated!), backupCodes: plainCodes })
     } catch (e) { next(e) }
   },
 
@@ -77,7 +98,45 @@ export const twoFactorController = {
       }
 
       const updated = await usersRepo.disableTwoFactor(req.user.sub)
+      console.info(`[audit] 2fa_disabled userId=${req.user.sub}`)
       res.json({ user: serializeUser(updated!) })
+    } catch (e) { next(e) }
+  },
+
+  // Called after password login using a backup code instead of TOTP
+  async verifyBackup(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { tempToken, backupCode } = req.body as { tempToken?: string; backupCode?: string }
+      if (!tempToken || !backupCode) {
+        res.status(400).json({ error: 'tempToken and backupCode required' }); return
+      }
+
+      let payload: { sub: string }
+      try {
+        payload = jwt.verify(tempToken, env.JWT_SECRET) as { sub: string }
+      } catch {
+        res.status(401).json({ error: 'Invalid or expired token' }); return
+      }
+
+      const user = await usersRepo.findById(payload.sub)
+      if (!user || !user.twoFactorEnabled) {
+        res.status(401).json({ error: 'Unauthorized' }); return
+      }
+
+      const normalised = backupCode.trim().toUpperCase()
+      const matchIndex = user.twoFactorBackupCodes.findIndex(h => bcrypt.compareSync(normalised, h))
+      if (matchIndex === -1) {
+        res.status(400).json({ error: 'Invalid backup code' }); return
+      }
+
+      // Consume the used code — one-time use only
+      const remaining = user.twoFactorBackupCodes.filter((_, i) => i !== matchIndex)
+      await usersRepo.consumeBackupCode(user.id, remaining)
+
+      const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
+      console.info(`[audit] login_backup_code userId=${user.id} remaining=${remaining.length} ip=${ip}`)
+      const token = signFullToken(user)
+      res.json({ user: serializeUser(user), token, backupCodesRemaining: remaining.length })
     } catch (e) { next(e) }
   },
 
@@ -89,9 +148,9 @@ export const twoFactorController = {
         res.status(400).json({ error: 'tempToken and code required' }); return
       }
 
-      let payload: { sub: string }
+      let payload: { sub: string; jti?: string }
       try {
-        payload = jwt.verify(tempToken, env.JWT_SECRET) as { sub: string }
+        payload = jwt.verify(tempToken, env.JWT_SECRET) as { sub: string; jti?: string }
       } catch {
         res.status(401).json({ error: 'Invalid or expired token' }); return
       }
@@ -104,12 +163,9 @@ export const twoFactorController = {
         res.status(400).json({ error: 'Invalid code' }); return
       }
 
-      const fullPayload = {
-        sub:  user.id,   role:  user.role,
-        name: user.name, email: user.email,
-        ...(user.rabbanutId ? { rabbanutId: user.rabbanutId } : {}),
-      }
-      const token = jwt.sign(fullPayload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN } as object)
+      const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
+      console.info(`[audit] login_success_2fa userId=${user.id} ip=${ip}`)
+      const token = signFullToken(user)
       res.json({ user: serializeUser(user), token })
     } catch (e) { next(e) }
   },

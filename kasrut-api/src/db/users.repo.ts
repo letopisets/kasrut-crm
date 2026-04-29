@@ -1,18 +1,28 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
+import { encrypt, decrypt } from '../lib/crypto'
 import type { User, Role } from '../models/types'
 import type { User as PrismaUser } from '../generated/prisma/client'
 
-function toUser(u: PrismaUser): User {
+// Cast extended until `prisma generate` picks up the new twoFactorBackupCodes column
+type PrismaUserExtended = PrismaUser & { twoFactorBackupCodes?: string[] }
+
+function toUser(u: PrismaUserExtended): User {
+  let twoFactorSecret: string | undefined
+  if (u.twoFactorSecret) {
+    // Decrypt stored secret; fall back to raw value for legacy unencrypted rows
+    twoFactorSecret = decrypt(u.twoFactorSecret) ?? u.twoFactorSecret
+  }
   return {
-    id:               u.id,
-    name:             u.name,
-    email:            u.email,
-    passwordHash:     u.passwordHash,
-    role:             u.role as Role,
-    twoFactorEnabled: u.twoFactorEnabled,
-    ...(u.rabbanutId      ? { rabbanutId:      u.rabbanutId }      : {}),
-    ...(u.twoFactorSecret ? { twoFactorSecret: u.twoFactorSecret } : {}),
+    id:                   u.id,
+    name:                 u.name,
+    email:                u.email,
+    passwordHash:         u.passwordHash,
+    role:                 u.role as Role,
+    twoFactorEnabled:     u.twoFactorEnabled,
+    twoFactorBackupCodes: u.twoFactorBackupCodes ?? [],
+    ...(u.rabbanutId    ? { rabbanutId: u.rabbanutId } : {}),
+    ...(twoFactorSecret ? { twoFactorSecret }          : {}),
   }
 }
 
@@ -67,7 +77,7 @@ export const usersRepo = {
 
   async setTwoFactorSecret(id: string, secret: string): Promise<User | null> {
     try {
-      const u = await prisma.user.update({ where: { id }, data: { twoFactorSecret: secret, twoFactorEnabled: false } })
+      const u = await prisma.user.update({ where: { id }, data: { twoFactorSecret: encrypt(secret), twoFactorEnabled: false } })
       return toUser(u)
     } catch { return null }
   },
@@ -81,8 +91,25 @@ export const usersRepo = {
 
   async disableTwoFactor(id: string): Promise<User | null> {
     try {
-      const u = await prisma.user.update({ where: { id }, data: { twoFactorEnabled: false, twoFactorSecret: null } })
-      return toUser(u)
+      const u = await prisma.user.update({
+        where: { id },
+        data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [] },
+      })
+      return toUser(u as PrismaUserExtended)
     } catch { return null }
+  },
+
+  async setBackupCodes(id: string, hashedCodes: string[]): Promise<void> {
+    await (prisma.user as unknown as { update: (args: object) => Promise<unknown> }).update({
+      where: { id },
+      data: { twoFactorBackupCodes: hashedCodes },
+    })
+  },
+
+  async consumeBackupCode(id: string, remainingCodes: string[]): Promise<void> {
+    await (prisma.user as unknown as { update: (args: object) => Promise<unknown> }).update({
+      where: { id },
+      data: { twoFactorBackupCodes: remainingCodes },
+    })
   },
 }
