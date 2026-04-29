@@ -76,6 +76,15 @@ Public checks:
 - `https://api.mykoshermap.com/health`
 - `https://crm.mykoshermap.com`
 
+If OpenStreetMap tiles show `403 Access blocked`, rebuild and recreate the map
+and nginx services so the latest `Referrer-Policy` and Leaflet tile settings are
+deployed:
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml build kasrut-map nginx
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d kasrut-map nginx
+```
+
 ## Backups
 
 Create a Postgres backup:
