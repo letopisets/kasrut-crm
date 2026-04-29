@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Box, AppBar, Toolbar, Typography,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
-  Fab, Tooltip, Avatar, Menu, MenuItem,
+  Fab, Tooltip, Avatar, Menu, MenuItem, CircularProgress,
 } from '@mui/material'
 import TuneIcon        from '@mui/icons-material/Tune'
 import MapIcon         from '@mui/icons-material/Map'
@@ -198,15 +198,21 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
                 <EditLocationIcon fontSize="small" />
               </Fab>
             </Tooltip>
-            <Fab
-              size="small"
-              color="primary"
-              onClick={ctrl.goToMyLocation}
-              title="Моё местоположение"
-              sx={{ boxShadow: 4 }}
+            <Tooltip
+              title={ctrl.geo.loading ? 'Определяем местоположение…' : 'Моё местоположение'}
+              placement="left"
             >
-              <MyLocationIcon />
-            </Fab>
+              <Fab
+                size="small"
+                color="primary"
+                onClick={ctrl.goToMyLocation}
+                sx={{ boxShadow: 4, position: 'relative' }}
+              >
+                {ctrl.geo.loading
+                  ? <CircularProgress size={20} sx={{ color: 'inherit' }} />
+                  : <MyLocationIcon />}
+              </Fab>
+            </Tooltip>
           </Box>
 
           {/* Results count bubble — click to open list */}
