@@ -112,11 +112,20 @@ export function FilterPanel({
         <ToggleButtonGroup
           value={filters.city}
           exclusive
-          onChange={(_e, v) => { if (v) onSetCity(v) }}
+          onChange={(_e, v) => onSetCity(v ?? '')}
           orientation="vertical"
           fullWidth
           sx={{ mb: 3 }}
         >
+          <ToggleButton
+            value=""
+            sx={{
+              justifyContent: 'flex-start', py: 0.75, textTransform: 'none',
+              '&.Mui-selected': { color: 'primary.main', borderColor: 'primary.main', bgcolor: 'rgba(232,165,7,0.1)' },
+            }}
+          >
+            {t.allCities}
+          </ToggleButton>
           {availableCities.map(c => (
             <ToggleButton
               key={c} value={c}

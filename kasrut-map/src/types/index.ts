@@ -132,7 +132,7 @@ export interface MapReviewsPayload {
 export interface MapFilters {
   hechsher: string[]
   foodType: FoodType[]
-  city:     string       // 'Все' = no filter
+  city:     string       // '' = all cities (no filter)
   radius:   number | null  // metres; null = viewport only
 }
 

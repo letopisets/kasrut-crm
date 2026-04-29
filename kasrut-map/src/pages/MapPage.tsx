@@ -79,6 +79,18 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     if (authExpired) dispatch(clearCredentials())
   }, [authExpired, dispatch])
 
+  const [showMapFetching, setShowMapFetching] = useState(false)
+
+  useEffect(() => {
+    if (!ctrl.isFetching) {
+      setShowMapFetching(false)
+      return
+    }
+
+    const timer = window.setTimeout(() => setShowMapFetching(true), 700)
+    return () => window.clearTimeout(timer)
+  }, [ctrl.isFetching])
+
   const mapRestaurants = ctrl.view === 'map' ? ctrl.restaurants : []
   const restaurantCountLabel = ctrl.restaurantResultLimited
     ? t.establishmentCountLimited
@@ -215,7 +227,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             onViewportChange={ctrl.setViewport}
           />
 
-          {ctrl.isFetching && !ctrl.correcting && (
+          {showMapFetching && !ctrl.correcting && (
             <Box
               sx={{
                 position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',

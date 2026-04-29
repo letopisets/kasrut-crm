@@ -22,7 +22,8 @@ const en: MapTranslations = {
   citySection: 'City',
   radiusSection: 'Search radius',
   showResults: 'Show results',
-  radiusLabels: ['500 m', '1 km', '2 km', '5 km', '10 km', '20 km', 'All'],
+  allCities: 'All cities',
+  radiusLabels: ['500 m', '1 km', '2 km', '5 km', '10 km', '20 km', '25 km', 'All'],
 
   foodType: { meat: 'Meat', dairy: 'Dairy', pareve: 'Pareve', takeaway: 'Takeaway' },
   kashrutLevel: { mehadrin: 'Mehadrin', badatz: 'Badatz', regular: 'Regular' },

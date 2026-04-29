@@ -23,7 +23,7 @@ export const KASHRUT_COLOR: Record<KashrutLevel, string> = {
 }
 
 // Values only — labels come from translations (radiusLabels array, same order)
-export const RADIUS_VALUES: (number | null)[] = [500, 1000, 2000, 5000, 10000, 20000, null]
+export const RADIUS_VALUES: (number | null)[] = [500, 1000, 2000, 5000, 10000, 20000, 25000, null]
 
 export const DEFAULT_CENTER: [number, number] = [31.7767, 35.2345]  // Jerusalem
 export const DEFAULT_ZOOM = 14
