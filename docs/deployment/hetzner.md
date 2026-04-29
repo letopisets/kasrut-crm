@@ -1,4 +1,4 @@
-# Hetzner Deployment
+x# Hetzner Deployment
 
 This project is prepared for a single-server Hetzner CX32 deployment with Docker Compose.
 
@@ -13,12 +13,21 @@ sudo ufw allow 443/tcp
 sudo ufw enable
 ```
 
-Point DNS through Cloudflare:
+Point DNS to the server:
 
-- `map.your-domain.com` -> server IPv4
-- `crm.your-domain.com` -> server IPv4
+- `mykoshermap.com` -> server IPv4
+- `api.mykoshermap.com` -> server IPv4
+- `crm.mykoshermap.com` -> server IPv4
 
-For the first release, Cloudflare SSL mode can be `Full` while Nginx listens on port 80 on the origin.
+Issue a Let's Encrypt certificate on the server:
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml stop nginx
+sudo certbot certonly --standalone \
+  -d mykoshermap.com \
+  -d api.mykoshermap.com \
+  -d crm.mykoshermap.com
+```
 
 ## Production Config
 
@@ -36,11 +45,6 @@ Fill strong values for:
 - `GOOGLE_CLIENT_ID`
 - `APPLE_CLIENT_ID`
 - `VITE_APPLE_REDIRECT_URI`
-
-Then replace the placeholder domains in `docker/nginx/production.conf`:
-
-- `map.your-domain.com`
-- `crm.your-domain.com`
 
 Keep `SEED_DB=false` in production unless you intentionally want to reset seed data.
 
@@ -62,14 +66,15 @@ Check the stack:
 
 ```sh
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml ps
-curl -f http://127.0.0.1/health
+curl -f https://mykoshermap.com/health
 ```
 
 Public checks:
 
-- `https://map.your-domain.com/health`
-- `https://map.your-domain.com`
-- `https://crm.your-domain.com`
+- `https://mykoshermap.com/health`
+- `https://mykoshermap.com`
+- `https://api.mykoshermap.com/health`
+- `https://crm.mykoshermap.com`
 
 ## Backups
 
