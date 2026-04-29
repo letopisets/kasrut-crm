@@ -4,6 +4,8 @@ import {
   Rating, Stack, TextField, Typography,
 } from '@mui/material'
 import { useGetRestaurantReviewsQuery, useSubmitRestaurantReviewMutation } from '@/store/api/mapCommunityApi'
+import { useAppSelector } from '@/store/hooks'
+import { useMapLang } from '@/i18n/useMapLang'
 import type { MapReview, MapUser } from '@/types'
 
 interface Props {
@@ -12,8 +14,8 @@ interface Props {
   onRequireAuth: () => void
 }
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('ru-RU', {
+function formatDate(value: string, locale: string): string {
+  return new Date(value).toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -21,6 +23,10 @@ function formatDate(value: string): string {
 }
 
 export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
+  const t = useMapLang()
+  const lang = useAppSelector(s => s.mapLang.lang)
+  const locale = lang === 'ru' ? 'ru-RU' : lang === 'he' ? 'he-IL' : 'en-US'
+
   const { data, isLoading, isError } = useGetRestaurantReviewsQuery(restaurantId)
   const [submitReview, submitState] = useSubmitRestaurantReviewMutation()
   const [rating, setRating] = useState<number | null>(5)
@@ -40,21 +46,14 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
   }, [ownReview])
 
   const handleSubmit = async () => {
-    if (!user) {
-      onRequireAuth()
-      return
-    }
-    if (!rating) {
-      setError('Поставьте оценку от 1 до 5.')
-      return
-    }
-
+    if (!user) { onRequireAuth(); return }
+    if (!rating) { setError(t.rateError); return }
     try {
       await submitReview({ restaurantId, rating, text: text.trim() || null }).unwrap()
       setError(null)
       setSuccess(true)
     } catch {
-      setError('Не удалось сохранить отзыв.')
+      setError(t.saveReviewError)
     }
   }
 
@@ -63,21 +62,23 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
   return (
     <Stack spacing={2}>
       <Box>
-        <Typography variant="subtitle1" fontWeight={800}>Отзывы</Typography>
+        <Typography variant="subtitle1" fontWeight={800}>{t.reviewsTitle}</Typography>
         <Typography variant="body2" color="text.secondary">
           {data?.reviewCount
-            ? `Средняя оценка ${data.ratingAvg?.toFixed(1)} из 5, отзывов: ${data.reviewCount}`
-            : 'Пока нет отзывов'}
+            ? t.avgRating
+                .replace('{avg}', String(data.ratingAvg?.toFixed(1)))
+                .replace('{count}', String(data.reviewCount))
+            : t.noReviews}
         </Typography>
       </Box>
 
-      {isError && <Alert severity="error">Не удалось загрузить отзывы.</Alert>}
-      {success && <Alert severity="success">Отзыв сохранён.</Alert>}
+      {isError && <Alert severity="error">{t.loadReviewsError}</Alert>}
+      {success && <Alert severity="success">{t.reviewSaved}</Alert>}
       {error && <Alert severity="error">{error}</Alert>}
 
       <Stack spacing={1}>
         <Typography variant="body2" fontWeight={700}>
-          {ownReview ? 'Обновить ваш отзыв' : 'Ваш отзыв'}
+          {ownReview ? t.updateYourReview : t.yourReview}
         </Typography>
         <Rating
           value={rating}
@@ -87,7 +88,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
         <TextField
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={user ? 'Что важно знать другим?' : 'Войдите, чтобы оставить отзыв'}
+          placeholder={user ? t.reviewPlaceholder : t.reviewPlaceholderGuest}
           multiline
           minRows={2}
           disabled={!user}
@@ -99,7 +100,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
           disabled={submitState.isLoading}
           sx={{ alignSelf: 'flex-start', borderRadius: 1 }}
         >
-          {user ? 'Сохранить отзыв' : 'Войти и оставить отзыв'}
+          {user ? t.saveReview : t.loginAndReview}
         </Button>
       </Stack>
 
@@ -108,7 +109,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
       {isLoading && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CircularProgress size={18} />
-          <Typography variant="body2" color="text.secondary">Загружаем отзывы</Typography>
+          <Typography variant="body2" color="text.secondary">{t.loadingReviews}</Typography>
         </Box>
       )}
 
@@ -123,7 +124,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
                   <Typography variant="body2" fontWeight={700} noWrap>{review.user.name}</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-                    {formatDate(review.createdAt)}
+                    {formatDate(review.createdAt, locale)}
                   </Typography>
                 </Box>
                 <Rating value={review.rating} readOnly size="small" />

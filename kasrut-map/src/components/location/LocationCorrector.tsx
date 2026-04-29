@@ -6,6 +6,8 @@ import {
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon  from '@mui/icons-material/Close'
+import { useAppSelector } from '@/store/hooks'
+import { useMapLang } from '@/i18n/useMapLang'
 
 interface NominatimResult {
   place_id:     number
@@ -20,18 +22,20 @@ interface Props {
 }
 
 export function LocationCorrector({ onApply, onCancel }: Props) {
+  const t = useMapLang()
+  const lang = useAppSelector(s => s.mapLang.lang)
   const [query,   setQuery]   = useState('')
   const [results, setResults] = useState<NominatimResult[]>([])
   const [loading, setLoading] = useState(false)
 
-  // Debounced Nominatim search
+  // Debounced Nominatim search with locale-aware results
   useEffect(() => {
     if (query.length < 3) { setResults([]); return }
     const t = setTimeout(async () => {
       setLoading(true)
       try {
         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=il`
-        const res  = await fetch(url, { headers: { 'Accept-Language': 'ru' } })
+        const res  = await fetch(url, { headers: { 'Accept-Language': lang } })
         const data: NominatimResult[] = await res.json()
         setResults(data)
       } catch {
@@ -41,7 +45,7 @@ export function LocationCorrector({ onApply, onCancel }: Props) {
       }
     }, 400)
     return () => clearTimeout(t)
-  }, [query])
+  }, [query, lang])
 
   const handleSelect = (r: NominatimResult) => {
     onApply([parseFloat(r.lat), parseFloat(r.lon)])
@@ -56,14 +60,14 @@ export function LocationCorrector({ onApply, onCancel }: Props) {
           <InputBase
             autoFocus
             fullWidth
-            placeholder="Введите адрес..."
+            placeholder={t.addressPlaceholder}
             value={query}
             onChange={e => setQuery(e.target.value)}
             sx={{ fontSize: 14 }}
           />
           {loading
             ? <CircularProgress size={18} sx={{ flexShrink: 0 }} />
-            : <IconButton size="small" onClick={onCancel} title="Отмена"><CloseIcon fontSize="small" /></IconButton>
+            : <IconButton size="small" onClick={onCancel} title={t.cancelSearch}><CloseIcon fontSize="small" /></IconButton>
           }
         </Paper>
 
@@ -92,13 +96,13 @@ export function LocationCorrector({ onApply, onCancel }: Props) {
         )}
       </Box>
 
-      {/* Hint at bottom — "or click on map" */}
+      {/* Hint at bottom */}
       <Box sx={{
         position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
         zIndex: 1000, pointerEvents: 'none',
       }}>
         <Chip
-          label={<Typography variant="caption" fontWeight={600}>Или нажмите на карту</Typography>}
+          label={<Typography variant="caption" fontWeight={600}>{t.clickOnMap}</Typography>}
           size="small"
           sx={{ bgcolor: 'background.paper', boxShadow: 2, px: 0.5 }}
         />

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Alert, Button, Stack, TextField } from '@mui/material'
+import { useMapLang } from '@/i18n/useMapLang'
 import type { PasswordResetChannel, PasswordResetRequestResponse } from '@/types'
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function PasswordResetForm({ busy, onRequestReset, onConfirmReset }: Props) {
+  const t = useMapLang()
   const [channel, setChannel] = useState<PasswordResetChannel>('email')
   const [identifier, setIdentifier] = useState('')
   const [token, setToken] = useState('')
@@ -26,18 +28,18 @@ export function PasswordResetForm({ busy, onRequestReset, onConfirmReset }: Prop
   return (
     <Stack spacing={1.5}>
       <TextField
-        label="Куда отправить код"
+        label={t.sendCodeTo}
         value={channel}
         onChange={(e) => setChannel(e.target.value as PasswordResetChannel)}
         select
         SelectProps={{ native: true }}
         fullWidth
       >
-        <option value="email">Почта</option>
-        <option value="phone">Телефон</option>
+        <option value="email">{t.emailOption}</option>
+        <option value="phone">{t.phoneOption}</option>
       </TextField>
       <TextField
-        label={channel === 'email' ? 'Почта' : 'Телефон'}
+        label={channel === 'email' ? t.emailField : t.phoneField}
         value={identifier}
         onChange={(e) => setIdentifier(e.target.value)}
         fullWidth
@@ -48,27 +50,23 @@ export function PasswordResetForm({ busy, onRequestReset, onConfirmReset }: Prop
         disabled={!identifier || busy}
         sx={{ borderRadius: 1 }}
       >
-        Получить код
+        {t.getCode}
       </Button>
 
       {resetRequested && (
-        <Alert severity="success">
-          Если аккаунт найден, код отправлен выбранным способом.
-        </Alert>
+        <Alert severity="success">{t.codeSent}</Alert>
       )}
       {devResetToken && (
-        <Alert severity="info">
-          Dev-код для теста: {devResetToken}
-        </Alert>
+        <Alert severity="info">{t.devCodePrefix}{devResetToken}</Alert>
       )}
 
-      <TextField label="Код сброса" value={token} onChange={(e) => setToken(e.target.value)} fullWidth />
+      <TextField label={t.resetCode} value={token} onChange={(e) => setToken(e.target.value)} fullWidth />
       <TextField
-        label="Новый пароль"
+        label={t.newPassword}
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        helperText="Минимум 8 символов, буквы и цифры"
+        helperText={t.passwordHint}
         fullWidth
       />
       <Button
@@ -77,7 +75,7 @@ export function PasswordResetForm({ busy, onRequestReset, onConfirmReset }: Prop
         disabled={!token || !password || busy}
         sx={{ borderRadius: 1 }}
       >
-        Сменить пароль
+        {t.changePassword}
       </Button>
     </Stack>
   )

@@ -9,6 +9,7 @@ const router = Router()
 // Public — no auth required
 // GET /api/map/restaurants?city=ירושלים&hechsher=בד"ץ העדה החרדית&foodType=meat,dairy
 router.get('/hechsherim', mapController.listHechsherim)
+router.get('/options', mapController.listOptions)
 router.get('/restaurants', mapController.listRestaurants)
 router.get('/restaurants/:restaurantId/reviews', mapController.listReviews)
 

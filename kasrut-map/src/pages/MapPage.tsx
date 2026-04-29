@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Box, AppBar, Toolbar, Typography,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
-  Fab, Tooltip, Avatar, Menu, MenuItem, CircularProgress,
+  Fab, Tooltip, Avatar, Menu, MenuItem, CircularProgress, Button,
 } from '@mui/material'
 import TuneIcon        from '@mui/icons-material/Tune'
 import MapIcon         from '@mui/icons-material/Map'
@@ -29,7 +29,9 @@ import { useMapController }      from '@/controllers/useMapController'
 import { useIpCenter }           from '@/hooks/useIpCenter'
 import { useGetMapMeQuery }      from '@/store/api/mapCommunityApi'
 import { clearCredentials, setUser } from '@/store/mapAuthSlice'
+import { setMapLang, type MapLang } from '@/store/mapLangSlice'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
+import { useMapLang }            from '@/i18n/useMapLang'
 import type { ThemeMode } from '@/theme'
 import type { MapRestaurant } from '@/types'
 
@@ -38,12 +40,16 @@ interface Props {
   onToggleThemeMode: () => void
 }
 
+const LANGS: MapLang[] = ['en', 'ru', 'he']
+
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const ctrl = useMapController()
   const ipCenter = useIpCenter()
   const dispatch = useAppDispatch()
+  const t = useMapLang()
   const user = useAppSelector(state => state.mapAuth.user)
   const token = useAppSelector(state => state.mapAuth.token)
+  const lang = useAppSelector(state => state.mapLang.lang)
   const { data: freshUser, isError: authExpired } = useGetMapMeQuery(undefined, { skip: !token })
   const [authOpen, setAuthOpen] = useState(false)
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null)
@@ -73,6 +79,13 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     if (authExpired) dispatch(clearCredentials())
   }, [authExpired, dispatch])
 
+  const mapRestaurants = ctrl.view === 'map' ? ctrl.restaurants : []
+  const restaurantCountLabel = ctrl.restaurantResultLimited
+    ? t.establishmentCountLimited
+      .replace('{shown}', String(ctrl.restaurants.length))
+      .replace('{total}', String(ctrl.restaurantTotal))
+    : t.establishmentCount.replace('{n}', String(ctrl.restaurants.length))
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
@@ -81,16 +94,40 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         <Toolbar sx={{ gap: 1 }}>
           <MenuBookIcon sx={{ color: 'primary.main', mr: 0.5 }} />
           <Typography variant="h6" fontWeight={800} color="primary.main" noWrap sx={{ flexGrow: 1, minWidth: 0, letterSpacing: 0 }}>
-            KashrutMap
+            {t.appName}
           </Typography>
 
-          <Tooltip title="Предложить заведение">
+          {/* Language switcher */}
+          <Box sx={{ display: 'flex', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+            {LANGS.map(l => (
+              <Button
+                key={l}
+                onClick={() => dispatch(setMapLang(l))}
+                size="small"
+                sx={{
+                  minWidth: 0,
+                  px: 1.25, py: '4px',
+                  fontSize: '0.625rem',
+                  fontWeight: lang === l ? 700 : 500,
+                  color: lang === l ? 'primary.main' : 'text.disabled',
+                  bgcolor: lang === l ? 'rgba(232,165,7,0.08)' : 'transparent',
+                  borderRadius: 0,
+                  letterSpacing: '0.5px',
+                  '&:hover': { color: 'text.secondary' },
+                }}
+              >
+                {l.toUpperCase()}
+              </Button>
+            ))}
+          </Box>
+
+          <Tooltip title={t.suggestBusiness}>
             <IconButton onClick={openAddSuggestion} sx={{ color: 'text.secondary' }}>
               <AddBusinessIcon />
             </IconButton>
           </Tooltip>
 
-          <Tooltip title={themeMode === 'light' ? 'Тёмная тема' : 'Светлая тема'}>
+          <Tooltip title={themeMode === 'light' ? t.darkTheme : t.lightTheme}>
             <IconButton onClick={onToggleThemeMode} sx={{ color: 'text.secondary' }}>
               {themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
             </IconButton>
@@ -112,7 +149,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           </ToggleButtonGroup>
 
           {/* Filters */}
-          <Tooltip title="Фильтры">
+          <Tooltip title={t.filtersTooltip}>
             <IconButton onClick={() => ctrl.setFilterOpen(true)} sx={{ color: ctrl.activeFilterCount ? 'primary.main' : 'text.secondary' }}>
               <Badge badgeContent={ctrl.activeFilterCount || null} color="primary">
                 <TuneIcon />
@@ -137,12 +174,12 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
                 <MenuItem disabled>{user.name}</MenuItem>
                 <MenuItem onClick={logout}>
                   <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
-                  Выйти
+                  {t.logout}
                 </MenuItem>
               </Menu>
             </>
           ) : (
-            <Tooltip title="Войти">
+            <Tooltip title={t.loginTooltip}>
               <IconButton onClick={() => setAuthOpen(true)} sx={{ color: 'text.secondary' }}>
                 <PersonIcon />
               </IconButton>
@@ -167,16 +204,31 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             initialCenter={ipCenter}
             panToUser={ctrl.panToUser}
             correcting={ctrl.correcting}
-            restaurants={ctrl.restaurants}
+            restaurants={mapRestaurants}
             selected={ctrl.selected}
+            viewport={ctrl.viewport}
             radius={ctrl.filters.radius}
             route={ctrl.route}
-            onSelect={r => ctrl.setSelected(r)}
+            onSelect={ctrl.setSelected}
             onPanHandled={ctrl.onPanHandled}
             onMapClick={ctrl.applyPosition}
+            onViewportChange={ctrl.setViewport}
           />
 
-          {/* Location correction overlay */}
+          {ctrl.isFetching && !ctrl.correcting && (
+            <Box
+              sx={{
+                position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+                bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider',
+                borderRadius: 99, px: 1.5, py: 0.75, zIndex: 1000,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 1,
+              }}
+            >
+              <CircularProgress size={14} />
+              <Typography variant="caption" color="text.secondary">{t.updatingMap}</Typography>
+            </Box>
+          )}
+
           {ctrl.correcting && (
             <LocationCorrector
               onApply={ctrl.applyPosition}
@@ -184,9 +236,9 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             />
           )}
 
-          {/* FAB row: My Location + Уточнить */}
+          {/* FABs */}
           <Box sx={{ position: 'absolute', bottom: 24, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Tooltip title="Уточнить моё местоположение" placement="left">
+            <Tooltip title={t.correctLocation} placement="left">
               <Fab
                 size="small"
                 onClick={ctrl.startCorrection}
@@ -203,7 +255,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               </Fab>
             </Tooltip>
             <Tooltip
-              title={ctrl.geo.loading ? 'Определяем местоположение…' : 'Моё местоположение'}
+              title={ctrl.geo.loading ? t.detectingLocation : t.myLocation}
               placement="left"
             >
               <Fab
@@ -219,7 +271,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             </Tooltip>
           </Box>
 
-          {/* Results count bubble — click to open list */}
+          {/* Results count bubble */}
           {ctrl.restaurants.length > 0 && !ctrl.correcting && (
             <Box
               onClick={() => ctrl.setView('list')}
@@ -234,7 +286,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               }}
             >
               <Typography variant="caption" color="primary.main" fontWeight={700}>
-                {ctrl.restaurants.length} заведений ›
+                {restaurantCountLabel}
               </Typography>
             </Box>
           )}
@@ -252,7 +304,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           </Box>
         )}
 
-        {/* Route panel (right side) */}
+        {/* Route panel */}
         <RoutePanel
           open={ctrl.routePanelOpen}
           destination={ctrl.selected}
@@ -265,7 +317,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         />
       </Box>
 
-      {/* ── Bottom sheet: restaurant detail ── */}
+      {/* ── Bottom sheet ── */}
       <RestaurantDetailSheet
         restaurant={ctrl.routePanelOpen ? null : ctrl.selected}
         hasLocation={!!ctrl.geo.position}

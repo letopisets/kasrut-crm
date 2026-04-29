@@ -63,6 +63,28 @@ html, body, #root {
   user-select: none;
 }
 
+.km-cluster {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 30% 25%, #ffd66b, var(--km-primary));
+  border: 3px solid rgba(255,255,255,0.92);
+  color: #211704;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 6px 18px var(--km-pin-shadow);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.km-cluster:hover {
+  transform: scale(1.08);
+  box-shadow: 0 8px 24px var(--km-pin-shadow);
+}
+
 /* User location pulse */
 .km-user-dot {
   width: 22px;

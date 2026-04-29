@@ -3,6 +3,13 @@ import { hechsherimRepo } from '../db/hechsherim.repo'
 import { serializeHechsher, serializeHechsherim } from '../serializers/hechsher.serializer'
 import { validate } from '../lib/validate'
 import { createHechsherSchema, updateHechsherSchema } from '../schemas'
+import { invalidatePattern } from '../lib/cache'
+
+const invalidateMapCache = () => Promise.all([
+  invalidatePattern('map:restaurants:*'),
+  invalidatePattern('map:options'),
+  invalidatePattern('map:hechsherim'),
+])
 
 export const hechsherController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -25,6 +32,7 @@ export const hechsherController = {
     try {
       const body = validate(createHechsherSchema, req.body)
       const h = await hechsherimRepo.create(body)
+      void invalidateMapCache()
       res.status(201).json(serializeHechsher(h))
     } catch (e) { next(e) }
   },
@@ -34,6 +42,7 @@ export const hechsherController = {
       const body = validate(updateHechsherSchema, req.body)
       const h = await hechsherimRepo.update(req.params.id, body)
       if (!h) { res.status(404).json({ error: 'Not found' }); return }
+      void invalidateMapCache()
       res.json(serializeHechsher(h))
     } catch (e) { next(e) }
   },
@@ -43,6 +52,7 @@ export const hechsherController = {
       const result = await hechsherimRepo.remove(req.params.id)
       if (result === 'not_found') { res.status(404).json({ error: 'Not found' }); return }
       if (result === 'conflict')  { res.status(409).json({ error: 'Cannot delete: hechsher has restaurants assigned. Reassign them first.' }); return }
+      void invalidateMapCache()
       res.status(204).send()
     } catch (e) { next(e) }
   },

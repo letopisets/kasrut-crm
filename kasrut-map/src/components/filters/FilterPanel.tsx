@@ -6,9 +6,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import type { MapFilters, FoodType } from '@/types'
 import {
-  FOOD_TYPE_LABEL, FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI,
-  RADIUS_OPTIONS,
+  FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI,
+  RADIUS_VALUES,
 } from '@/lib/constants'
+import { useMapLang } from '@/i18n/useMapLang'
 
 interface Props {
   open:                boolean
@@ -24,13 +25,15 @@ interface Props {
   onReset:             () => void
 }
 
-const FOOD_TYPES:     FoodType[]     = ['meat', 'dairy', 'pareve', 'takeaway']
+const FOOD_TYPES: FoodType[] = ['meat', 'dairy', 'pareve', 'takeaway']
 
 export function FilterPanel({
   open, onClose, filters, activeFilterCount,
   availableHechshers, availableCities,
   onToggleHechsher, onToggleFoodType, onSetCity, onSetRadius, onReset,
 }: Props) {
+  const t = useMapLang()
+
   return (
     <Drawer
       anchor="left"
@@ -38,14 +41,13 @@ export function FilterPanel({
       onClose={onClose}
       PaperProps={{ sx: { width: 300, p: 0 } }}
     >
-      {/* Header */}
       <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="h6" sx={{ color: 'primary.main' }}>
-          Фильтры {activeFilterCount > 0 && `(${activeFilterCount})`}
+          {t.filterTitle} {activeFilterCount > 0 && `(${activeFilterCount})`}
         </Typography>
         <Box>
           {activeFilterCount > 0 && (
-            <IconButton size="small" onClick={onReset} title="Сбросить всё" sx={{ mr: 0.5 }}>
+            <IconButton size="small" onClick={onReset} title={t.resetAll} sx={{ mr: 0.5 }}>
               <RestartAltIcon fontSize="small" />
             </IconButton>
           )}
@@ -57,33 +59,31 @@ export function FilterPanel({
       <Divider />
 
       <Box sx={{ px: 2.5, py: 2, overflowY: 'auto', flex: 1 }}>
-        {/* Food type */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
-          Тип кухни
+          {t.foodTypeSection}
         </Typography>
         <Stack direction="row" flexWrap="wrap" gap={1} mb={3}>
-          {FOOD_TYPES.map(t => {
-            const active = filters.foodType.includes(t)
+          {FOOD_TYPES.map(foodType => {
+            const active = filters.foodType.includes(foodType)
             return (
               <Chip
-                key={t}
-                label={`${FOOD_TYPE_EMOJI[t]} ${FOOD_TYPE_LABEL[t]}`}
-                onClick={() => onToggleFoodType(t)}
+                key={foodType}
+                label={`${FOOD_TYPE_EMOJI[foodType]} ${t.foodType[foodType]}`}
+                onClick={() => onToggleFoodType(foodType)}
                 variant={active ? 'filled' : 'outlined'}
                 sx={{
-                  borderColor: FOOD_TYPE_COLOR[t],
-                  color:       active ? '#fff' : FOOD_TYPE_COLOR[t],
-                  bgcolor:     active ? FOOD_TYPE_COLOR[t] : 'transparent',
-                  '&:hover':   { bgcolor: active ? FOOD_TYPE_COLOR[t] : `${FOOD_TYPE_COLOR[t]}22` },
+                  borderColor: FOOD_TYPE_COLOR[foodType],
+                  color:       active ? '#fff' : FOOD_TYPE_COLOR[foodType],
+                  bgcolor:     active ? FOOD_TYPE_COLOR[foodType] : 'transparent',
+                  '&:hover':   { bgcolor: active ? FOOD_TYPE_COLOR[foodType] : `${FOOD_TYPE_COLOR[foodType]}22` },
                 }}
               />
             )
           })}
         </Stack>
 
-        {/* Hechsher */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
-          Хекшер
+          {t.hechsherSection}
         </Typography>
         <Stack direction="column" gap={1} mb={3} sx={{ maxHeight: 260, overflowY: 'auto', pr: 0.5 }}>
           {availableHechshers.map(h => {
@@ -106,9 +106,8 @@ export function FilterPanel({
           })}
         </Stack>
 
-        {/* City */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
-          Город
+          {t.citySection}
         </Typography>
         <ToggleButtonGroup
           value={filters.city}
@@ -131,18 +130,17 @@ export function FilterPanel({
           ))}
         </ToggleButtonGroup>
 
-        {/* Radius */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
-          Радиус поиска
+          {t.radiusSection}
         </Typography>
         <Stack direction="row" flexWrap="wrap" gap={1}>
-          {RADIUS_OPTIONS.map(o => {
-            const active = filters.radius === o.value
+          {RADIUS_VALUES.map((value, index) => {
+            const active = filters.radius === value
             return (
               <Chip
-                key={String(o.value)}
-                label={o.label}
-                onClick={() => onSetRadius(o.value)}
+                key={String(value)}
+                label={t.radiusLabels[index]}
+                onClick={() => onSetRadius(value)}
                 variant={active ? 'filled' : 'outlined'}
                 color={active ? 'primary' : 'default'}
                 sx={{ borderColor: active ? 'primary.main' : 'divider' }}
@@ -155,7 +153,7 @@ export function FilterPanel({
       <Divider />
       <Box sx={{ p: 2 }}>
         <Button fullWidth variant="contained" onClick={onClose}>
-          Показать результаты
+          {t.showResults}
         </Button>
       </Box>
     </Drawer>

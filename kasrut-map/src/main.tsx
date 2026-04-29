@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Provider } from 'react-redux'
 import { ThemeProvider, CssBaseline } from '@mui/material'
 import { store } from '@/store'
+import { useAppSelector } from '@/store/hooks'
 import { createKashrutMapTheme } from '@/theme'
 import type { ThemeMode } from '@/theme'
 import App from '@/App'
@@ -13,6 +14,14 @@ function getInitialThemeMode(): ThemeMode {
   const saved = localStorage.getItem('kasrut-map-theme')
   if (saved === 'light' || saved === 'dark') return saved
   return 'light'
+}
+
+function DirSync() {
+  const lang = useAppSelector(s => s.mapLang.lang)
+  useEffect(() => {
+    document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr'
+  }, [lang])
+  return null
 }
 
 function Root() {
@@ -28,6 +37,7 @@ function Root() {
 
   return (
     <Provider store={store}>
+      <DirSync />
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <App themeMode={themeMode} onToggleThemeMode={toggleThemeMode} />

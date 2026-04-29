@@ -17,6 +17,7 @@ import {
 } from '@/store/api/mapCommunityApi'
 import { useAppDispatch } from '@/store/hooks'
 import { setCredentials } from '@/store/mapAuthSlice'
+import { useMapLang } from '@/i18n/useMapLang'
 import type {
   MapAuthProvider,
   MapAuthResponse,
@@ -33,6 +34,7 @@ type AuthMode = 'login' | 'register' | 'reset'
 
 export function AuthDialog({ open, onClose }: Props) {
   const dispatch = useAppDispatch()
+  const t = useMapLang()
   const [mode, setMode] = useState<AuthMode>('login')
   const [error, setError] = useState<string | null>(null)
 
@@ -65,9 +67,9 @@ export function AuthDialog({ open, onClose }: Props) {
     try {
       finishAuth(await oauthLogin({ provider, idToken }).unwrap())
     } catch {
-      setError('Не удалось войти. Проверьте настройки OAuth и попробуйте снова.')
+      setError(t.oauthError)
     }
-  }, [finishAuth, oauthLogin])
+  }, [finishAuth, oauthLogin, t.oauthError])
 
   const handleGoogleCredential = useCallback((idToken: string) => {
     void handleOAuthLogin('google', idToken)
@@ -82,7 +84,7 @@ export function AuthDialog({ open, onClose }: Props) {
     try {
       finishAuth(await loginWithPassword({ email, password }).unwrap())
     } catch {
-      setError('Неверная почта или пароль.')
+      setError(t.wrongCredentials)
     }
   }
 
@@ -91,7 +93,7 @@ export function AuthDialog({ open, onClose }: Props) {
     try {
       finishAuth(await registerWithPassword(data).unwrap())
     } catch {
-      setError('Не удалось зарегистрироваться. Проверьте поля: пароль минимум 8 символов, буквы и цифры.')
+      setError(t.registerError)
     }
   }
 
@@ -103,7 +105,7 @@ export function AuthDialog({ open, onClose }: Props) {
     try {
       return await requestPasswordReset({ channel, identifier }).unwrap()
     } catch {
-      setError('Не удалось создать запрос на сброс пароля.')
+      setError(t.resetRequestError)
       return null
     }
   }
@@ -113,23 +115,23 @@ export function AuthDialog({ open, onClose }: Props) {
     try {
       finishAuth(await confirmPasswordReset({ token, password }).unwrap())
     } catch {
-      setError('Код сброса недействителен или истёк. Пароль должен содержать минимум 8 символов, буквы и цифры.')
+      setError(t.resetConfirmError)
     }
   }
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Аккаунт KashrutMap</DialogTitle>
+      <DialogTitle>{t.accountTitle}</DialogTitle>
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Войдите, чтобы отправлять отзывы, добавлять новые места и предлагать исправления.
+            {t.authDescription}
           </Typography>
 
           <Tabs value={mode} onChange={switchMode} variant="fullWidth">
-            <Tab value="login" label="Войти" />
-            <Tab value="register" label="Регистрация" />
-            <Tab value="reset" label="Сброс" />
+            <Tab value="login"    label={t.loginTab} />
+            <Tab value="register" label={t.registerTab} />
+            <Tab value="reset"    label={t.resetTab} />
           </Tabs>
 
           {error && <Alert severity="error">{error}</Alert>}
@@ -164,7 +166,7 @@ export function AuthDialog({ open, onClose }: Props) {
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} sx={{ borderRadius: 1 }}>Закрыть</Button>
+        <Button onClick={onClose} sx={{ borderRadius: 1 }}>{t.closeBtn}</Button>
       </DialogActions>
     </Dialog>
   )
