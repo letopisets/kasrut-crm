@@ -95,13 +95,11 @@ export function useMapController() {
   const [correcting,    setCorrecting]    = useState(false)
   const [panToUser,     setPanToUser]     = useState(false)
   const [viewport,      setViewport]      = useState<MapViewport | null>(null)
-  const [fitRestaurantsKey, setFitRestaurantsKey] = useState(0)
 
   const geo    = useGeolocation()
   const router = useRoute()
   const lang   = useAppSelector(s => s.mapLang.lang)
   const didAutoPan = useRef(false)
-  const didAutoFitRestaurants = useRef(false)
   const queryUserPositionKey = positionKey(geo.position)
   const queryUserPosition = useMemo(
     () => positionFromKey(queryUserPositionKey),
@@ -160,17 +158,7 @@ export function useMapController() {
     return [...filtered].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
   }, [restaurantPayload.restaurants, geo.position, filters.radius])
 
-  useEffect(() => {
-    if (didAutoFitRestaurants.current || restaurants.length === 0 || geo.position) return
-    didAutoFitRestaurants.current = true
-    setFitRestaurantsKey(key => key + 1)
-  }, [geo.position, restaurants.length])
-
   const goToMyLocation  = () => { geo.refresh(); setPanToUser(true) }
-  const showAllRestaurants = () => {
-    setView('map')
-    setFitRestaurantsKey(key => key + 1)
-  }
   const startCorrection = () => { setCorrecting(true); setView('map') }
   const stopCorrection  = () => setCorrecting(false)
   const applyPosition   = (pos: [number, number]) => {
@@ -239,7 +227,7 @@ export function useMapController() {
     // geolocation
     geo,
     // location correction
-    correcting, goToMyLocation, showAllRestaurants, fitRestaurantsKey, startCorrection, stopCorrection, applyPosition,
+    correcting, goToMyLocation, startCorrection, stopCorrection, applyPosition,
     panToUser, onPanHandled: () => setPanToUser(false),
     // routing
     route:          router.route,

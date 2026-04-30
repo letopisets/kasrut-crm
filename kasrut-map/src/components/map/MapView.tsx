@@ -15,11 +15,11 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     new URL('leaflet/dist/images/marker-shadow.png',  import.meta.url).href,
 })
 
-/** Pans map to position once, then calls onDone */
+/** Centers map on the user's position once, then calls onDone */
 function PanTo({ position, onDone }: { position: [number, number]; onDone: () => void }) {
   const map = useMap()
   useEffect(() => {
-    map.panTo(position)
+    map.setView(position, Math.max(map.getZoom(), DEFAULT_ZOOM), { animate: true })
     onDone()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -162,18 +162,6 @@ function ClusterMarker({ count, position }: { count: number; position: [number, 
   )
 }
 
-function FitRestaurants({ restaurants, triggerKey }: { restaurants: MapRestaurant[]; triggerKey: number }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!triggerKey || restaurants.length === 0) return
-    const bounds = L.latLngBounds(restaurants.map(r => [r.lat, r.lng] as [number, number]))
-    if (bounds.isValid()) {
-      map.fitBounds(bounds.pad(0.16), { maxZoom: 15, animate: true })
-    }
-  }, [map, restaurants, triggerKey])
-  return null
-}
-
 interface Props {
   userPosition: [number, number] | null
   gpsAccuracy:  number | null
@@ -185,7 +173,6 @@ interface Props {
   viewport:     MapViewport | null
   radius:       number | null
   route:        RouteData | null
-  fitRestaurantsKey: number
   onSelect:     (r: MapRestaurant) => void
   onPanHandled: () => void
   onMapClick:   (pos: [number, number]) => void
@@ -210,7 +197,6 @@ export function MapView({
   viewport,
   radius,
   route,
-  fitRestaurantsKey,
   onSelect,
   onPanHandled,
   onMapClick,
@@ -238,7 +224,6 @@ export function MapView({
       />
 
       <ViewportReporter onViewportChange={onViewportChange} />
-      <FitRestaurants restaurants={restaurants} triggerKey={fitRestaurantsKey} />
 
       {correcting && <MapClickHandler onMapClick={onMapClick} />}
 
