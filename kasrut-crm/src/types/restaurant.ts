@@ -1,4 +1,5 @@
 export type CertStatus = 'ok' | 'warning' | 'critical'
+export type FoodType = 'meat' | 'dairy' | 'pareve' | 'takeaway'
 
 export interface Restaurant {
   id: string
@@ -9,7 +10,8 @@ export interface Restaurant {
   hechsherId: string
   mashgiachId?: string
   kitniyot: 'ללא חשש קטניות' | 'מכיל קטניות'
-  expires: string       // ISO дата
+  foodType?: FoodType
+  expires: string
   status: CertStatus
   rabbanutId: string
   notes?: string

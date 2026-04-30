@@ -41,6 +41,7 @@ export const createRestaurantSchema = z.object({
   hechsherId:  id,
   mashgiachId: id.optional(),
   kitniyot:    z.string().max(100).trim(),
+  foodType:    z.enum(['meat', 'dairy', 'pareve', 'takeaway']).optional(),
   expires:     dateStr,
   status:      certStatus,
   rabbanutId:  id,

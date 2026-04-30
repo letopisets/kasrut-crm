@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useAppSelector } from '@/store'
+import { useAppSelector, useAppDispatch } from '@/store'
+import { setRabbanutFilter as setRabbanutFilterAction } from '@/store/authSlice'
 import { useGetRestaurantsQuery, useCreateRestaurantMutation, useDeleteRestaurantMutation } from '@/store/api/restaurantsApi'
 import { useGetHechsherimQuery }  from '@/store/api/hechsherimApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
@@ -11,7 +12,8 @@ import type { CertStatus, Restaurant } from '@/types'
 type RestaurantInput = Omit<Restaurant, 'id' | 'status'>
 
 export function useRestaurantsController() {
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
+  const dispatch   = useAppDispatch()
   const [searchParams, setSearchParams] = useSearchParams()
   const user           = useAppSelector(s => s.auth.user)
   const role           = useAppSelector(s => s.auth.role)
@@ -19,11 +21,13 @@ export function useRestaurantsController() {
   const perm           = usePermissions()
 
   const initialStatus = searchParams.get('status') as CertStatus | null
-  const [statusFilter, setStatusFilterState] = useState<CertStatus | 'all'>(
+  const [statusFilter,   setStatusFilterState] = useState<CertStatus | 'all'>(
     initialStatus && ['ok', 'warning', 'critical'].includes(initialStatus) ? initialStatus : 'all'
   )
-  const [showForm,     setShowForm]     = useState(false)
-  const [editTarget,   setEditTarget]   = useState<Restaurant | null>(null)
+  const [nameSearch,     setNameSearch]     = useState('')
+  const [hechsherFilter, setHechsherFilter] = useState('')
+  const [showForm,       setShowForm]       = useState(false)
+  const [editTarget,     setEditTarget]     = useState<Restaurant | null>(null)
 
   const { data: all = [], isLoading, error } = useGetRestaurantsQuery()
   const { data: hechsherim = [] }            = useGetHechsherimQuery()
@@ -40,17 +44,22 @@ export function useRestaurantsController() {
     setSearchParams(next, { replace: true })
   }
 
+  const setRabbanutFilter = (id: string) => dispatch(setRabbanutFilterAction(id))
+
   const restaurants = useMemo(() => {
     let result = [...all]
     if (role === 'rabbanut')  result = result.filter(r => r.rabbanutId === user?.rabbanutId)
     if (role === 'mashgiach') result = result.filter(r => r.mashgiachId === user?.id)
     if (role === 'owner' && rabbanutFilter) result = result.filter(r => r.rabbanutId === rabbanutFilter)
-    if (statusFilter !== 'all') result = result.filter(r => r.status === statusFilter)
+    if (statusFilter !== 'all')  result = result.filter(r => r.status === statusFilter)
+    if (hechsherFilter)          result = result.filter(r => r.hechsherId === hechsherFilter)
+    if (nameSearch.trim())       result = result.filter(r => r.name.toLowerCase().includes(nameSearch.toLowerCase()))
     return result
-  }, [all, role, user, rabbanutFilter, statusFilter])
+  }, [all, role, user, rabbanutFilter, statusFilter, hechsherFilter, nameSearch])
 
   const hechsherOptions  = useMemo(() => hechsherim.map(h => ({ value: h.id, label: h.name })), [hechsherim])
   const mashgiachOptions = useMemo(() => mashgichim.filter(m => m.active).map(m => ({ value: m.id, label: m.name })), [mashgichim])
+  const rabbanutOptions  = useMemo(() => rabbanuts.map(r => ({ value: r.id, label: r.name })), [rabbanuts])
 
   const createRestaurant = async (data: RestaurantInput) => {
     await createMutation(data).unwrap()
@@ -65,9 +74,14 @@ export function useRestaurantsController() {
   return {
     restaurants, isLoading, error: error ? 'Failed to load' : null,
     statusFilter, setStatusFilter,
+    nameSearch, setNameSearch,
+    hechsherFilter, setHechsherFilter,
+    rabbanutFilter, setRabbanutFilter,
+    rabbanutOptions,
     showForm,   openForm:  () => setShowForm(true),       closeForm:  () => setShowForm(false),
     editTarget, openEdit:  (r: Restaurant) => setEditTarget(r), closeEdit: () => setEditTarget(null),
     canEdit: perm.canEdit,
+    isOwner: perm.isOwner,
     createRestaurant, deleteRestaurant,
     hechsherim, mashgichim, rabbanuts,
     hechsherOptions, mashgiachOptions,

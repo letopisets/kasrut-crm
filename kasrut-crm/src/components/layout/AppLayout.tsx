@@ -2,7 +2,6 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useLangStore } from '@/store/useLangStore'
 import { Header } from './Header'
-import { RoleBanner } from './RoleBanner'
 import { Sidebar } from './Sidebar'
 import Box from '@mui/material/Box'
 
@@ -22,7 +21,6 @@ export default function AppLayout() {
         sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: '100vh' }}
       >
         <Header />
-        <RoleBanner />
         <Box
           component="main"
           sx={{

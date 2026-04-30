@@ -8,11 +8,22 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import AddIcon from '@mui/icons-material/Add'
+import SearchIcon from '@mui/icons-material/Search'
+import InputAdornment from '@mui/material/InputAdornment'
 import type { CertStatus } from '@/types'
 
 type Filter = 'all' | CertStatus
 const FILTER_KEYS: Filter[] = ['all', 'ok', 'warning', 'critical']
+
+const selectSx = {
+  minWidth: 130,
+  '& .MuiInputBase-root': { fontSize: '0.8rem', height: 32 },
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#252840' },
+  '& .MuiSelect-select': { py: '5px' },
+}
 
 export default function Restaurants() {
   const t    = useLang()
@@ -22,7 +33,7 @@ export default function Restaurants() {
     <Box>
       <Box sx={{
         display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' },
-        flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2.75,
+        flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2,
       }}>
         <Box>
           <Typography variant="h2" sx={{ fontSize: { xs: 16, sm: 18, lg: 21 }, fontWeight: 700, letterSpacing: '-0.3px' }}>
@@ -71,6 +82,56 @@ export default function Restaurants() {
             </Button>
           )}
         </Box>
+      </Box>
+
+      {/* Search + filters row */}
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2.75, alignItems: 'center' }}>
+        <TextField
+          size="small"
+          placeholder={t.addRest.name}
+          value={ctrl.nameSearch}
+          onChange={e => ctrl.setNameSearch(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            minWidth: 180,
+            '& .MuiInputBase-root': { fontSize: '0.8rem', height: 32 },
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: '#252840' },
+          }}
+        />
+
+        <TextField
+          select
+          size="small"
+          value={ctrl.hechsherFilter}
+          onChange={e => ctrl.setHechsherFilter(e.target.value)}
+          sx={selectSx}
+        >
+          <MenuItem value=""><em>{t.addRest.hechsher}</em></MenuItem>
+          {ctrl.hechsherOptions.map(o => (
+            <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+          ))}
+        </TextField>
+
+        {ctrl.isOwner && (
+          <TextField
+            select
+            size="small"
+            value={ctrl.rabbanutFilter}
+            onChange={e => ctrl.setRabbanutFilter(e.target.value)}
+            sx={selectSx}
+          >
+            <MenuItem value=""><em>{t.nav.rabbanuts}</em></MenuItem>
+            {ctrl.rabbanutOptions.map(o => (
+              <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+            ))}
+          </TextField>
+        )}
       </Box>
 
       {ctrl.isLoading ? (

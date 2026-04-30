@@ -3,30 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthController } from '@/controllers/useAuthController'
 import { useLangStore } from '@/store/useLangStore'
 import { useLang } from '@/i18n/useLang'
-import { ROLE_COLORS } from '@/theme'
 import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
-import Select from '@mui/material/Select'
-import MenuItem from '@mui/material/MenuItem'
-import FormControl from '@mui/material/FormControl'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
-import InputLabel from '@mui/material/InputLabel'
-import type { Role } from '@/types'
 import type { Lang } from '@/store/useLangStore'
 
-const DEMO_EMAILS: Record<Role, string> = {
-  owner:     'owner@kashrut.il',
-  rabbanut:  'admin@jer.il',
-  mashgiach: 'cohen@jer.il',
-}
-
-const PROFILES: Role[] = ['owner', 'rabbanut', 'mashgiach']
-const LANGS: Lang[]    = ['en', 'ru', 'he']
+const LANGS: Lang[] = ['en', 'ru', 'he']
+const PRIMARY = '#E8C96D'
 
 function extractError(err: unknown): string | null {
   if (!err) return null
@@ -52,8 +40,7 @@ export default function Login() {
   const t       = useLang()
   const tf      = t.twoFactor
 
-  const [role,     setRole]     = useState<Role>('owner')
-  const [email,    setEmail]    = useState(DEMO_EMAILS['owner'])
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [totpError,setTotpError]= useState('')
@@ -65,11 +52,6 @@ export default function Login() {
   useEffect(() => {
     if (twoFactorPending) { setTotpCode(''); setTotpError('') }
   }, [twoFactorPending])
-
-  const handleRoleChange = (r: Role) => {
-    setRole(r)
-    setEmail(DEMO_EMAILS[r])
-  }
 
   const handleLogin = async () => {
     if (!email || !password) return
@@ -89,9 +71,9 @@ export default function Login() {
     }
   }
 
-  const isRtl    = lang === 'he'
-  const errMsg   = extractError(error)
-  const rc       = ROLE_COLORS[role]
+  const isRtl  = lang === 'he'
+  const errMsg = extractError(error)
+  const rc     = PRIMARY
 
   const LangBar = () => (
     <Box sx={{
@@ -260,42 +242,6 @@ export default function Login() {
         <Typography variant="h2" sx={{ fontSize: 18, fontWeight: 700, textAlign: 'center', letterSpacing: '-0.2px' }}>
           {t.login?.title ?? 'Авторизация'}
         </Typography>
-
-        {/* Role selector */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          <FormControl fullWidth size="small">
-            <InputLabel sx={{ fontSize: '0.8125rem', color: '#50526A' }}>
-              {t.login?.roleLabel ?? 'Выберите роль'}
-            </InputLabel>
-            <Select
-              value={role}
-              label={t.login?.roleLabel ?? 'Выберите роль'}
-              onChange={e => handleRoleChange(e.target.value as Role)}
-              sx={{
-                background: '#1E2235',
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#252840' },
-                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#3A3D5A' },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: rc },
-              }}
-            >
-              {PROFILES.map(r => (
-                <MenuItem key={r} value={r}>{t.roles[r]}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <Box sx={{
-            fontSize: 12, color: rc,
-            background: alpha(rc, 0.08),
-            borderInlineStart: `2px solid ${rc}`,
-            borderRadius: '0 6px 6px 0',
-            px: 1.25, py: 0.75,
-            lineHeight: 1.5,
-            transition: 'color 0.25s, background 0.25s',
-          }}>
-            {t.roleDesc[role]}
-          </Box>
-        </Box>
 
         {/* Email */}
         <TextField
