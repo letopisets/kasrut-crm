@@ -8,6 +8,8 @@ export interface MapTranslations {
   loginTooltip: string
   establishmentCount: string       // template: "{n} …"
   establishmentCountLimited: string // template: "{shown} … {total} …"
+  showAllEstablishments: string
+  openList: string
   updatingMap: string
   correctLocation: string
   myLocation: string

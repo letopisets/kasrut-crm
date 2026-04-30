@@ -227,6 +227,31 @@ model KashrutDocument {
   @@map("documents")
 }
 
+model ServiceLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  level      String
+  service    String
+  action     String?
+  message    String
+  userId     String?
+  userEmail  String?
+  userRole   String?
+  entityType String?
+  entityId   String?
+  method     String?
+  path       String?
+  statusCode Int?
+  requestId  String?
+  metadata   Json?
+
+  @@index([createdAt])
+  @@index([level])
+  @@index([service])
+  @@index([userId])
+  @@map("service_logs")
+}
+
 model MapUser {
   id           String   @id @default(cuid())
   email        String   @unique

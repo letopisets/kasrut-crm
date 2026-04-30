@@ -10,6 +10,8 @@ const en: MapTranslations = {
   loginTooltip: 'Login',
   establishmentCount: '{n} places ›',
   establishmentCountLimited: '{shown} of {total} places ›',
+  showAllEstablishments: 'All places',
+  openList: 'List',
   updatingMap: 'Updating map…',
   correctLocation: 'Correct my location',
   myLocation: 'My location',

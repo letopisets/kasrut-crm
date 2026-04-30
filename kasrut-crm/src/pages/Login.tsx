@@ -13,7 +13,6 @@ import TextField from '@mui/material/TextField'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
-import FormLabel from '@mui/material/FormLabel'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import InputLabel from '@mui/material/InputLabel'
@@ -182,11 +181,13 @@ export default function Login() {
             value={totpCode}
             onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
             onKeyDown={e => e.key === 'Enter' && void handleVerify()}
-            inputProps={{
-              inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
-              style: {
-                fontSize: 28, fontWeight: 700, letterSpacing: 12,
-                textAlign: 'center', padding: '14px 16px',
+            slotProps={{
+              htmlInput: {
+                inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
+                style: {
+                  fontSize: 28, fontWeight: 700, letterSpacing: 12,
+                  textAlign: 'center', padding: '14px 16px',
+                },
               },
             }}
             placeholder={tf?.codePlaceholder ?? '000000'}

@@ -45,7 +45,7 @@ export function Input({ label, value, onChange, type = 'text', options, placehol
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
-      InputLabelProps={type === 'date' ? { shrink: true } : undefined}
+      slotProps={type === 'date' ? { inputLabel: { shrink: true } } : undefined}
     />
   )
 }

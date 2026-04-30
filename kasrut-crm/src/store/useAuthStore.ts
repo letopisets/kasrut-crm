@@ -4,9 +4,9 @@ import { setUser as setUserAction, setRabbanutFilter as setRabbanutFilterAction,
 import type { User, Role } from '@/types'
 
 export const DEMO_USERS: Record<Role, User> = {
-  owner:     { id: 'u1', name: 'System Owner',    role: 'owner',     email: 'owner@kashrut.il' },
-  rabbanut:  { id: 'u2', name: 'Admin Jerusalem', role: 'rabbanut',  email: 'admin@jer.il',  rabbanutId: 'rb1' },
-  mashgiach: { id: 'm1', name: 'Р. Коэн',         role: 'mashgiach', email: 'cohen@jer.il',  rabbanutId: 'rb1' },
+  owner:     { id: 'u1', name: 'System Owner',    role: 'owner',     email: 'owner@kashrut.il', twoFactorEnabled: false },
+  rabbanut:  { id: 'u2', name: 'Admin Jerusalem', role: 'rabbanut',  email: 'admin@jer.il',  rabbanutId: 'rb1', twoFactorEnabled: false },
+  mashgiach: { id: 'm1', name: 'Р. Коэн',         role: 'mashgiach', email: 'cohen@jer.il',  rabbanutId: 'rb1', twoFactorEnabled: false },
 }
 
 interface AuthShimState {

@@ -5,11 +5,12 @@ const isProd = process.env.NODE_ENV === 'production'
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ): void {
   if (err instanceof ValidationError) {
+    res.locals.serviceErrorMessage = `Validation failed for ${req.method} ${req.path}`
     // In production expose only a generic message — Zod field details aid attackers in mapping the API
     if (isProd) {
       res.status(400).json({ error: 'Invalid request' })
@@ -20,6 +21,7 @@ export function errorHandler(
   }
 
   const message = err instanceof Error ? err.message : String(err)
+  res.locals.serviceErrorMessage = message
   if (isProd) console.error('[ERROR]', message)
   else        console.error('[ERROR]', err)
 

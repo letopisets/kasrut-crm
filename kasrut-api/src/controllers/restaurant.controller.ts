@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { restaurantsRepo } from '../db/restaurants.repo'
+import { hechsherimRepo } from '../db/hechsherim.repo'
+import { mashgichimRepo } from '../db/mashgichim.repo'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
 import { invalidatePattern } from '../lib/cache'
 import { validate } from '../lib/validate'
@@ -9,6 +11,22 @@ const invalidateMapCache = () => Promise.all([
   invalidatePattern('map:restaurants:*'),
   invalidatePattern('map:options'),
 ])
+
+async function validateRestaurantOwnership(input: {
+  rabbanutId: string
+  hechsherId: string
+  mashgiachId?: string
+}): Promise<boolean> {
+  const hechsher = await hechsherimRepo.findById(input.hechsherId)
+  if (!hechsher || hechsher.rabbanutId !== input.rabbanutId) return false
+
+  if (input.mashgiachId) {
+    const mashgiach = await mashgichimRepo.findById(input.mashgiachId)
+    if (!mashgiach || mashgiach.rabbanutId !== input.rabbanutId) return false
+  }
+
+  return true
+}
 
 export const restaurantController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -39,10 +57,13 @@ export const restaurantController = {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = validate(createRestaurantSchema, req.body)
-      if (req.user?.role === 'rabbanut' && body.rabbanutId !== req.user.rabbanutId) {
-        res.status(403).json({ error: 'Forbidden' }); return
+      const payload = req.user?.role === 'rabbanut'
+        ? { ...body, rabbanutId: req.user.rabbanutId! }
+        : body
+      if (!await validateRestaurantOwnership(payload)) {
+        res.status(400).json({ error: 'Hechsher and mashgiach must belong to the selected rabbanut' }); return
       }
-      const r = await restaurantsRepo.create(body)
+      const r = await restaurantsRepo.create(payload)
       void invalidateMapCache()
       res.status(201).json(serializeRestaurant(r))
     } catch (e) { next(e) }
@@ -52,9 +73,10 @@ export const restaurantController = {
     try {
       const body = validate(updateRestaurantSchema, req.body)
 
+      const existing = await restaurantsRepo.findById(req.params.id)
+      if (!existing) { res.status(404).json({ error: 'Not found' }); return }
+
       if (req.user?.role === 'rabbanut') {
-        const existing = await restaurantsRepo.findById(req.params.id)
-        if (!existing) { res.status(404).json({ error: 'Not found' }); return }
         if (existing.rabbanutId !== req.user.rabbanutId) {
           res.status(403).json({ error: 'Forbidden' }); return
         }
@@ -64,7 +86,19 @@ export const restaurantController = {
         }
       }
 
-      const r = await restaurantsRepo.update(req.params.id, body)
+      const payload = req.user?.role === 'rabbanut'
+        ? { ...body, rabbanutId: req.user.rabbanutId! }
+        : body
+      const merged = {
+        rabbanutId: payload.rabbanutId ?? existing.rabbanutId,
+        hechsherId: payload.hechsherId ?? existing.hechsherId,
+        mashgiachId: payload.mashgiachId ?? existing.mashgiachId,
+      }
+      if (!await validateRestaurantOwnership(merged)) {
+        res.status(400).json({ error: 'Hechsher and mashgiach must belong to the selected rabbanut' }); return
+      }
+
+      const r = await restaurantsRepo.update(req.params.id, payload)
       if (!r) { res.status(404).json({ error: 'Not found' }); return }
       void invalidateMapCache()
       res.json(serializeRestaurant(r))

@@ -13,4 +13,5 @@ export interface Restaurant {
   status: CertStatus
   rabbanutId: string
   notes?: string
+  lastInspection?: string
 }

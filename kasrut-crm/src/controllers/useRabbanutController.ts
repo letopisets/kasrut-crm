@@ -47,7 +47,10 @@ export function useRabbanutController() {
   }
 
   const toggleRabbanut = (id: string) => { void toggleMutation(id) }
-  const deleteRabbanut = (id: string) => { void deleteMutation(id) }
+  const deleteRabbanut = (id: string) => {
+    if (!window.confirm('Delete this kashrut authority?')) return
+    void deleteMutation(id)
+  }
 
   const getStats = (r: Rabbanut) => ({
     restaurants: restaurants.filter(rest => rest.rabbanutId === r.id).length,
