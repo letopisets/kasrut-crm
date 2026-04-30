@@ -1,34 +1,7 @@
 import { useState, useCallback } from 'react'
-import type { RouteData, RouteStep } from '@/types'
+import type { RouteData } from '@/types'
 
-const OSRM = 'https://router.project-osrm.org/route/v1/foot'
-
-interface OsrmManeuver { type: string; modifier?: string }
-interface OsrmStep {
-  name:     string
-  distance: number
-  duration: number
-  maneuver: OsrmManeuver
-}
-interface OsrmLeg   { steps: OsrmStep[] }
-interface OsrmRoute {
-  distance: number
-  duration: number
-  geometry: { coordinates: [number, number][] }
-  legs:     OsrmLeg[]
-}
-
-function buildInstruction({ maneuver: { type, modifier }, name }: OsrmStep): string {
-  const street = name ? ` по ${name}` : ''
-  if (type === 'depart') return `Начните движение${street}`
-  if (type === 'arrive') return 'Вы прибыли к цели'
-  if (type === 'turn') {
-    const dir = modifier === 'left' ? 'налево' : modifier === 'right' ? 'направо' : 'прямо'
-    return `Поверните ${dir}${street}`
-  }
-  if (type === 'roundabout' || type === 'rotary') return `Въедьте на круговое движение${street}`
-  return `Продолжайте движение${street}`
-}
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api').replace(/\/$/, '')
 
 export function formatDist(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} км` : `${Math.round(m)} м`
@@ -46,22 +19,22 @@ export function useRoute() {
   const fetchRoute = useCallback(async (from: [number, number], to: [number, number]) => {
     setLoading(true)
     setError(null)
+    setRoute(null)
     try {
-      const url = `${OSRM}/${from[1]},${from[0]};${to[1]},${to[0]}?steps=true&overview=full&geometries=geojson`
-      const res  = await fetch(url)
-      const json = await res.json() as { code: string; routes: OsrmRoute[] }
+      const params = new URLSearchParams({
+        fromLat: String(from[0]),
+        fromLng: String(from[1]),
+        toLat: String(to[0]),
+        toLng: String(to[1]),
+      })
+      const res = await fetch(`${API_BASE_URL}/map/route?${params.toString()}`)
+      const json = await res.json().catch(() => null) as (RouteData & { error?: string }) | null
 
-      if (json.code !== 'Ok') throw new Error('Маршрут не найден')
+      if (!res.ok || !json) {
+        throw new Error(json?.error || 'Не удалось построить маршрут')
+      }
 
-      const r = json.routes[0]
-      const steps: RouteStep[] = r.legs[0].steps.map(s => ({
-        instruction: buildInstruction(s),
-        distance:    s.distance,
-        duration:    s.duration,
-      }))
-      const geometry: [number, number][] = r.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-
-      setRoute({ geometry, steps, totalDistance: r.distance, totalDuration: r.duration })
+      setRoute(json)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка маршрута')
     } finally {
