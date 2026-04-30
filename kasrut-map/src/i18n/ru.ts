@@ -10,6 +10,8 @@ const ru: MapTranslations = {
   loginTooltip: 'Войти',
   establishmentCount: '{n} заведений ›',
   establishmentCountLimited: '{shown} из {total} заведений ›',
+  showAllEstablishments: 'Все заведения',
+  openList: 'Список',
   updatingMap: 'Обновляем карту…',
   correctLocation: 'Уточнить моё местоположение',
   myLocation: 'Моё местоположение',

@@ -221,6 +221,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             viewport={ctrl.viewport}
             radius={ctrl.filters.radius}
             route={ctrl.route}
+            fitRestaurantsKey={ctrl.fitRestaurantsKey}
             onSelect={ctrl.setSelected}
             onPanHandled={ctrl.onPanHandled}
             onMapClick={ctrl.applyPosition}
@@ -230,7 +231,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           {showMapFetching && !ctrl.correcting && (
             <Box
               sx={{
-                position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+                position: 'absolute', top: 68, left: '50%', transform: 'translateX(-50%)',
                 bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider',
                 borderRadius: 99, px: 1.5, py: 0.75, zIndex: 1000,
                 boxShadow: '0 2px 12px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 1,
@@ -238,6 +239,45 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             >
               <CircularProgress size={14} />
               <Typography variant="caption" color="text.secondary">{t.updatingMap}</Typography>
+            </Box>
+          )}
+
+          {!ctrl.correcting && (
+            <Box sx={{
+              position: 'absolute',
+              top: 16,
+              left: 16,
+              zIndex: 1000,
+              display: 'flex',
+              gap: 1,
+              flexWrap: 'wrap',
+              maxWidth: { xs: 'calc(100% - 96px)', sm: 'auto' },
+            }}>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={ctrl.showAllRestaurants}
+                startIcon={<MapIcon fontSize="small" />}
+                sx={{ borderRadius: 99, boxShadow: 4, px: 1.5 }}
+              >
+                {t.showAllEstablishments}
+              </Button>
+              {ctrl.restaurants.length > 0 && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => ctrl.setView('list')}
+                  startIcon={<ListIcon fontSize="small" />}
+                  sx={{
+                    borderRadius: 99,
+                    bgcolor: 'background.paper',
+                    boxShadow: 3,
+                    px: 1.5,
+                  }}
+                >
+                  {restaurantCountLabel}
+                </Button>
+              )}
             </Box>
           )}
 
@@ -249,7 +289,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           )}
 
           {/* FABs */}
-          <Box sx={{ position: 'absolute', bottom: 24, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Tooltip title={t.correctLocation} placement="left">
               <Fab
                 size="small"
@@ -283,25 +323,6 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             </Tooltip>
           </Box>
 
-          {/* Results count bubble */}
-          {ctrl.restaurants.length > 0 && !ctrl.correcting && (
-            <Box
-              onClick={() => ctrl.setView('list')}
-              sx={{
-                position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-                bgcolor: 'background.paper', border: '1px solid', borderColor: 'primary.main',
-                borderRadius: 99, px: 2, py: 0.75, zIndex: 1000,
-                boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-                cursor: 'pointer', userSelect: 'none',
-                transition: 'background 0.15s',
-                '&:hover': { bgcolor: 'rgba(232,165,7,0.12)' },
-              }}
-            >
-              <Typography variant="caption" color="primary.main" fontWeight={700}>
-                {restaurantCountLabel}
-              </Typography>
-            </Box>
-          )}
         </Box>
 
         {/* List view */}

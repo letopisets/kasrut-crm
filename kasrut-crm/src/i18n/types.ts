@@ -11,6 +11,7 @@ export interface Translations {
     rabbanuts: string
     users: string
     suggestions: string
+    logs: string
   }
   roles: { owner: string; rabbanut: string; mashgiach: string }
   roleDesc: { owner: string; rabbanut: string; mashgiach: string }
@@ -103,6 +104,10 @@ export interface Translations {
     remove: string
     confirmRemove: string
     establishments: string
+    restaurants?: string
+    abbrev?: string
+    mashgichimList?: string
+    delete?: string
     mashgichim: string
     count?: string
     empty?: string
@@ -136,6 +141,7 @@ export interface Translations {
     active: string
     inactive: string
     count?: string
+    empty?: string
     restaurants?: string
   }
   users: {
@@ -147,6 +153,7 @@ export interface Translations {
     status: string
     lastLogin: string
     count?: string
+    empty?: string
     all?: string
   }
   suggestions?: {
@@ -175,6 +182,16 @@ export interface Translations {
     empty: string
     alreadyReviewed: string
     count: string
+  }
+  logs?: {
+    title: string
+    sub: string
+    count: string
+    empty: string
+    filters: { all: string; error: string; warn: string; info: string }
+    cols: { time: string; level: string; service: string; user: string; action: string; entity: string; message: string; status: string }
+    cards: { errors24h: string; warnings24h: string; authIssues: string; api5xx: string }
+    viewDetails: string
   }
   noAccess: string
   myEstablishments: string

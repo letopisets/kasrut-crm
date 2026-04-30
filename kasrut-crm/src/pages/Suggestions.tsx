@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useLang } from '@/i18n/useLang'
 import { useGetSuggestionsQuery, useReviewSuggestionMutation } from '@/store/api/suggestionsApi'
 import { Badge } from '@/components/ui'
@@ -22,8 +23,12 @@ const STATUS_COLOR: Record<SuggestionStatus, string> = {
 export default function Suggestions() {
   const t    = useLang()
   const ts   = t.suggestions!
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialStatus = searchParams.get('status') as SuggestionStatus | 'all' | null
 
-  const [filter, setFilter]           = useState<Filter>('pending')
+  const [filter, setFilterState]      = useState<Filter>(
+    initialStatus && ['all', 'pending', 'approved', 'rejected'].includes(initialStatus) ? initialStatus : 'pending'
+  )
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [noteText, setNoteText]       = useState('')
 
@@ -37,6 +42,14 @@ export default function Suggestions() {
   }
 
   const FILTERS: Filter[] = ['all', 'pending', 'approved', 'rejected']
+
+  const setFilter = (nextFilter: Filter) => {
+    setFilterState(nextFilter)
+    const next = new URLSearchParams(searchParams)
+    if (nextFilter === 'all') next.delete('status')
+    else next.set('status', nextFilter)
+    setSearchParams(next, { replace: true })
+  }
 
   const filterLabel = (f: Filter) => {
     if (f === 'all') return ts.all

@@ -18,7 +18,6 @@ import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import List from '@mui/material/List'
 import ListItemButton from '@mui/material/ListItemButton'
-import ListItemText from '@mui/material/ListItemText'
 import Tooltip from '@mui/material/Tooltip'
 import Backdrop from '@mui/material/Backdrop'
 import MenuIcon from '@mui/icons-material/Menu'
@@ -49,6 +48,8 @@ export function Header() {
   useEffect(() => { setDrawerOpen(false) }, [pathname])
 
   const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
+  const navLabels = t.nav as Record<string, string>
+  const activeLabel = navLabels[activeTab] ?? t.dashboard.title
 
   const NAV_KEYS = (Object.keys(t.nav) as Array<keyof typeof t.nav>)
     .filter(id => perm.tabs.includes(id))
@@ -65,7 +66,7 @@ export function Header() {
           }}
         >
           {/* Logo */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0 }}>
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.25, flexShrink: 0 }}>
             <Box sx={{
               width: 32, height: 32, borderRadius: 1,
               background: `linear-gradient(135deg, #C9A84C, #E8C96D)`,
@@ -85,43 +86,14 @@ export function Header() {
             </Box>
           </Box>
 
-          {/* Desktop Nav */}
-          <Box
-            component="nav"
-            sx={{
-              display: { xs: 'none', md: 'flex' },
-              flex: 1, justifyContent: 'center', alignItems: 'center',
-              gap: 0.25, overflow: 'hidden',
-            }}
-          >
-            {NAV_KEYS.map(id => {
-              const active = activeTab === id
-              return (
-                <Button
-                  key={id}
-                  onClick={() => navigate(`/${id}`)}
-                  sx={{
-                    color: active ? rc : 'text.disabled',
-                    fontWeight: active ? 600 : 500,
-                    fontSize: { md: '0.75rem', lg: '0.8125rem' },
-                    px: { md: '10px', lg: '14px' },
-                    py: '6px',
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: active ? alpha(rc, 0.22) : 'transparent',
-                    background: active ? alpha(rc, 0.08) : 'transparent',
-                    whiteSpace: 'nowrap',
-                    minWidth: 'auto',
-                    '&:hover': {
-                      background: active ? alpha(rc, 0.12) : alpha('#fff', 0.05),
-                      color: active ? rc : 'text.secondary',
-                    },
-                  }}
-                >
-                  {t.nav[id]}
-                </Button>
-              )
-            })}
+          {/* Desktop page title; navigation lives in the sidebar */}
+          <Box sx={{ display: { xs: 'none', md: 'block' }, flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
+              {activeLabel}
+            </Typography>
+            <Typography sx={{ fontSize: 10, color: 'text.disabled', lineHeight: 1.4 }}>
+              {t.roles[role]} · {user?.name}
+            </Typography>
           </Box>
 
           {/* Right side */}
@@ -261,14 +233,15 @@ export function Header() {
                   '&:hover': { background: '#1E2235' },
                 }}
               >
-                <ListItemText
-                  primary={t.nav[id]}
-                  primaryTypographyProps={{
+                <Typography
+                  sx={{
                     fontSize: 14,
                     fontWeight: active ? 600 : 500,
                     color: active ? rc : '#9A9AB0',
                   }}
-                />
+                >
+                  {t.nav[id]}
+                </Typography>
               </ListItemButton>
             )
           })}

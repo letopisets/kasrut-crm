@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import { env } from './config/env'
 import routes from './routes'
 import { errorHandler } from './middleware/errorHandler'
+import { serviceLogger } from './middleware/serviceLogger'
 
 export function createApp() {
   const app = express()
@@ -15,6 +16,7 @@ export function createApp() {
   // Body parsing with explicit size limits
   app.use(express.json({ limit: '512kb' }))
   app.use(express.urlencoded({ extended: false, limit: '512kb' }))
+  app.use(serviceLogger)
 
   // Health check
   app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))

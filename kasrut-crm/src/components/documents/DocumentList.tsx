@@ -1,5 +1,4 @@
 import type { KashrutDocument } from '@/types'
-import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
 import { DOCUMENT_CATEGORY_COLOR } from '@/lib/statusColor'
 import { alpha } from '@mui/material/styles'
@@ -22,8 +21,6 @@ const EXT_COLOR: Record<string, string> = {
 }
 
 export function DocumentList({ documents, canEdit, onDelete }: Props) {
-  const t = useLang()
-
   if (!documents.length) {
     return (
       <Typography sx={{ textAlign: 'center', py: 8, color: 'text.disabled', fontSize: 13 }}>

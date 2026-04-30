@@ -13,6 +13,7 @@ import Documents         from '@/pages/Documents'
 import Rabbanuts         from '@/pages/Rabbanuts'
 import Users             from '@/pages/Users'
 import Suggestions       from '@/pages/Suggestions'
+import Logs              from '@/pages/Logs'
 
 function App() {
   return (
@@ -47,6 +48,9 @@ function App() {
           } />
           <Route path="suggestions"   element={
             <ProtectedRoute page="suggestions"><Suggestions /></ProtectedRoute>
+          } />
+          <Route path="logs"          element={
+            <ProtectedRoute page="logs"><Logs /></ProtectedRoute>
           } />
         </Route>
         <Route path="/login" element={<Login />} />

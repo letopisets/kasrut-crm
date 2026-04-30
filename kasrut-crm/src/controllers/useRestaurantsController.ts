@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppSelector } from '@/store'
 import { useGetRestaurantsQuery, useCreateRestaurantMutation, useDeleteRestaurantMutation } from '@/store/api/restaurantsApi'
 import { useGetHechsherimQuery }  from '@/store/api/hechsherimApi'
@@ -12,12 +12,16 @@ type RestaurantInput = Omit<Restaurant, 'id' | 'status'>
 
 export function useRestaurantsController() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user           = useAppSelector(s => s.auth.user)
   const role           = useAppSelector(s => s.auth.role)
   const rabbanutFilter = useAppSelector(s => s.auth.rabbanutFilter)
   const perm           = usePermissions()
 
-  const [statusFilter, setStatusFilter] = useState<CertStatus | 'all'>('all')
+  const initialStatus = searchParams.get('status') as CertStatus | null
+  const [statusFilter, setStatusFilterState] = useState<CertStatus | 'all'>(
+    initialStatus && ['ok', 'warning', 'critical'].includes(initialStatus) ? initialStatus : 'all'
+  )
   const [showForm,     setShowForm]     = useState(false)
   const [editTarget,   setEditTarget]   = useState<Restaurant | null>(null)
 
@@ -27,6 +31,14 @@ export function useRestaurantsController() {
   const { data: rabbanuts  = [] }            = useGetRabbanutsQuery()
   const [createMutation] = useCreateRestaurantMutation()
   const [deleteMutation] = useDeleteRestaurantMutation()
+
+  const setStatusFilter = (status: CertStatus | 'all') => {
+    setStatusFilterState(status)
+    const next = new URLSearchParams(searchParams)
+    if (status === 'all') next.delete('status')
+    else next.set('status', status)
+    setSearchParams(next, { replace: true })
+  }
 
   const restaurants = useMemo(() => {
     let result = [...all]
@@ -46,6 +58,7 @@ export function useRestaurantsController() {
   }
 
   const deleteRestaurant = async (id: string) => {
+    if (!window.confirm('Delete this establishment?')) return
     await deleteMutation(id).unwrap()
   }
 

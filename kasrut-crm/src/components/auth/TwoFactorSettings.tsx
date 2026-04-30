@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useAuthController } from '@/controllers/useAuthController'
 import { useLang } from '@/i18n/useLang'
-import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
@@ -68,9 +67,11 @@ export function TwoFactorSettings({ onClose }: Props) {
       value={code}
       onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
       onKeyDown={e => e.key === 'Enter' && void (step === 'setup' ? handleEnable() : handleDisable())}
-      inputProps={{
-        inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
-        style: { fontSize: 24, fontWeight: 700, letterSpacing: 10, textAlign: 'center', padding: '12px 14px' },
+      slotProps={{
+        htmlInput: {
+          inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
+          style: { fontSize: 24, fontWeight: 700, letterSpacing: 10, textAlign: 'center', padding: '12px 14px' },
+        },
       }}
       placeholder={tf?.codePlaceholder ?? '000000'}
       autoFocus={autoFocus}

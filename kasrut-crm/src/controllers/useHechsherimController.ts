@@ -35,7 +35,10 @@ export function useHechsherimController() {
     setShowForm(false)
   }
 
-  const deleteHechsher = (id: string) => { void deleteMutation(id) }
+  const deleteHechsher = (id: string) => {
+    if (!window.confirm('Delete this hechsher?')) return
+    void deleteMutation(id)
+  }
 
   const toggleExpand = (id: string) =>
     setExpandedId(prev => prev === id ? null : id)

@@ -19,7 +19,10 @@ export function useUsersController() {
     setShowForm(false)
   }
 
-  const deleteUser = (id: string) => { void deleteMutation(id) }
+  const deleteUser = (id: string) => {
+    if (!window.confirm('Delete this user?')) return
+    void deleteMutation(id)
+  }
 
   const rabbanutOptions = rabbanuts.map(r => ({ value: r.id, label: r.name }))
 

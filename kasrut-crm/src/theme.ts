@@ -147,26 +147,26 @@ export const theme = createTheme({
           fontSize: '0.8125rem',
           borderRadius: 10,
           whiteSpace: 'nowrap',
-        },
-        containedPrimary: {
-          background: `linear-gradient(135deg, ${GOLD_DIM}, ${GOLD})`,
-          color: BG.card,
-          '&:hover': { opacity: 0.88, background: `linear-gradient(135deg, ${GOLD_DIM}, ${GOLD})` },
-        },
-        outlinedPrimary: {
-          borderColor: alpha(GOLD, 0.4),
-          color: GOLD,
-          '&:hover': { background: alpha(GOLD, 0.07) },
-        },
-        outlinedError: {
-          borderColor: alpha('#E74C3C', 0.3),
-          color: '#E74C3C',
-          background: alpha('#E74C3C', 0.05),
-          '&:hover': { background: alpha('#E74C3C', 0.12) },
-        },
-        textSecondary: {
-          color: '#9A9AB0',
-          '&:hover': { background: alpha('#fff', 0.05) },
+          '&.MuiButton-containedPrimary': {
+            background: `linear-gradient(135deg, ${GOLD_DIM}, ${GOLD})`,
+            color: BG.card,
+            '&:hover': { opacity: 0.88, background: `linear-gradient(135deg, ${GOLD_DIM}, ${GOLD})` },
+          },
+          '&.MuiButton-outlinedPrimary': {
+            borderColor: alpha(GOLD, 0.4),
+            color: GOLD,
+            '&:hover': { background: alpha(GOLD, 0.07) },
+          },
+          '&.MuiButton-outlinedError': {
+            borderColor: alpha('#E74C3C', 0.3),
+            color: '#E74C3C',
+            background: alpha('#E74C3C', 0.05),
+            '&:hover': { background: alpha('#E74C3C', 0.12) },
+          },
+          '&.MuiButton-textSecondary': {
+            color: '#9A9AB0',
+            '&:hover': { background: alpha('#fff', 0.05) },
+          },
         },
       },
     },
@@ -320,11 +320,11 @@ export const theme = createTheme({
         root: {
           borderRadius: 6,
           fontSize: '0.8125rem',
-        },
-        standardError: {
-          background: alpha('#E74C3C', 0.08),
-          border: `1px solid ${alpha('#E74C3C', 0.2)}`,
-          color: '#E74C3C',
+          '&.MuiAlert-standardError': {
+            background: alpha('#E74C3C', 0.08),
+            border: `1px solid ${alpha('#E74C3C', 0.2)}`,
+            color: '#E74C3C',
+          },
         },
       },
     },

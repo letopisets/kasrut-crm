@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/useAuthStore'
 import { useLangStore } from '@/store/useLangStore'
 import { Header } from './Header'
 import { RoleBanner } from './RoleBanner'
+import { Sidebar } from './Sidebar'
 import Box from '@mui/material/Box'
 
 export default function AppLayout() {
@@ -14,18 +15,23 @@ export default function AppLayout() {
   return (
     <Box
       dir={lang === 'he' ? 'rtl' : 'ltr'}
-      sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}
+      sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}
     >
-      <Header />
-      <RoleBanner />
+      <Sidebar />
       <Box
-        component="main"
-        sx={{
-          flex: 1,
-          p: { xs: '12px 10px', sm: '14px 14px', md: '20px 20px', lg: '26px 32px' },
-        }}
+        sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: '100vh' }}
       >
-        <Outlet />
+        <Header />
+        <RoleBanner />
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            p: { xs: '12px 10px', sm: '14px 14px', md: '20px 20px', lg: '26px 32px' },
+          }}
+        >
+          <Outlet />
+        </Box>
       </Box>
     </Box>
   )

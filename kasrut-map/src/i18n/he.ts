@@ -10,6 +10,8 @@ const he: MapTranslations = {
   loginTooltip: 'כניסה',
   establishmentCount: '{n} מקומות ›',
   establishmentCountLimited: '{shown} מתוך {total} מקומות ›',
+  showAllEstablishments: 'כל המקומות',
+  openList: 'רשימה',
   updatingMap: 'מעדכן מפה…',
   correctLocation: 'תקן את מיקומי',
   myLocation: 'המיקום שלי',

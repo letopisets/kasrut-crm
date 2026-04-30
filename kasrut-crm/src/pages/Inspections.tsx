@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useInspections } from '@/hooks/useInspections'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -20,9 +21,28 @@ type ResultFilter = 'all' | InspectionResult
 const TYPE_FILTERS:   TypeFilter[]   = ['all', 'planned', 'urgent']
 const RESULT_FILTERS: ResultFilter[] = ['all', 'pending', 'open', 'pass', 'fail']
 
+function isThisWeek(date: string): boolean {
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return false
+  const now = new Date()
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(start.getDate() + 7)
+  return d >= start && d < end
+}
+
 export default function Inspections() {
-  const [typeFilter,   setTypeFilter]   = useState<TypeFilter>('all')
-  const [resultFilter, setResultFilter] = useState<ResultFilter>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialType = searchParams.get('type') as InspectionType | null
+  const initialResult = searchParams.get('result') as InspectionResult | null
+  const rangeFilter = searchParams.get('range')
+  const [typeFilter,   setTypeFilterState]   = useState<TypeFilter>(
+    initialType && TYPE_FILTERS.includes(initialType) ? initialType : 'all'
+  )
+  const [resultFilter, setResultFilterState] = useState<ResultFilter>(
+    initialResult && RESULT_FILTERS.includes(initialResult) ? initialResult : 'all'
+  )
   const [showForm,     setShowForm]     = useState(false)
 
   const t           = useLang()
@@ -32,8 +52,26 @@ export default function Inspections() {
   const inspections = useInspections()
 
   const filtered = inspections
+    .filter(i => rangeFilter !== 'week' || isThisWeek(i.date))
     .filter(i => typeFilter   === 'all' || i.type   === typeFilter)
     .filter(i => resultFilter === 'all' || i.result === resultFilter)
+
+  const setParamFilter = (key: 'type' | 'result', value: TypeFilter | ResultFilter) => {
+    const next = new URLSearchParams(searchParams)
+    if (value === 'all') next.delete(key)
+    else next.set(key, value)
+    setSearchParams(next, { replace: true })
+  }
+
+  const setTypeFilter = (value: TypeFilter) => {
+    setTypeFilterState(value)
+    setParamFilter('type', value)
+  }
+
+  const setResultFilter = (value: ResultFilter) => {
+    setResultFilterState(value)
+    setParamFilter('result', value)
+  }
 
   const typeLabel = (key: TypeFilter): string => {
     if (key === 'all')     return t.restaurants.filters[0]

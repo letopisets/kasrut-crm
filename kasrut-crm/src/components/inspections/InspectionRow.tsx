@@ -7,7 +7,6 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge, Select } from '@/components/ui'
 import { TYPE_COLOR, RESULT_COLOR } from '@/lib/statusColor'
-import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 

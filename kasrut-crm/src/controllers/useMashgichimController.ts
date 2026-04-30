@@ -40,7 +40,10 @@ export function useMashgichimController() {
   }
 
   const toggleMashgiach = (id: string) => { void toggleMutation(id) }
-  const deleteMashgiach = (id: string) => { void deleteMutation(id) }
+  const deleteMashgiach = (id: string) => {
+    if (!window.confirm('Delete this mashgiach?')) return
+    void deleteMutation(id)
+  }
 
   const getHechsherimForMashgiach = (ids: string[]) =>
     hechsherim.filter(h => ids.includes(h.id))
