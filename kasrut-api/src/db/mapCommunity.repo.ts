@@ -5,6 +5,7 @@ import type {
   MapPasswordResetChannel as PrismaMapPasswordResetChannel,
   MapSuggestionType as PrismaMapSuggestionType,
   MapSuggestionStatus as PrismaMapSuggestionStatus,
+  Prisma,
 } from '../generated/prisma/client'
 import type { OAuthProfile } from '../services/mapOAuth.service'
 
@@ -62,6 +63,160 @@ const mapAuthUserSelect = {
   ...mapUserSelect,
   passwordHash: true,
 } as const
+
+const COMMUNITY_HECHSHER_COLOR = '#E8A507'
+const DEFAULT_ADD_FOOD_TYPE = 'pareve'
+
+function normalizeText(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function addDays(days: number): Date {
+  const date = new Date()
+  date.setUTCDate(date.getUTCDate() + days)
+  return date
+}
+
+function makeShortName(name: string): string {
+  return name.trim().slice(0, 20) || 'Community'
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function toCertStatus(value: string | null): 'ok' | 'warning' | 'critical' {
+  const text = normalizeText(value ?? '')
+  if (
+    text.includes('no longer') ||
+    text.includes('больше не') ||
+    text.includes('כבר אינו')
+  ) {
+    return 'critical'
+  }
+  if (
+    text.includes('review') ||
+    text.includes('провер') ||
+    text.includes('מצריכה')
+  ) {
+    return 'warning'
+  }
+  return 'ok'
+}
+
+function expiresForStatus(status: 'ok' | 'warning' | 'critical'): Date {
+  if (status === 'critical') return addDays(-1)
+  if (status === 'warning') return addDays(30)
+  return addDays(365)
+}
+
+function hechsherTypeFromText(value: string | null): 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private' {
+  const text = normalizeText(value ?? '')
+  if (text.includes('badatz') || text.includes('בד')) return 'Badatz'
+  if (text.includes('mehadrin') || text.includes('מהדרין')) return 'Mehadrin'
+  if (text.includes('rabbanut') || text.includes('רבנות')) return 'Rabbanut'
+  return 'Private'
+}
+
+async function resolveRabbanutId(
+  tx: Prisma.TransactionClient,
+  city: string,
+  reviewerRabbanutId?: string | null,
+): Promise<string> {
+  if (reviewerRabbanutId) {
+    const reviewerRabbanut = await tx.rabbanut.findUnique({
+      where: { id: reviewerRabbanutId },
+      select: { id: true },
+    })
+    if (reviewerRabbanut) return reviewerRabbanut.id
+  }
+
+  const cityRabbanut = await tx.rabbanut.findFirst({
+    where: {
+      active: true,
+      city: { equals: city, mode: 'insensitive' },
+    },
+    select: { id: true },
+    orderBy: { name: 'asc' },
+  })
+  if (cityRabbanut) return cityRabbanut.id
+
+  const activeRabbanut = await tx.rabbanut.findFirst({
+    where: { active: true },
+    select: { id: true },
+    orderBy: { name: 'asc' },
+  })
+  if (activeRabbanut) return activeRabbanut.id
+
+  const anyRabbanut = await tx.rabbanut.findFirst({
+    select: { id: true },
+    orderBy: { name: 'asc' },
+  })
+  if (anyRabbanut) return anyRabbanut.id
+
+  throw new Error('Cannot approve suggestion: no rabbanut exists for the new restaurant')
+}
+
+async function resolveHechsher(
+  tx: Prisma.TransactionClient,
+  input: {
+    name: string | null
+    city: string
+    kashrutStatus: string | null
+    reviewerRabbanutId?: string | null
+  },
+): Promise<{ id: string; rabbanutId: string; type: string }> {
+  const requestedName = input.name?.trim()
+  if (requestedName) {
+    const existing = await tx.hechsher.findFirst({
+      where: {
+        OR: [
+          { name: { equals: requestedName, mode: 'insensitive' } },
+          { shortName: { equals: requestedName, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, rabbanutId: true, type: true },
+      orderBy: { name: 'asc' },
+    })
+    if (existing) return existing
+  }
+
+  const rabbanutId = await resolveRabbanutId(tx, input.city, input.reviewerRabbanutId)
+  const fallbackName = requestedName || `Community review ${input.city}`.trim()
+  const existingFallback = await tx.hechsher.findFirst({
+    where: {
+      rabbanutId,
+      name: { equals: fallbackName, mode: 'insensitive' },
+    },
+    select: { id: true, rabbanutId: true, type: true },
+    orderBy: { name: 'asc' },
+  })
+  if (existingFallback) return existingFallback
+
+  return tx.hechsher.create({
+    data: {
+      name: fallbackName,
+      shortName: makeShortName(fallbackName),
+      city: input.city,
+      contact: '',
+      phone: '',
+      email: '',
+      type: hechsherTypeFromText(requestedName || input.kashrutStatus),
+      color: COMMUNITY_HECHSHER_COLOR,
+      rabbanutId,
+    },
+    select: { id: true, rabbanutId: true, type: true },
+  })
+}
+
+function levelFromHechsher(type: string): 'Regular' | 'Mehadrin' {
+  return type === 'Badatz' || type === 'Mehadrin' ? 'Mehadrin' : 'Regular'
+}
+
+function communityNotes(notes: string | null): string {
+  const suffix = notes?.trim()
+  return suffix ? `Community suggestion: ${suffix}` : 'Community suggestion'
+}
 
 export const mapCommunityRepo = {
   async findUserById(id: string): Promise<MapUserRow | null> {
@@ -238,29 +393,93 @@ export const mapCommunityRepo = {
   async reviewSuggestion(id: string, data: {
     status: 'approved' | 'rejected'
     reviewerNote?: string | null
+    reviewerRabbanutId?: string | null
   }) {
     return prisma.$transaction(async tx => {
       const suggestion = await tx.mapRestaurantSuggestion.findUnique({ where: { id } })
       if (!suggestion || suggestion.status !== 'pending') return null
+
+      let linkedRestaurantId: string | undefined
 
       if (
         data.status === 'approved' &&
         suggestion.type === 'update' &&
         suggestion.restaurantId
       ) {
-        const patch: Record<string, string> = {}
+        const patch: Prisma.RestaurantUpdateInput = {}
         if (suggestion.proposedName)    patch.name    = suggestion.proposedName
         if (suggestion.proposedAddress) patch.address = suggestion.proposedAddress
         if (suggestion.proposedCity)    patch.city    = suggestion.proposedCity
+        if (
+          isFiniteNumber(suggestion.proposedLat) &&
+          isFiniteNumber(suggestion.proposedLng)
+        ) {
+          patch.lat = suggestion.proposedLat
+          patch.lng = suggestion.proposedLng
+        }
+        if (suggestion.proposedHechsher) {
+          const hechsher = await resolveHechsher(tx, {
+            name: suggestion.proposedHechsher,
+            city: suggestion.proposedCity ?? '',
+            kashrutStatus: suggestion.proposedKashrutStatus,
+            reviewerRabbanutId: data.reviewerRabbanutId,
+          })
+          patch.hechsher = { connect: { id: hechsher.id } }
+          patch.rabbanut = { connect: { id: hechsher.rabbanutId } }
+          patch.level = levelFromHechsher(hechsher.type)
+        }
+        if (suggestion.proposedKashrutStatus) {
+          const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
+          patch.status = certStatus
+          patch.expires = expiresForStatus(certStatus)
+        }
         if (Object.keys(patch).length > 0) {
           await tx.restaurant.update({ where: { id: suggestion.restaurantId }, data: patch })
         }
+      }
+
+      if (data.status === 'approved' && suggestion.type === 'add') {
+        if (!suggestion.proposedName || !suggestion.proposedAddress || !suggestion.proposedCity) {
+          throw new Error('Cannot approve suggestion: name, address and city are required')
+        }
+        if (!isFiniteNumber(suggestion.proposedLat) || !isFiniteNumber(suggestion.proposedLng)) {
+          throw new Error('Cannot approve suggestion: coordinates are required for map display')
+        }
+
+        const hechsher = await resolveHechsher(tx, {
+          name: suggestion.proposedHechsher,
+          city: suggestion.proposedCity,
+          kashrutStatus: suggestion.proposedKashrutStatus,
+          reviewerRabbanutId: data.reviewerRabbanutId,
+        })
+        const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
+        const restaurant = await tx.restaurant.create({
+          data: {
+            name: suggestion.proposedName,
+            address: suggestion.proposedAddress,
+            city: suggestion.proposedCity,
+            level: levelFromHechsher(hechsher.type),
+            hechsherId: hechsher.id,
+            mashgiachId: null,
+            kitniyot: '',
+            expires: expiresForStatus(certStatus),
+            status: certStatus,
+            rabbanutId: hechsher.rabbanutId,
+            notes: communityNotes(suggestion.notes),
+            lat: suggestion.proposedLat,
+            lng: suggestion.proposedLng,
+            foodType: DEFAULT_ADD_FOOD_TYPE,
+          },
+          select: { id: true },
+        })
+        linkedRestaurantId = restaurant.id
       }
 
       return tx.mapRestaurantSuggestion.update({
         where: { id },
         data: {
           status: data.status as PrismaMapSuggestionStatus,
+          ...(linkedRestaurantId ? { restaurantId: linkedRestaurantId } : {}),
           reviewerNote: data.reviewerNote ?? undefined,
           reviewedAt: new Date(),
         },

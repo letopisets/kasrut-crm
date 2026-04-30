@@ -18,10 +18,13 @@ const MAP_OPTIONS_CACHE_TTL = 600 // 10 minutes
 const CACHE_TTL = 300 // 5 minutes
 const DEFAULT_RESTAURANT_LIMIT = 750
 const MAX_RESTAURANT_LIMIT = 1500
+const OSRM_BASE_URL = (process.env.OSRM_BASE_URL ?? 'https://router.project-osrm.org/route/v1').replace(/\/$/, '')
+const ROUTE_TIMEOUT_MS = 8_000
 
 const invalidateMapCache = () => Promise.all([
   invalidatePattern('map:restaurants:*'),
   invalidatePattern('map:options'),
+  invalidatePattern('map:hechsherim'),
 ])
 
 function queryString(value: unknown): string | undefined {
@@ -131,7 +134,103 @@ const reviewSchema = z.object({
   text: z.string().trim().max(1000).optional().nullable(),
 })
 
+const routeQuerySchema = z.object({
+  fromLat: z.coerce.number().min(-90).max(90),
+  fromLng: z.coerce.number().min(-180).max(180),
+  toLat:   z.coerce.number().min(-90).max(90),
+  toLng:   z.coerce.number().min(-180).max(180),
+})
+
+interface OsrmManeuver { type: string; modifier?: string }
+interface OsrmStep {
+  name: string
+  distance: number
+  duration: number
+  maneuver: OsrmManeuver
+}
+interface OsrmLeg { steps: OsrmStep[] }
+interface OsrmRoute {
+  distance: number
+  duration: number
+  geometry: { coordinates: [number, number][] }
+  legs: OsrmLeg[]
+}
+interface OsrmResponse {
+  code: string
+  message?: string
+  routes?: OsrmRoute[]
+}
+
+function buildInstruction({ maneuver: { type, modifier }, name }: OsrmStep): string {
+  const street = name ? ` по ${name}` : ''
+  if (type === 'depart') return `Начните движение${street}`
+  if (type === 'arrive') return 'Вы прибыли к цели'
+  if (type === 'turn') {
+    const dir = modifier === 'left' ? 'налево' : modifier === 'right' ? 'направо' : 'прямо'
+    return `Поверните ${dir}${street}`
+  }
+  if (type === 'roundabout' || type === 'rotary') return `Въедьте на круговое движение${street}`
+  return `Продолжайте движение${street}`
+}
+
 export const mapController = {
+  async getRoute(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const parsed = routeQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid route coordinates' })
+      return
+    }
+
+    const { fromLat, fromLng, toLat, toLng } = parsed.data
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), ROUTE_TIMEOUT_MS)
+
+    try {
+      const coordinates = `${fromLng},${fromLat};${toLng},${toLat}`
+      const params = new URLSearchParams({
+        steps: 'true',
+        overview: 'full',
+        geometries: 'geojson',
+      })
+      const url = `${OSRM_BASE_URL}/foot/${coordinates}?${params.toString()}`
+      const upstream = await fetch(url, { signal: controller.signal })
+      const json = await upstream.json() as OsrmResponse
+
+      if (!upstream.ok) {
+        res.status(502).json({ error: json.message || 'Сервис маршрутов временно недоступен' })
+        return
+      }
+
+      const route = json.routes?.[0]
+      if (json.code !== 'Ok' || !route) {
+        res.status(404).json({ error: json.message || 'Маршрут не найден' })
+        return
+      }
+
+      const steps = route.legs[0]?.steps.map(step => ({
+        instruction: buildInstruction(step),
+        distance: step.distance,
+        duration: step.duration,
+      })) ?? []
+      const geometry = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+
+      res.json({
+        geometry,
+        steps,
+        totalDistance: route.distance,
+        totalDuration: route.duration,
+      })
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        res.status(504).json({ error: 'Сервис маршрутов не ответил вовремя' })
+        return
+      }
+      res.status(502).json({ error: 'Сервис маршрутов временно недоступен' })
+    } finally {
+      clearTimeout(timeout)
+    }
+  },
+
   async listHechsherim(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await withCache('map:hechsherim', HECHSHERIM_CACHE_TTL, () =>
@@ -228,14 +327,24 @@ export const mapController = {
         return
       }
       const note = typeof reviewerNote === 'string' ? reviewerNote.trim() || null : null
-      const result = await mapCommunityRepo.reviewSuggestion(id, { status, reviewerNote: note })
+      const result = await mapCommunityRepo.reviewSuggestion(id, {
+        status,
+        reviewerNote: note,
+        reviewerRabbanutId: req.user?.rabbanutId,
+      })
       if (!result) {
         res.status(404).json({ error: 'Suggestion not found or already reviewed' })
         return
       }
       if (status === 'approved') void invalidateMapCache()
       res.json(serializeMapSuggestionFull(result))
-    } catch (e) { next(e) }
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith('Cannot approve suggestion')) {
+        res.status(400).json({ error: e.message })
+        return
+      }
+      next(e)
+    }
   },
 
   async listReviews(req: Request, res: Response, next: NextFunction): Promise<void> {

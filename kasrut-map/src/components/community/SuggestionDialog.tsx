@@ -11,12 +11,13 @@ import type { MapRestaurant, MapSuggestionPayload } from '@/types'
 interface Props {
   open: boolean
   restaurant: MapRestaurant | null
+  defaultPosition?: [number, number] | null
   isAuthenticated: boolean
   onClose: () => void
   onRequireAuth: () => void
 }
 
-export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, onRequireAuth }: Props) {
+export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenticated, onClose, onRequireAuth }: Props) {
   const t = useMapLang()
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
@@ -55,6 +56,7 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
   const handleSubmit = async () => {
     if (!isAuthenticated) { onRequireAuth(); return }
 
+    const position = restaurant ? [restaurant.lat, restaurant.lng] : defaultPosition
     const payload: MapSuggestionPayload = {
       type: mode,
       restaurantId: restaurant?.id ?? null,
@@ -63,8 +65,8 @@ export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, o
       proposedCity: city.trim() || null,
       proposedHechsher: hechsher.trim() || null,
       proposedKashrutStatus: kashrutStatus.trim() || null,
-      proposedLat: restaurant?.lat ?? null,
-      proposedLng: restaurant?.lng ?? null,
+      proposedLat: position?.[0] ?? null,
+      proposedLng: position?.[1] ?? null,
       notes: notes.trim() || null,
     }
 

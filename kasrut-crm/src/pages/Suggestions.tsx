@@ -11,6 +11,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import TextField from '@mui/material/TextField'
 import Collapse from '@mui/material/Collapse'
+import Alert from '@mui/material/Alert'
 
 type Filter = 'all' | SuggestionStatus
 
@@ -31,14 +32,21 @@ export default function Suggestions() {
   )
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [noteText, setNoteText]       = useState('')
+  const [reviewError, setReviewError] = useState<string | null>(null)
 
   const { data = [], isLoading } = useGetSuggestionsQuery(filter)
   const [reviewSuggestion, { isLoading: isReviewing }] = useReviewSuggestionMutation()
 
   const handleReview = async (id: string, status: 'approved' | 'rejected') => {
-    await reviewSuggestion({ id, status, reviewerNote: noteText.trim() || undefined })
-    setReviewingId(null)
-    setNoteText('')
+    try {
+      await reviewSuggestion({ id, status, reviewerNote: noteText.trim() || undefined }).unwrap()
+      setReviewingId(null)
+      setNoteText('')
+      setReviewError(null)
+    } catch (e) {
+      const error = e as { data?: { error?: string } }
+      setReviewError(error.data?.error ?? 'Failed to review suggestion')
+    }
   }
 
   const FILTERS: Filter[] = ['all', 'pending', 'approved', 'rejected']
@@ -93,6 +101,12 @@ export default function Suggestions() {
           )
         })}
       </Box>
+
+      {reviewError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setReviewError(null)}>
+          {reviewError}
+        </Alert>
+      )}
 
       {/* List */}
       {isLoading ? (

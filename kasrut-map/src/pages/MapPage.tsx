@@ -33,7 +33,7 @@ import { setMapLang, type MapLang } from '@/store/mapLangSlice'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { useMapLang }            from '@/i18n/useMapLang'
 import type { ThemeMode } from '@/theme'
-import type { MapRestaurant } from '@/types'
+import type { MapRestaurant, MapViewport } from '@/types'
 
 interface Props {
   themeMode: ThemeMode
@@ -41,6 +41,12 @@ interface Props {
 }
 
 const LANGS: MapLang[] = ['en', 'ru', 'he']
+
+function getViewportCenter(viewport: MapViewport | null): [number, number] | null {
+  if (!viewport) return null
+  const { north, south, east, west } = viewport.bounds
+  return [(north + south) / 2, (east + west) / 2]
+}
 
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const ctrl = useMapController()
@@ -92,6 +98,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   }, [ctrl.isFetching])
 
   const mapRestaurants = ctrl.view === 'map' ? ctrl.restaurants : []
+  const suggestionDefaultPosition = ctrl.geo.position ?? getViewportCenter(ctrl.viewport) ?? ipCenter
   const restaurantCountLabel = ctrl.restaurantResultLimited
     ? t.establishmentCountLimited
       .replace('{shown}', String(ctrl.restaurants.length))
@@ -369,6 +376,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
       <SuggestionDialog
         open={suggestionOpen}
         restaurant={suggestionRestaurant}
+        defaultPosition={suggestionDefaultPosition}
         isAuthenticated={Boolean(user)}
         onClose={() => setSuggestionOpen(false)}
         onRequireAuth={() => setAuthOpen(true)}
