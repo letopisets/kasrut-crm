@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import {
   Drawer, Box, Typography, Divider, Stack,
-  Chip, IconButton, Button, ToggleButton, ToggleButtonGroup,
+  Chip, IconButton, Button,
+  Accordion, AccordionSummary, AccordionDetails,
+  Autocomplete, TextField,
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import RestartAltIcon from '@mui/icons-material/RestartAlt'
+import CloseIcon        from '@mui/icons-material/Close'
+import RestartAltIcon   from '@mui/icons-material/RestartAlt'
+import ExpandMoreIcon   from '@mui/icons-material/ExpandMore'
 import type { MapFilters, FoodType } from '@/types'
 import {
   FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI,
@@ -33,6 +37,10 @@ export function FilterPanel({
   onToggleHechsher, onToggleFoodType, onSetCity, onSetRadius, onReset,
 }: Props) {
   const t = useMapLang()
+  const [hechsherExpanded, setHechsherExpanded] = useState(filters.hechsher.length > 0)
+
+  const cityOptions = [t.allCities, ...availableCities]
+  const cityValue   = filters.city ? filters.city : t.allCities
 
   return (
     <Drawer
@@ -59,6 +67,7 @@ export function FilterPanel({
       <Divider />
 
       <Box sx={{ px: 2.5, py: 2, overflowY: 'auto', flex: 1 }}>
+        {/* Food type */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           {t.foodTypeSection}
         </Typography>
@@ -82,63 +91,84 @@ export function FilterPanel({
           })}
         </Stack>
 
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
-          {t.hechsherSection}
-        </Typography>
-        <Stack direction="column" gap={1} mb={3} sx={{ maxHeight: 260, overflowY: 'auto', pr: 0.5 }}>
-          {availableHechshers.map(h => {
-            const active = filters.hechsher.includes(h)
-            return (
-              <Chip
-                key={h}
-                label={h}
-                onClick={() => onToggleHechsher(h)}
-                variant={active ? 'filled' : 'outlined'}
-                sx={{
-                  justifyContent: 'flex-start',
-                  borderColor:    active ? 'primary.main' : 'divider',
-                  color:          active ? 'primary.contrastText' : 'text.primary',
-                  bgcolor:        active ? 'primary.main' : 'transparent',
-                  '&:hover':      { bgcolor: active ? 'primary.dark' : 'action.hover' },
-                }}
-              />
-            )
-          })}
-        </Stack>
+        {/* Hechsher — collapsible */}
+        <Accordion
+          expanded={hechsherExpanded}
+          onChange={(_e, v) => setHechsherExpanded(v)}
+          disableGutters
+          elevation={0}
+          sx={{
+            mb: 2,
+            background: 'transparent',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: '8px !important',
+            '&:before': { display: 'none' },
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon fontSize="small" />}
+            sx={{ minHeight: 40, px: 1.5, py: 0, '& .MuiAccordionSummary-content': { my: 0 } }}
+          >
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0 }}>
+              {t.hechsherSection}
+              {filters.hechsher.length > 0 && (
+                <Box component="span" sx={{ ml: 0.75, color: 'primary.main', fontWeight: 700 }}>
+                  ({filters.hechsher.length})
+                </Box>
+              )}
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails sx={{ px: 1.5, pt: 0, pb: 1.5 }}>
+            <Stack direction="column" gap={0.75} sx={{ maxHeight: 220, overflowY: 'auto', pr: 0.5 }}>
+              {availableHechshers.map(h => {
+                const active = filters.hechsher.includes(h)
+                return (
+                  <Chip
+                    key={h}
+                    label={h}
+                    onClick={() => onToggleHechsher(h)}
+                    variant={active ? 'filled' : 'outlined'}
+                    size="small"
+                    sx={{
+                      justifyContent: 'flex-start',
+                      borderColor:    active ? 'primary.main' : 'divider',
+                      color:          active ? 'primary.contrastText' : 'text.primary',
+                      bgcolor:        active ? 'primary.main' : 'transparent',
+                      '&:hover':      { bgcolor: active ? 'primary.dark' : 'action.hover' },
+                    }}
+                  />
+                )
+              })}
+            </Stack>
+          </AccordionDetails>
+        </Accordion>
 
+        {/* City — searchable dropdown */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           {t.citySection}
         </Typography>
-        <ToggleButtonGroup
-          value={filters.city}
-          exclusive
-          onChange={(_e, v) => onSetCity(v ?? '')}
-          orientation="vertical"
-          fullWidth
+        <Autocomplete
+          options={cityOptions}
+          value={cityValue}
+          onChange={(_e, val) => onSetCity(val === t.allCities || !val ? '' : val)}
+          disableClearable
+          size="small"
           sx={{ mb: 3 }}
-        >
-          <ToggleButton
-            value=""
-            sx={{
-              justifyContent: 'flex-start', py: 0.75, textTransform: 'none',
-              '&.Mui-selected': { color: 'primary.main', borderColor: 'primary.main', bgcolor: 'rgba(232,165,7,0.1)' },
-            }}
-          >
-            {t.allCities}
-          </ToggleButton>
-          {availableCities.map(c => (
-            <ToggleButton
-              key={c} value={c}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              placeholder={t.allCities}
               sx={{
-                justifyContent: 'flex-start', py: 0.75, textTransform: 'none',
-                '&.Mui-selected': { color: 'primary.main', borderColor: 'primary.main', bgcolor: 'rgba(232,165,7,0.1)' },
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                '& .MuiInputBase-root': { fontSize: '0.85rem' },
               }}
-            >
-              {c}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+            />
+          )}
+        />
 
+        {/* Radius */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           {t.radiusSection}
         </Typography>

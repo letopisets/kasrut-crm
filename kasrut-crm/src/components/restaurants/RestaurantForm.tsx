@@ -11,7 +11,7 @@ import { HechsherForm } from '@/components/hechsherim/HechsherForm'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
-import type { Restaurant } from '@/types'
+import type { Restaurant, FoodType } from '@/types'
 import type { Hechsher } from '@/types'
 
 const CITIES = ['Jerusalem', 'Haifa', 'Tel Aviv', 'Tzfat', 'Tiberias', 'Bnei Brak', 'Other']
@@ -38,6 +38,8 @@ export function RestaurantForm({ initial, onClose }: Props) {
 
   const [showAddHechsher, setShowAddHechsher] = useState(false)
 
+  const FOOD_TYPES: FoodType[] = ['meat', 'dairy', 'pareve', 'takeaway']
+
   const [form, setForm] = useState({
     name:        initial?.name        ?? '',
     address:     initial?.address     ?? '',
@@ -46,6 +48,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
     hechsherId:  initial?.hechsherId  ?? '',
     mashgiachId: initial?.mashgiachId ?? '',
     kitniyot:    (initial?.kitniyot   ?? '') as '' | 'ללא חשש קטניות' | 'מכיל קטניות',
+    foodType:    (initial?.foodType   ?? '') as '' | FoodType,
     expires:     initial?.expires     ?? '',
     notes:       initial?.notes       ?? '',
     rabbanutId:  initial?.rabbanutId  ?? user?.rabbanutId ?? '',
@@ -66,6 +69,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
       hechsherId:  form.hechsherId,
       mashgiachId: form.mashgiachId || undefined,
       kitniyot:    form.kitniyot || 'ללא חשש קטניות',
+      foodType:    (form.foodType || 'pareve') as FoodType,
       expires:     form.expires,
       notes:       form.notes,
       rabbanutId:  form.rabbanutId,
@@ -114,6 +118,12 @@ export function RestaurantForm({ initial, onClose }: Props) {
         <Input label={t.addRest.address}   value={form.address}     onChange={v => set('address', v)} />
         <Input label={t.addRest.city}      value={form.city}        onChange={v => set('city', v)} options={CITIES} />
         <Input label={t.addRest.level}     value={form.level}       onChange={v => set('level', v as typeof form['level'])} options={['Regular', 'Mehadrin']} />
+        <Input
+          label={t.addRest.foodType ?? 'Тип кухни'}
+          value={form.foodType}
+          onChange={v => set('foodType', v as typeof form['foodType'])}
+          options={FOOD_TYPES.map(ft => ({ value: ft, label: t.addRest.foodTypeLabels?.[ft] ?? ft }))}
+        />
 
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
           <Box sx={{ flex: 1 }}>

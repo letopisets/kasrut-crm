@@ -44,6 +44,8 @@ export interface Translations {
     hechsher: string
     mashgiach: string
     kitniyot: string
+    foodType?: string
+    foodTypeLabels?: { meat: string; dairy: string; pareve: string; takeaway: string }
     expires: string
     notes: string
     save: string
