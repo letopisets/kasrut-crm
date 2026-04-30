@@ -24,12 +24,13 @@ jest.mock('otplib', () => ({
 const mockRepo = usersRepo as jest.Mocked<typeof usersRepo>
 
 const baseUser: User = {
-  id:               'u1',
-  name:             'Test Owner',
-  email:            'owner@test.il',
-  passwordHash:     '$2a$08$hashedpassword',
-  role:             'owner',
-  twoFactorEnabled: false,
+  id:                   'u1',
+  name:                 'Test Owner',
+  email:                'owner@test.il',
+  passwordHash:         '$2a$08$hashedpassword',
+  role:                 'owner',
+  twoFactorEnabled:     false,
+  twoFactorBackupCodes: [],
 }
 
 function makeToken(user: Partial<User> = baseUser) {

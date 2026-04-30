@@ -4,10 +4,7 @@ import { encrypt, decrypt } from '../lib/crypto'
 import type { User, Role } from '../models/types'
 import type { User as PrismaUser } from '../generated/prisma/client'
 
-// Cast extended until `prisma generate` picks up the new twoFactorBackupCodes column
-type PrismaUserExtended = PrismaUser & { twoFactorBackupCodes?: string[] }
-
-function toUser(u: PrismaUserExtended): User {
+function toUser(u: PrismaUser): User {
   let twoFactorSecret: string | undefined
   if (u.twoFactorSecret) {
     // Decrypt stored secret; fall back to raw value for legacy unencrypted rows
@@ -77,7 +74,10 @@ export const usersRepo = {
 
   async setTwoFactorSecret(id: string, secret: string): Promise<User | null> {
     try {
-      const u = await prisma.user.update({ where: { id }, data: { twoFactorSecret: encrypt(secret), twoFactorEnabled: false } })
+      const u = await prisma.user.update({
+        where: { id },
+        data: { twoFactorSecret: encrypt(secret), twoFactorEnabled: false },
+      })
       return toUser(u)
     } catch { return null }
   },
@@ -95,21 +95,15 @@ export const usersRepo = {
         where: { id },
         data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [] },
       })
-      return toUser(u as PrismaUserExtended)
+      return toUser(u)
     } catch { return null }
   },
 
   async setBackupCodes(id: string, hashedCodes: string[]): Promise<void> {
-    await (prisma.user as unknown as { update: (args: object) => Promise<unknown> }).update({
-      where: { id },
-      data: { twoFactorBackupCodes: hashedCodes },
-    })
+    await prisma.user.update({ where: { id }, data: { twoFactorBackupCodes: hashedCodes } })
   },
 
   async consumeBackupCode(id: string, remainingCodes: string[]): Promise<void> {
-    await (prisma.user as unknown as { update: (args: object) => Promise<unknown> }).update({
-      where: { id },
-      data: { twoFactorBackupCodes: remainingCodes },
-    })
+    await prisma.user.update({ where: { id }, data: { twoFactorBackupCodes: remainingCodes } })
   },
 }

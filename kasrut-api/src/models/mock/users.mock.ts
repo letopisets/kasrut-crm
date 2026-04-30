@@ -25,12 +25,13 @@ export const usersMock = {
 
   create(input: { name: string; email: string; password: string; role: Role; rabbanutId?: string }): User {
     const record: User = {
-      id:               `u${Date.now()}`,
-      name:             input.name,
-      email:            input.email,
-      passwordHash:     bcrypt.hashSync(input.password, 12),
-      role:             input.role,
-      twoFactorEnabled: false,
+      id:                   `u${Date.now()}`,
+      name:                 input.name,
+      email:                input.email,
+      passwordHash:         bcrypt.hashSync(input.password, 12),
+      role:                 input.role,
+      twoFactorEnabled:     false,
+      twoFactorBackupCodes: [],
       ...(input.rabbanutId ? { rabbanutId: input.rabbanutId } : {}),
     }
     data.push(record)

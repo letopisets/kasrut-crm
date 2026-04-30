@@ -24,22 +24,24 @@ jest.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,qr' }
 const mockRepo = usersRepo as jest.Mocked<typeof usersRepo>
 
 const ownerUser: User = {
-  id:               'u1',
-  name:             'Owner',
-  email:            'owner@test.il',
-  passwordHash:     '$2a$08$hash',
-  role:             'owner',
-  twoFactorEnabled: false,
+  id:                   'u1',
+  name:                 'Owner',
+  email:                'owner@test.il',
+  passwordHash:         '$2a$08$hash',
+  role:                 'owner',
+  twoFactorEnabled:     false,
+  twoFactorBackupCodes: [],
 }
 
 const rabbanutUser: User = {
-  id:               'u2',
-  name:             'Admin',
-  email:            'admin@test.il',
-  passwordHash:     '$2a$08$hash',
-  role:             'rabbanut',
-  twoFactorEnabled: false,
-  rabbanutId:       'rb1',
+  id:                   'u2',
+  name:                 'Admin',
+  email:                'admin@test.il',
+  passwordHash:         '$2a$08$hash',
+  role:                 'rabbanut',
+  twoFactorEnabled:     false,
+  twoFactorBackupCodes: [],
+  rabbanutId:           'rb1',
 }
 
 function ownerToken() {
