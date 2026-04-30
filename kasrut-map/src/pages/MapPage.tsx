@@ -249,7 +249,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           )}
 
           {/* FABs */}
-          <Box sx={{ position: 'absolute', bottom: { xs: 14, sm: 18 }, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ position: 'absolute', bottom: { xs: '10vh', sm: 18 }, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Tooltip title={t.correctLocation} placement="left">
               <Fab
                 size="small"
@@ -288,7 +288,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               onClick={() => ctrl.setView('list')}
               sx={{
                 position: 'absolute',
-                bottom: { xs: 14, sm: 18 },
+                bottom: { xs: '10vh', sm: 18 },
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
