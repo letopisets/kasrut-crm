@@ -4,10 +4,10 @@ import bcrypt from 'bcryptjs'
 const HASH = bcrypt.hashSync('password', 12)
 
 export const seedUsers: User[] = [
-  { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH, role: 'owner',     twoFactorEnabled: false },
-  { id: 'u4', name: 'Авнер',           email: 'avner@kashrut.il', passwordHash: HASH, role: 'owner',     twoFactorEnabled: false },
-  { id: 'u2', name: 'Admin Jerusalem', email: 'admin@jer.il',     passwordHash: HASH, role: 'rabbanut',  twoFactorEnabled: false, rabbanutId: 'rb1' },
-  { id: 'm1', name: 'Р. Коэн',         email: 'cohen@jer.il',     passwordHash: HASH, role: 'mashgiach', twoFactorEnabled: false, rabbanutId: 'rb1' },
+  { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH, role: 'owner',     twoFactorEnabled: false, twoFactorBackupCodes: [] },
+  { id: 'u4', name: 'Авнер',           email: 'avner@kashrut.il', passwordHash: HASH, role: 'owner',     twoFactorEnabled: false, twoFactorBackupCodes: [] },
+  { id: 'u2', name: 'Admin Jerusalem', email: 'admin@jer.il',     passwordHash: HASH, role: 'rabbanut',  twoFactorEnabled: false, twoFactorBackupCodes: [], rabbanutId: 'rb1' },
+  { id: 'm1', name: 'Р. Коэн',         email: 'cohen@jer.il',     passwordHash: HASH, role: 'mashgiach', twoFactorEnabled: false, twoFactorBackupCodes: [], rabbanutId: 'rb1' },
 ]
 
 export const seedRabbanuts: Rabbanut[] = [

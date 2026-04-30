@@ -44,6 +44,7 @@ services:
       # :? — упадёт при старте если не задан
       JWT_SECRET:      ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
       JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-7d}
+      ENCRYPTION_KEY:  ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256)}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       APPLE_CLIENT_ID:  ${APPLE_CLIENT_ID:-}
       CORS_ORIGINS:    ${CORS_ORIGINS:-http://localhost,http://map.localhost,http://crm.localhost}
