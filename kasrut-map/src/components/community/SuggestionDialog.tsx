@@ -29,7 +29,7 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
   const [error, setError] = useState<string | null>(null)
   const [submitSuggestion, submitState] = useSubmitSuggestionMutation()
 
-  const { data: hechsherim = [] } = useGetMapHechsherimQuery()
+  const { data: hechsherim = [] } = useGetMapHechsherimQuery(undefined, { skip: !open })
   const hechsherNames = useMemo(() => hechsherim.map(h => h.name), [hechsherim])
 
   const mode = restaurant ? 'update' : 'add'

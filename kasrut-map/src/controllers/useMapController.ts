@@ -106,6 +106,7 @@ export function useMapController() {
     [queryUserPositionKey],
   )
   const debouncedQueryUserPosition = useDebouncedValue(queryUserPosition, 1_000)
+  const debouncedViewport = useDebouncedValue(viewport, 450)
 
   const setStableViewport = useCallback((nextViewport: MapViewport) => {
     const normalized = normalizeViewport(nextViewport)
@@ -122,16 +123,17 @@ export function useMapController() {
 
   const restaurantQuery = useMemo<MapRestaurantQuery>(() => ({
     ...filters,
-    viewport: null,
-    userPosition: debouncedQueryUserPosition,
+    viewport: debouncedViewport,
+    userPosition: debouncedViewport ? null : debouncedQueryUserPosition,
     limit: MAP_RESTAURANT_LIMIT,
-  }), [debouncedQueryUserPosition, filters])
+  }), [debouncedQueryUserPosition, debouncedViewport, filters])
+  const shouldSkipRestaurants = !debouncedViewport && !debouncedQueryUserPosition
 
   const {
     data: restaurantPayload = EMPTY_RESTAURANTS_RESPONSE,
     isLoading,
     isFetching,
-  } = useGetMapRestaurantsQuery(restaurantQuery)
+  } = useGetMapRestaurantsQuery(restaurantQuery, { skip: shouldSkipRestaurants })
 
   const { data: options = { cities: [], hechshers: [] } } = useGetMapOptionsQuery()
 

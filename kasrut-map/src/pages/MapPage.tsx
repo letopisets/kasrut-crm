@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import {
   Box, AppBar, Toolbar, Typography,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
@@ -16,15 +16,7 @@ import LogoutIcon      from '@mui/icons-material/Logout'
 import DarkModeIcon    from '@mui/icons-material/DarkMode'
 import LightModeIcon   from '@mui/icons-material/LightMode'
 
-import { AuthDialog }             from '@/components/auth/AuthDialog'
 import { LegalNotice }            from '@/components/community/LegalNotice'
-import { SuggestionDialog }       from '@/components/community/SuggestionDialog'
-import { MapView }               from '@/components/map/MapView'
-import { RestaurantListView }    from '@/components/list/RestaurantListView'
-import { FilterPanel }           from '@/components/filters/FilterPanel'
-import { RestaurantDetailSheet } from '@/components/filters/RestaurantDetailSheet'
-import { RoutePanel }            from '@/components/filters/RoutePanel'
-import { LocationCorrector }     from '@/components/location/LocationCorrector'
 import { useMapController }      from '@/controllers/useMapController'
 import { useIpCenter }           from '@/hooks/useIpCenter'
 import { useGetMapMeQuery }      from '@/store/api/mapCommunityApi'
@@ -41,6 +33,52 @@ interface Props {
 }
 
 const LANGS: MapLang[] = ['en', 'ru', 'he']
+
+const AuthDialog = lazy(() =>
+  import('@/components/auth/AuthDialog').then(module => ({ default: module.AuthDialog })),
+)
+const SuggestionDialog = lazy(() =>
+  import('@/components/community/SuggestionDialog').then(module => ({ default: module.SuggestionDialog })),
+)
+const MapView = lazy(() =>
+  import('@/components/map/MapView').then(module => ({ default: module.MapView })),
+)
+const RestaurantListView = lazy(() =>
+  import('@/components/list/RestaurantListView').then(module => ({ default: module.RestaurantListView })),
+)
+const FilterPanel = lazy(() =>
+  import('@/components/filters/FilterPanel').then(module => ({ default: module.FilterPanel })),
+)
+const RestaurantDetailSheet = lazy(() =>
+  import('@/components/filters/RestaurantDetailSheet').then(module => ({ default: module.RestaurantDetailSheet })),
+)
+const RoutePanel = lazy(() =>
+  import('@/components/filters/RoutePanel').then(module => ({ default: module.RoutePanel })),
+)
+const LocationCorrector = lazy(() =>
+  import('@/components/location/LocationCorrector').then(module => ({ default: module.LocationCorrector })),
+)
+
+function MapSkeleton() {
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        inset: 0,
+        bgcolor: 'background.default',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <CircularProgress size={28} />
+    </Box>
+  )
+}
+
+function PanelFallback() {
+  return null
+}
 
 function getViewportCenter(viewport: MapViewport | null): [number, number] | null {
   if (!viewport) return null
@@ -217,22 +255,24 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           position: 'absolute', inset: 0,
           visibility: ctrl.view === 'map' ? 'visible' : 'hidden',
         }}>
-          <MapView
-            userPosition={ctrl.geo.position}
-            gpsAccuracy={ctrl.geo.accuracy}
-            initialCenter={ipCenter}
-            panToUser={ctrl.panToUser}
-            correcting={ctrl.correcting}
-            restaurants={mapRestaurants}
-            selected={ctrl.selected}
-            viewport={ctrl.viewport}
-            radius={ctrl.filters.radius}
-            route={ctrl.route}
-            onSelect={ctrl.setSelected}
-            onPanHandled={ctrl.onPanHandled}
-            onMapClick={ctrl.applyPosition}
-            onViewportChange={ctrl.setViewport}
-          />
+          <Suspense fallback={<MapSkeleton />}>
+            <MapView
+              userPosition={ctrl.geo.position}
+              gpsAccuracy={ctrl.geo.accuracy}
+              initialCenter={ipCenter}
+              panToUser={ctrl.panToUser}
+              correcting={ctrl.correcting}
+              restaurants={mapRestaurants}
+              selected={ctrl.selected}
+              viewport={ctrl.viewport}
+              radius={ctrl.filters.radius}
+              route={ctrl.route}
+              onSelect={ctrl.setSelected}
+              onPanHandled={ctrl.onPanHandled}
+              onMapClick={ctrl.applyPosition}
+              onViewportChange={ctrl.setViewport}
+            />
+          </Suspense>
 
           {showMapFetching && !ctrl.correcting && (
             <Box
@@ -249,10 +289,12 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           )}
 
           {ctrl.correcting && (
-            <LocationCorrector
-              onApply={ctrl.applyPosition}
-              onCancel={ctrl.stopCorrection}
-            />
+            <Suspense fallback={<PanelFallback />}>
+              <LocationCorrector
+                onApply={ctrl.applyPosition}
+                onCancel={ctrl.stopCorrection}
+              />
+            </Suspense>
           )}
 
           {/* FABs */}
@@ -323,64 +365,86 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         {/* List view */}
         {ctrl.view === 'list' && (
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <RestaurantListView
-              restaurants={ctrl.restaurants}
-              onSelect={r => { ctrl.setSelected(r); ctrl.setView('map') }}
-              onStartRoute={ctrl.startRoute}
-              formatDist={ctrl.formatDist}
-            />
+            <Suspense fallback={<PanelFallback />}>
+              <RestaurantListView
+                restaurants={ctrl.restaurants}
+                onSelect={(r: MapRestaurant) => { ctrl.setSelected(r); ctrl.setView('map') }}
+                onStartRoute={ctrl.startRoute}
+                formatDist={ctrl.formatDist}
+              />
+            </Suspense>
           </Box>
         )}
 
         {/* Route panel */}
-        <RoutePanel
-          open={ctrl.routePanelOpen}
-          destination={ctrl.selected}
-          route={ctrl.route}
-          loading={ctrl.routeLoading}
-          error={ctrl.routeError}
-          onClose={ctrl.stopRoute}
-          formatDist={ctrl.formatDist}
-          formatTime={ctrl.formatTime}
-        />
+        {ctrl.routePanelOpen && (
+          <Suspense fallback={<PanelFallback />}>
+            <RoutePanel
+              open={ctrl.routePanelOpen}
+              destination={ctrl.selected}
+              route={ctrl.route}
+              loading={ctrl.routeLoading}
+              error={ctrl.routeError}
+              onClose={ctrl.stopRoute}
+              formatDist={ctrl.formatDist}
+              formatTime={ctrl.formatTime}
+            />
+          </Suspense>
+        )}
       </Box>
 
       {/* ── Bottom sheet ── */}
-      <RestaurantDetailSheet
-        restaurant={ctrl.routePanelOpen ? null : ctrl.selected}
-        hasLocation={!!ctrl.geo.position}
-        onClose={() => ctrl.setSelected(null)}
-        onStartRoute={ctrl.startRoute}
-        onSuggestEdit={openEditSuggestion}
-        onRequireAuth={() => setAuthOpen(true)}
-        formatDist={ctrl.formatDist}
-        user={user}
-      />
+      {!ctrl.routePanelOpen && ctrl.selected && (
+        <Suspense fallback={<PanelFallback />}>
+          <RestaurantDetailSheet
+            restaurant={ctrl.selected}
+            hasLocation={!!ctrl.geo.position}
+            onClose={() => ctrl.setSelected(null)}
+            onStartRoute={ctrl.startRoute}
+            onSuggestEdit={openEditSuggestion}
+            onRequireAuth={() => setAuthOpen(true)}
+            formatDist={ctrl.formatDist}
+            user={user}
+          />
+        </Suspense>
+      )}
 
       {/* ── Filter drawer ── */}
-      <FilterPanel
-        open={ctrl.filterOpen}
-        onClose={() => ctrl.setFilterOpen(false)}
-        filters={ctrl.filters}
-        activeFilterCount={ctrl.activeFilterCount}
-        availableHechshers={ctrl.availableHechshers}
-        availableCities={ctrl.availableCities}
-        onToggleHechsher={ctrl.toggleHechsher}
-        onToggleFoodType={ctrl.toggleFoodType}
-        onSetCity={ctrl.setCity}
-        onSetRadius={ctrl.setRadius}
-        onReset={ctrl.resetFilters}
-      />
+      {ctrl.filterOpen && (
+        <Suspense fallback={<PanelFallback />}>
+          <FilterPanel
+            open={ctrl.filterOpen}
+            onClose={() => ctrl.setFilterOpen(false)}
+            filters={ctrl.filters}
+            activeFilterCount={ctrl.activeFilterCount}
+            availableHechshers={ctrl.availableHechshers}
+            availableCities={ctrl.availableCities}
+            onToggleHechsher={ctrl.toggleHechsher}
+            onToggleFoodType={ctrl.toggleFoodType}
+            onSetCity={ctrl.setCity}
+            onSetRadius={ctrl.setRadius}
+            onReset={ctrl.resetFilters}
+          />
+        </Suspense>
+      )}
 
-      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
-      <SuggestionDialog
-        open={suggestionOpen}
-        restaurant={suggestionRestaurant}
-        defaultPosition={suggestionDefaultPosition}
-        isAuthenticated={Boolean(user)}
-        onClose={() => setSuggestionOpen(false)}
-        onRequireAuth={() => setAuthOpen(true)}
-      />
+      {authOpen && (
+        <Suspense fallback={<PanelFallback />}>
+          <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
+        </Suspense>
+      )}
+      {suggestionOpen && (
+        <Suspense fallback={<PanelFallback />}>
+          <SuggestionDialog
+            open={suggestionOpen}
+            restaurant={suggestionRestaurant}
+            defaultPosition={suggestionDefaultPosition}
+            isAuthenticated={Boolean(user)}
+            onClose={() => setSuggestionOpen(false)}
+            onRequireAuth={() => setAuthOpen(true)}
+          />
+        </Suspense>
+      )}
     </Box>
   )
 }
