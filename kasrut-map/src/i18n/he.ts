@@ -76,6 +76,15 @@ const he: MapTranslations = {
   ],
 
   routeTitle: 'מסלול',
+  navModeSteps: 'שלבים',
+  navModeNavigate: 'ניווט',
+  startNavigation: 'התחל ניווט',
+  startingNavigation: 'מפעיל ניווט…',
+  endNavigation: 'סיום',
+  showSteps: 'הצג שלבים',
+  recenter: 'מרכז עליי',
+  inMeters: 'בעוד {d}',
+  arrived: 'הגעת ליעד',
 
   legalNotice: 'המידע הוא לעיון בלבד. לפני ההזמנה, אמת את תעודת הכשרות הנוכחית ואת שם ההכשר ישירות במקום.',
 

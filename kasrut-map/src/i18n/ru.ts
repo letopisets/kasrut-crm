@@ -76,6 +76,15 @@ const ru: MapTranslations = {
   ],
 
   routeTitle: 'Маршрут',
+  navModeSteps: 'Шаги',
+  navModeNavigate: 'Навигация',
+  startNavigation: 'Начать навигацию',
+  startingNavigation: 'Запуск навигации…',
+  endNavigation: 'Завершить',
+  showSteps: 'Показать шаги',
+  recenter: 'Центр на мне',
+  inMeters: 'Через {d}',
+  arrived: 'Вы прибыли',
 
   legalNotice: 'Информация справочная. Перед заказом проверьте действующую теудат кашрут и название хекшера непосредственно в заведении.',
 

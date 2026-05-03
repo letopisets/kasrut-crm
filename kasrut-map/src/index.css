@@ -105,6 +105,18 @@ html, body, #root {
 .leaflet-container.km-correcting,
 .leaflet-container.km-correcting .leaflet-interactive { cursor: crosshair !important; }
 
+/* Navigation cursor — points along user heading */
+.km-user-nav {
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  transform-origin: 50% 50%;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='20,3 33,33 20,26 7,33' fill='%23E8A507' stroke='%23ffffff' stroke-width='2.5' stroke-linejoin='round'/></svg>");
+  background-size: contain;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--km-scroll-track); }

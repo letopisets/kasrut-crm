@@ -76,6 +76,15 @@ const en: MapTranslations = {
   ],
 
   routeTitle: 'Route',
+  navModeSteps: 'Steps',
+  navModeNavigate: 'Navigate',
+  startNavigation: 'Start navigation',
+  startingNavigation: 'Starting navigation…',
+  endNavigation: 'End',
+  showSteps: 'Show steps',
+  recenter: 'Recenter',
+  inMeters: 'In {d}',
+  arrived: 'You have arrived',
 
   legalNotice: 'For reference only. Please verify the current kashrut certificate and hechsher name directly at the establishment before ordering.',
 

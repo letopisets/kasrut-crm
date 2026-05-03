@@ -69,6 +69,15 @@ export interface MapTranslations {
   statusOptions: readonly [string, string, string, string]
 
   routeTitle: string
+  navModeSteps: string
+  navModeNavigate: string
+  startNavigation: string
+  startingNavigation: string
+  endNavigation: string
+  showSteps: string
+  recenter: string
+  inMeters: string                 // template: "in {d}"
+  arrived: string
 
   legalNotice: string
 

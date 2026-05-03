@@ -18,6 +18,7 @@
     "@reduxjs/toolkit": "^2.11.2",
     "@sentry/react": "^8.42.0",
     "leaflet": "^1.9.4",
+    "leaflet-rotate": "^0.2.8",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-leaflet": "^5.0.0",

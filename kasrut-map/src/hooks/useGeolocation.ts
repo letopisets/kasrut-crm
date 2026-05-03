@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 interface GeoState {
   position: [number, number] | null
   accuracy: number | null
+  heading:  number | null
   error:    string | null
   loading:  boolean
 }
@@ -15,6 +16,7 @@ const GEO_OPTIONS: PositionOptions = {
 
 const MIN_POSITION_UPDATE_METERS = 75
 const MIN_ACCURACY_IMPROVEMENT_METERS = 50
+const NAV_MIN_POSITION_UPDATE_METERS = 3
 
 /** Haversine distance in metres between two [lat,lng] points */
 function haversine([lat1, lng1]: [number, number], [lat2, lng2]: [number, number]): number {
@@ -27,13 +29,27 @@ function haversine([lat1, lng1]: [number, number], [lat2, lng2]: [number, number
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+/** Initial bearing in degrees (0–360) from point A to point B */
+function bearing([lat1, lng1]: [number, number], [lat2, lng2]: [number, number]): number {
+  const φ1 = lat1 * Math.PI / 180
+  const φ2 = lat2 * Math.PI / 180
+  const Δλ = (lng2 - lng1) * Math.PI / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  const θ = Math.atan2(y, x)
+  return (θ * 180 / Math.PI + 360) % 360
+}
+
 export function useGeolocation() {
-  const [state, setState] = useState<GeoState>({ position: null, accuracy: null, error: null, loading: true })
+  const [state, setState] = useState<GeoState>({
+    position: null, accuracy: null, heading: null, error: null, loading: true,
+  })
   const watchIdRef = useRef<number | null>(null)
+  const highFreqRef = useRef(false)
 
   const start = useCallback(() => {
     if (!navigator.geolocation) {
-      setState({ position: null, accuracy: null, error: 'Геолокация не поддерживается', loading: false })
+      setState({ position: null, accuracy: null, heading: null, error: 'Геолокация не поддерживается', loading: false })
       return
     }
     setState(s => ({ ...s, loading: true, error: null }))
@@ -49,18 +65,24 @@ export function useGeolocation() {
         const accuracyImproved = prev.accuracy !== null
           ? prev.accuracy - p.coords.accuracy >= MIN_ACCURACY_IMPROVEMENT_METERS
           : true
+        const threshold = highFreqRef.current ? NAV_MIN_POSITION_UPDATE_METERS : MIN_POSITION_UPDATE_METERS
 
-        // GPS can drift by a few metres every second. Ignore that noise so map
-        // restaurant queries are not refetched while the user is effectively still.
-        if (prev.position && moved < MIN_POSITION_UPDATE_METERS && !accuracyImproved) {
+        // GPS noise filter — drop tiny jitter unless we're in nav mode
+        if (prev.position && moved < threshold && !accuracyImproved) {
           return prev.loading || prev.error
             ? { ...prev, loading: false, error: null }
             : prev
         }
 
+        const computedHeading = prev.position && moved > 1
+          ? bearing(prev.position, position)
+          : prev.heading
+        const headingFromGps = Number.isFinite(p.coords.heading) ? p.coords.heading : null
+
         return {
           position,
           accuracy: p.coords.accuracy,
+          heading: headingFromGps ?? computedHeading,
           error: null,
           loading: false,
         }
@@ -81,8 +103,12 @@ export function useGeolocation() {
   }, [start])
 
   const setPosition = useCallback((pos: [number, number]) => {
-    setState({ position: pos, accuracy: null, error: null, loading: false })
+    setState({ position: pos, accuracy: null, heading: null, error: null, loading: false })
   }, [])
 
-  return { ...state, refresh: start, setPosition }
+  const setHighFrequency = useCallback((enabled: boolean) => {
+    highFreqRef.current = enabled
+  }, [])
+
+  return { ...state, refresh: start, setPosition, setHighFrequency }
 }
