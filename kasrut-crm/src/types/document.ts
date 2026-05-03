@@ -1,4 +1,5 @@
-export type DocumentCategory = 'Instructions' | 'Forms' | 'Regulations' | 'Pesach'
+export type { DocumentCategory, DocExt } from '../../../packages/shared/types'
+import type { DocumentCategory } from '../../../packages/shared/types'
 
 export interface KashrutDocument {
   id: string

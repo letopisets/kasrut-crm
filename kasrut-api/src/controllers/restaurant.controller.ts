@@ -5,7 +5,7 @@ import { mashgichimRepo } from '../db/mashgichim.repo'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
 import { invalidatePattern } from '../lib/cache'
 import { validate } from '../lib/validate'
-import { createRestaurantSchema, updateRestaurantSchema } from '../schemas'
+import { createRestaurantSchema, updateRestaurantSchema, paginationSchema } from '../schemas'
 
 const invalidateMapCache = () => Promise.all([
   invalidatePattern('map:restaurants:*'),
@@ -35,11 +35,33 @@ export const restaurantController = {
       const rabbanutId  = req.user?.role === 'rabbanut'  ? req.user.rabbanutId : q.rabbanutId
       const mashgiachId = req.user?.role === 'mashgiach' ? req.user.sub        : undefined
 
-      const restaurants = mashgiachId
-        ? await restaurantsRepo.findByMashgiach(mashgiachId)
-        : await restaurantsRepo.findAll({ rabbanutId, status: q.status })
+      const pageInput = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
 
-      res.json(serializeRestaurants(restaurants))
+      // Mashgiach filtering is non-paginated (small set by definition)
+      if (mashgiachId) {
+        const items = await restaurantsRepo.findByMashgiach(mashgiachId)
+        res.json(serializeRestaurants(items))
+        return
+      }
+
+      // Paginated path — only when limit explicitly provided
+      if (pageInput.limit) {
+        const page = await restaurantsRepo.findPage({
+          rabbanutId,
+          status: q.status,
+          limit:  pageInput.limit,
+          cursor: pageInput.cursor,
+        })
+        res.json({
+          items:      serializeRestaurants(page.items),
+          nextCursor: page.nextCursor,
+        })
+        return
+      }
+
+      // Backwards-compatible — return full array
+      const items = await restaurantsRepo.findAll({ rabbanutId, status: q.status })
+      res.json(serializeRestaurants(items))
     } catch (e) { next(e) }
   },
 

@@ -1,4 +1,5 @@
-export type Role = 'owner' | 'rabbanut' | 'mashgiach'
+export type { Role } from '../../../packages/shared/types'
+import type { Role } from '../../../packages/shared/types'
 
 export interface User {
   id: string

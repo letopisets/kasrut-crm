@@ -79,7 +79,7 @@ export function LocationCorrector({ onApply, onCancel }: Props) {
                   <ListItemText
                     disableTypography
                     primary={
-                      <Typography variant="body2" fontWeight={600} noWrap>
+                      <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
                         {r.display_name.split(',')[0]}
                       </Typography>
                     }
@@ -102,7 +102,7 @@ export function LocationCorrector({ onApply, onCancel }: Props) {
         zIndex: 1000, pointerEvents: 'none',
       }}>
         <Chip
-          label={<Typography variant="caption" fontWeight={600}>{t.clickOnMap}</Typography>}
+          label={<Typography variant="caption" sx={{ fontWeight: 600 }}>{t.clickOnMap}</Typography>}
           size="small"
           sx={{ bgcolor: 'background.paper', boxShadow: 2, px: 0.5 }}
         />

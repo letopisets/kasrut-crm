@@ -31,7 +31,7 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="subtitle1" fontWeight={700} noWrap>
+              <Typography variant="subtitle1" noWrap sx={{ fontWeight: 700 }}>
                 {r.name}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
@@ -42,13 +42,13 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
               </Box>
             </Box>
             {r.distance !== undefined && (
-              <Typography variant="caption" color="primary.main" fontWeight={700} sx={{ ml: 1, flexShrink: 0 }}>
+              <Typography variant="caption" color="primary.main" sx={{ ml: 1, flexShrink: 0, fontWeight: 700 }}>
                 {formatDist(r.distance)}
               </Typography>
             )}
           </Box>
 
-          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap mb={1.5}>
+          <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap', mb: 1.5 }}>
             <Chip
               label={`${FOOD_TYPE_EMOJI[r.foodType]} ${t.foodType[r.foodType]}`}
               size="small"

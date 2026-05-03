@@ -152,8 +152,10 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
             value={kashrutStatus}
             onChange={(e) => setKashrutStatus(e.target.value)}
             select
-            SelectProps={{ native: true }}
             fullWidth
+            slotProps={{
+              select: { native: true }
+            }}
           >
             <option value="" />
             {t.statusOptions.map(option => <option key={option} value={option}>{option}</option>)}
@@ -184,5 +186,5 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
         )}
       </DialogActions>
     </Dialog>
-  )
+  );
 }

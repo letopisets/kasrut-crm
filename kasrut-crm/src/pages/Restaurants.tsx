@@ -83,7 +83,6 @@ export default function Restaurants() {
           )}
         </Box>
       </Box>
-
       {/* Search + filters row */}
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2.75, alignItems: 'center' }}>
         <TextField
@@ -91,17 +90,19 @@ export default function Restaurants() {
           placeholder={t.addRest.name}
           value={ctrl.nameSearch}
           onChange={e => ctrl.setNameSearch(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-              </InputAdornment>
-            ),
-          }}
           sx={{
             minWidth: 180,
             '& .MuiInputBase-root': { fontSize: '0.8rem', height: 32 },
             '& .MuiOutlinedInput-notchedOutline': { borderColor: '#252840' },
+          }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                </InputAdornment>
+              ),
+            }
           }}
         />
 
@@ -133,7 +134,6 @@ export default function Restaurants() {
           </TextField>
         )}
       </Box>
-
       {ctrl.isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress size={32} sx={{ color: '#E8C96D' }} />
@@ -151,9 +151,8 @@ export default function Restaurants() {
           onDelete={ctrl.deleteRestaurant}
         />
       )}
-
       {ctrl.showForm   && <RestaurantForm onClose={ctrl.closeForm} />}
       {ctrl.editTarget && <RestaurantForm initial={ctrl.editTarget} onClose={ctrl.closeEdit} />}
     </Box>
-  )
+  );
 }

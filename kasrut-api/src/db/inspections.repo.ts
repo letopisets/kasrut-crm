@@ -14,6 +14,11 @@ function toInspection(i: PrismaInspection): Inspection {
   }
 }
 
+export interface PageResult<T> {
+  items: T[]
+  nextCursor: string | null
+}
+
 export const inspectionsRepo = {
   async findAll(filter?: { restaurantId?: string; mashgiachId?: string; result?: string; type?: string }): Promise<Inspection[]> {
     const rows = await prisma.inspection.findMany({
@@ -26,6 +31,33 @@ export const inspectionsRepo = {
       orderBy: { date: 'desc' },
     })
     return rows.map(toInspection)
+  },
+
+  async findPage(filter: {
+    restaurantId?: string
+    mashgiachId?:  string
+    result?:       string
+    type?:         string
+    limit:         number
+    cursor?:       string
+  }): Promise<PageResult<Inspection>> {
+    const rows = await prisma.inspection.findMany({
+      where: {
+        ...(filter.restaurantId ? { restaurantId: filter.restaurantId } : {}),
+        ...(filter.mashgiachId  ? { mashgiachId:  filter.mashgiachId  } : {}),
+        ...(filter.result       ? { result: filter.result as InspectionResult } : {}),
+        ...(filter.type         ? { type:   filter.type   as InspectionType   } : {}),
+      },
+      orderBy: [{ date: 'desc' }, { id: 'asc' }],
+      take: filter.limit + 1,
+      ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
+    })
+    const hasMore = rows.length > filter.limit
+    const page    = hasMore ? rows.slice(0, filter.limit) : rows
+    return {
+      items: page.map(toInspection),
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+    }
   },
 
   async findById(id: string): Promise<Inspection | null> {

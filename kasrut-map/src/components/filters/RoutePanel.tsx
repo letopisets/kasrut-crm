@@ -37,21 +37,23 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
       open={open}
       onClose={onClose}
       variant="persistent"
-      PaperProps={{
-        sx: {
-          width: 320,
-          top: 64,
-          height: 'calc(100% - 64px)',
-          borderLeft: '1px solid',
-          borderColor: 'divider',
-        },
+      slotProps={{
+        paper: {
+          sx: {
+            width: 320,
+            top: 64,
+            height: 'calc(100% - 64px)',
+            borderLeft: '1px solid',
+            borderColor: 'divider',
+          },
+        }
       }}
     >
       {/* Header */}
       <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
         <NavigationIcon sx={{ color: 'primary.main' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle2" fontWeight={700} noWrap>
+          <Typography variant="subtitle2" noWrap sx={{ fontWeight: 700 }}>
             {destination?.name ?? t.routeTitle}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
@@ -62,15 +64,12 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
           <CloseIcon fontSize="small" />
         </IconButton>
       </Box>
-
       {loading && <LinearProgress color="primary" />}
-
       {error && (
         <Box sx={{ p: 2 }}>
           <Typography variant="body2" color="error">{error}</Typography>
         </Box>
       )}
-
       {route && (
         <>
           {/* Summary */}
@@ -98,7 +97,7 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
                   <ListItemText
                     disableTypography
                     primary={
-                      <Typography variant="body2" fontWeight={i === 0 || i === route.steps.length - 1 ? 600 : 400}>
+                      <Typography variant="body2" sx={{ fontWeight: i === 0 || i === route.steps.length - 1 ? 600 : 400 }}>
                         {step.instruction}
                       </Typography>
                     }
@@ -113,5 +112,5 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
         </>
       )}
     </Drawer>
-  )
+  );
 }

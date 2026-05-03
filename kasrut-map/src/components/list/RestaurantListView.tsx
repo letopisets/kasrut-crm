@@ -67,7 +67,7 @@ export function RestaurantListView({ restaurants, onSelect, onStartRoute, format
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, color: 'text.secondary', p: 4 }}>
         <StorefrontIcon sx={{ fontSize: 56, opacity: 0.3 }} />
         <Typography variant="body1">{t.noEstablishments}</Typography>
-        <Typography variant="body2" textAlign="center">
+        <Typography variant="body2" sx={{ textAlign: 'center' }}>
           {t.tryFilters}
         </Typography>
       </Box>
@@ -76,7 +76,7 @@ export function RestaurantListView({ restaurants, onSelect, onStartRoute, format
 
   return (
     <Box ref={containerRef} onScroll={handleScroll} sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
-      <Typography variant="body2" color="text.secondary" mb={2}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         {t.foundCount.replace('{n}', String(restaurants.length))}
       </Typography>
       <Box sx={{ height: restaurants.length * ROW_HEIGHT, position: 'relative' }}>

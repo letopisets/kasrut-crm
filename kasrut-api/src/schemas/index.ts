@@ -7,6 +7,13 @@ const phone    = z.string().max(32).trim()
 const color    = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color')
 const dateStr  = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
 
+// Pagination — cursor-based. Cursor is the id of the last item from the previous page.
+export const paginationSchema = z.object({
+  limit:  z.coerce.number().int().min(1).max(200).optional(),
+  cursor: z.string().min(1).max(100).optional(),
+})
+export type PaginationInput = z.infer<typeof paginationSchema>
+
 // Enums
 const role             = z.enum(['owner', 'rabbanut', 'mashgiach'])
 const certStatus       = z.enum(['ok', 'warning', 'critical'])

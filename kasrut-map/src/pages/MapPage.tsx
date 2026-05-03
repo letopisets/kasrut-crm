@@ -150,7 +150,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
       <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', zIndex: 1200 }}>
         <Toolbar sx={{ gap: 1 }}>
           <MenuBookIcon sx={{ color: 'primary.main', mr: 0.5 }} />
-          <Typography variant="h6" fontWeight={800} color="primary.main" noWrap sx={{ flexGrow: 1, minWidth: 0, letterSpacing: 0 }}>
+          <Typography variant="h6" color="primary.main" noWrap sx={{ flexGrow: 1, minWidth: 0, letterSpacing: 0, fontWeight: 800 }}>
             {t.appName}
           </Typography>
 
@@ -354,7 +354,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
                 textAlign: 'center',
               }}
             >
-              <Typography variant="body2" fontWeight={800} color="primary.main" noWrap>
+              <Typography variant="body2" color="primary.main" noWrap sx={{ fontWeight: 800 }}>
                 {restaurantCountLabel}
               </Typography>
             </Box>

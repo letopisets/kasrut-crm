@@ -62,7 +62,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
   return (
     <Stack spacing={2}>
       <Box>
-        <Typography variant="subtitle1" fontWeight={800}>{t.reviewsTitle}</Typography>
+        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>{t.reviewsTitle}</Typography>
         <Typography variant="body2" color="text.secondary">
           {data?.reviewCount
             ? t.avgRating
@@ -77,7 +77,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
       {error && <Alert severity="error">{error}</Alert>}
 
       <Stack spacing={1}>
-        <Typography variant="body2" fontWeight={700}>
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>
           {ownReview ? t.updateYourReview : t.yourReview}
         </Typography>
         <Rating
@@ -122,7 +122,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
               </Avatar>
               <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                  <Typography variant="body2" fontWeight={700} noWrap>{review.user.name}</Typography>
+                  <Typography variant="body2" noWrap sx={{ fontWeight: 700 }}>{review.user.name}</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                     {formatDate(review.createdAt, locale)}
                   </Typography>
