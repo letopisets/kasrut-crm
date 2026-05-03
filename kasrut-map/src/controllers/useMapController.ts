@@ -2,7 +2,10 @@ import { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import { useGetMapOptionsQuery, useGetMapRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGeolocation }           from '@/hooks/useGeolocation'
 import { useRoute }                  from '@/hooks/useRoute'
+import { useActiveStep }             from '@/hooks/useActiveStep'
 import { useAppSelector }            from '@/store/hooks'
+
+export type RouteMode = 'steps' | 'navigate'
 import type {
   MapRestaurant,
   MapFilters,
@@ -92,6 +95,8 @@ export function useMapController() {
   const [filterOpen,    setFilterOpen]    = useState(false)
   const [selected,      setSelected]      = useState<MapRestaurant | null>(null)
   const [routePanelOpen, setRoutePanelOpen] = useState(false)
+  const [routeMode,     setRouteMode]     = useState<RouteMode>('steps')
+  const [followUser,    setFollowUser]    = useState(false)
   const [correcting,    setCorrecting]    = useState(false)
   const [panToUser,     setPanToUser]     = useState(false)
   const [viewport,      setViewport]      = useState<MapViewport | null>(null)
@@ -175,12 +180,37 @@ export function useMapController() {
     setView('map')
     router.fetchRoute(geo.position, [r.lat, r.lng])
     setRoutePanelOpen(true)
+    setRouteMode('steps')
+    setFollowUser(false)
   }
 
   const stopRoute = () => {
     router.clearRoute()
     setRoutePanelOpen(false)
+    setRouteMode('steps')
+    setFollowUser(false)
   }
+
+  const enterNavigation = useCallback(() => {
+    setRouteMode('navigate')
+    setFollowUser(true)
+  }, [])
+
+  const exitNavigation = useCallback(() => {
+    setRouteMode('steps')
+    setFollowUser(false)
+  }, [])
+
+  const recenterOnUser = useCallback(() => {
+    setFollowUser(true)
+  }, [])
+
+  // High-frequency GPS only while actively navigating
+  useEffect(() => {
+    geo.setHighFrequency(routeMode === 'navigate')
+  }, [routeMode, geo])
+
+  const activeStep = useActiveStep(router.route, geo.position)
 
   const toggleHechsher = (hechsher: string) =>
     setFilters(f => ({
@@ -236,7 +266,12 @@ export function useMapController() {
     routeLoading:   router.loading,
     routeError:     router.error,
     routePanelOpen, setRoutePanelOpen,
+    routeMode,
+    activeStep,
+    followUser,
+    onFollowUserHandled: () => setFollowUser(false),
     startRoute, stopRoute,
+    enterNavigation, exitNavigation, recenterOnUser,
     formatDist:  router.formatDist,
     formatTime:  router.formatTime,
   }

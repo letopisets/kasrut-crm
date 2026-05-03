@@ -1,11 +1,15 @@
 import {
-  Drawer, Box, Typography, IconButton,
+  Drawer, Box, Typography, IconButton, Button,
   List, ListItem, ListItemText, Divider, Chip, LinearProgress,
+  ToggleButtonGroup, ToggleButton,
 } from '@mui/material'
-import CloseIcon      from '@mui/icons-material/Close'
-import NavigationIcon from '@mui/icons-material/Navigation'
+import CloseIcon          from '@mui/icons-material/Close'
+import NavigationIcon     from '@mui/icons-material/Navigation'
+import ListAltIcon        from '@mui/icons-material/ListAlt'
+import ExploreIcon        from '@mui/icons-material/Explore'
 import { useMapLang } from '@/i18n/useMapLang'
 import type { MapRestaurant, RouteData } from '@/types'
+import type { RouteMode } from '@/controllers/useMapController'
 
 interface Props {
   open:         boolean
@@ -13,7 +17,9 @@ interface Props {
   route:        RouteData | null
   loading:      boolean
   error:        string | null
+  mode:         RouteMode
   onClose:      () => void
+  onStartNavigation: () => void
   formatDist:   (m: number) => string
   formatTime:   (s: number) => string
 }
@@ -28,7 +34,10 @@ const STEP_ICON: Record<string, string> = {
   continue:    '⬆️',
 }
 
-export function RoutePanel({ open, destination, route, loading, error, onClose, formatDist, formatTime }: Props) {
+export function RoutePanel({
+  open, destination, route, loading, error, mode,
+  onClose, onStartNavigation, formatDist, formatTime,
+}: Props) {
   const t = useMapLang()
 
   return (
@@ -64,6 +73,31 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
           <CloseIcon fontSize="small" />
         </IconButton>
       </Box>
+
+      {/* Mode switch */}
+      <Box sx={{ px: 2, py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <ToggleButtonGroup
+          value={mode}
+          exclusive
+          fullWidth
+          size="small"
+          onChange={(_e, v) => { if (v === 'navigate') onStartNavigation() }}
+          sx={{
+            '& .MuiToggleButton-root': { textTransform: 'none', borderColor: 'divider', color: 'text.secondary' },
+            '& .Mui-selected': { color: 'primary.main !important', bgcolor: 'rgba(232,165,7,0.1) !important' },
+          }}
+        >
+          <ToggleButton value="steps">
+            <ListAltIcon fontSize="small" sx={{ mr: 0.75 }} />
+            {t.navModeSteps}
+          </ToggleButton>
+          <ToggleButton value="navigate" disabled={!route}>
+            <ExploreIcon fontSize="small" sx={{ mr: 0.75 }} />
+            {t.navModeNavigate}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
       {loading && <LinearProgress color="primary" />}
       {error && (
         <Box sx={{ p: 2 }}>
@@ -76,6 +110,22 @@ export function RoutePanel({ open, destination, route, loading, error, onClose, 
           <Box sx={{ px: 2, py: 1.5, display: 'flex', gap: 2, bgcolor: 'rgba(232,165,7,0.08)' }}>
             <Chip label={formatDist(route.totalDistance)} color="primary" size="small" />
             <Chip label={formatTime(route.totalDuration)} variant="outlined" size="small" sx={{ borderColor: 'primary.main', color: 'primary.main' }} />
+          </Box>
+
+          <Divider />
+
+          {/* Start nav CTA */}
+          <Box sx={{ px: 2, py: 1.25 }}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="primary"
+              startIcon={<ExploreIcon />}
+              onClick={onStartNavigation}
+              sx={{ textTransform: 'none', fontWeight: 700 }}
+            >
+              {t.startNavigation}
+            </Button>
           </Box>
 
           <Divider />

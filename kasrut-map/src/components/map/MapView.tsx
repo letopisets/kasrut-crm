@@ -2,10 +2,15 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Circle, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet-rotate'
 import type { MapRestaurant, MapViewport, RouteData } from '@/types'
 import { RestaurantMarker } from './RestaurantMarker'
 import { RouteLayer }       from './RouteLayer'
-import { DEFAULT_ZOOM } from '@/lib/constants'
+import { DEFAULT_ZOOM, NAV_ZOOM } from '@/lib/constants'
+
+type RotatableMap = L.Map & {
+  setBearing?: (deg: number) => void
+}
 
 // Fix Leaflet default icon broken in Vite
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)['_getIconUrl']
@@ -23,6 +28,39 @@ function PanTo({ position, onDone }: { position: [number, number]; onDone: () =>
     onDone()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  return null
+}
+
+/** Keeps the map centered on the user while followUser is true. */
+function FollowController({
+  position, followUser, onFollowHandled,
+}: {
+  position: [number, number] | null
+  followUser: boolean
+  onFollowHandled: () => void
+}) {
+  const map = useMap()
+  useEffect(() => {
+    if (!followUser || !position) return
+    const targetZoom = Math.max(map.getZoom(), NAV_ZOOM)
+    map.setView(position, targetZoom, { animate: true, duration: 0.5 })
+    onFollowHandled()
+  }, [followUser, position, map, onFollowHandled])
+  return null
+}
+
+/** Rotates the map by `bearing` degrees while in navigate mode. */
+function BearingController({ bearing, active }: { bearing: number | null; active: boolean }) {
+  const map = useMap() as RotatableMap
+  useEffect(() => {
+    if (!map.setBearing) return
+    if (!active) {
+      map.setBearing(0)
+      return
+    }
+    if (bearing == null || !Number.isFinite(bearing)) return
+    map.setBearing(-bearing)
+  }, [bearing, active, map])
   return null
 }
 
@@ -165,8 +203,11 @@ function ClusterMarker({ count, position }: { count: number; position: [number, 
 interface Props {
   userPosition: [number, number] | null
   gpsAccuracy:  number | null
+  userHeading:  number | null
   initialCenter: [number, number]
   panToUser:    boolean
+  followUser:   boolean
+  navigating:   boolean
   correcting:   boolean
   restaurants:  MapRestaurant[]
   selected:     MapRestaurant | null
@@ -175,6 +216,7 @@ interface Props {
   route:        RouteData | null
   onSelect:     (r: MapRestaurant) => void
   onPanHandled: () => void
+  onFollowHandled: () => void
   onMapClick:   (pos: [number, number]) => void
   onViewportChange: (viewport: MapViewport) => void
 }
@@ -186,11 +228,24 @@ const USER_ICON = L.divIcon({
   html: '<div class="km-user-dot"></div>',
 })
 
+function makeNavIcon(bearing: number | null): L.DivIcon {
+  const angle = bearing ?? 0
+  return L.divIcon({
+    className: '',
+    iconSize:   [40, 40],
+    iconAnchor: [20, 20],
+    html: `<div class="km-user-nav" style="transform: rotate(${angle}deg)"></div>`,
+  })
+}
+
 export function MapView({
   userPosition,
   gpsAccuracy,
+  userHeading,
   initialCenter,
   panToUser,
+  followUser,
+  navigating,
   correcting,
   restaurants,
   selected,
@@ -199,14 +254,20 @@ export function MapView({
   route,
   onSelect,
   onPanHandled,
+  onFollowHandled,
   onMapClick,
   onViewportChange,
 }: Props) {
-  const userIcon = useMemo(() => USER_ICON, [])
+  const userIcon = useMemo(
+    () => navigating ? makeNavIcon(userHeading) : USER_ICON,
+    [navigating, userHeading],
+  )
   const renderItems = useMemo(
     () => clusterRestaurants(restaurants, viewport?.zoom ?? DEFAULT_ZOOM, selected?.id),
     [restaurants, selected?.id, viewport?.zoom],
   )
+
+  const mapOptions = { rotate: true, rotateControl: false, touchRotate: false } as L.MapOptions
 
   return (
     <MapContainer
@@ -215,6 +276,7 @@ export function MapView({
       style={{ width: '100%', height: '100%' }}
       className={correcting ? 'km-correcting' : undefined}
       zoomControl={false}
+      {...mapOptions}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -230,6 +292,14 @@ export function MapView({
       {panToUser && userPosition && (
         <PanTo position={userPosition} onDone={onPanHandled} />
       )}
+
+      <FollowController
+        position={userPosition}
+        followUser={followUser}
+        onFollowHandled={onFollowHandled}
+      />
+
+      <BearingController bearing={userHeading} active={navigating} />
 
       {userPosition && (
         <>

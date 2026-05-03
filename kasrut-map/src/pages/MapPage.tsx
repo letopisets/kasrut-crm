@@ -9,6 +9,7 @@ import MapIcon         from '@mui/icons-material/Map'
 import ListIcon        from '@mui/icons-material/List'
 import MyLocationIcon  from '@mui/icons-material/MyLocation'
 import EditLocationIcon from '@mui/icons-material/EditLocation'
+import GpsFixedIcon    from '@mui/icons-material/GpsFixed'
 import MenuBookIcon    from '@mui/icons-material/MenuBook'
 import AddBusinessIcon from '@mui/icons-material/AddBusiness'
 import PersonIcon      from '@mui/icons-material/Person'
@@ -54,6 +55,9 @@ const RestaurantDetailSheet = lazy(() =>
 )
 const RoutePanel = lazy(() =>
   import('@/components/filters/RoutePanel').then(module => ({ default: module.RoutePanel })),
+)
+const NavigationBanner = lazy(() =>
+  import('@/components/map/NavigationBanner').then(module => ({ default: module.NavigationBanner })),
 )
 const LocationCorrector = lazy(() =>
   import('@/components/location/LocationCorrector').then(module => ({ default: module.LocationCorrector })),
@@ -259,8 +263,11 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             <MapView
               userPosition={ctrl.geo.position}
               gpsAccuracy={ctrl.geo.accuracy}
+              userHeading={ctrl.geo.heading}
               initialCenter={ipCenter}
               panToUser={ctrl.panToUser}
+              followUser={ctrl.followUser}
+              navigating={ctrl.routeMode === 'navigate'}
               correcting={ctrl.correcting}
               restaurants={mapRestaurants}
               selected={ctrl.selected}
@@ -269,6 +276,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               route={ctrl.route}
               onSelect={ctrl.setSelected}
               onPanHandled={ctrl.onPanHandled}
+              onFollowHandled={ctrl.onFollowUserHandled}
               onMapClick={ctrl.applyPosition}
               onViewportChange={ctrl.setViewport}
             />
@@ -299,6 +307,18 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
 
           {/* FABs */}
           <Box sx={{ position: 'absolute', bottom: { xs: '10vh', sm: 18 }, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {ctrl.routeMode === 'navigate' && (
+              <Tooltip title={t.recenter} placement="left">
+                <Fab
+                  size="small"
+                  color="primary"
+                  onClick={ctrl.recenterOnUser}
+                  sx={{ boxShadow: 4 }}
+                >
+                  <GpsFixedIcon fontSize="small" />
+                </Fab>
+              </Tooltip>
+            )}
             <Tooltip title={t.correctLocation} placement="left">
               <Fab
                 size="small"
@@ -376,8 +396,8 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           </Box>
         )}
 
-        {/* Route panel */}
-        {ctrl.routePanelOpen && (
+        {/* Route panel — only in steps mode */}
+        {ctrl.routePanelOpen && ctrl.routeMode === 'steps' && (
           <Suspense fallback={<PanelFallback />}>
             <RoutePanel
               open={ctrl.routePanelOpen}
@@ -385,7 +405,22 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               route={ctrl.route}
               loading={ctrl.routeLoading}
               error={ctrl.routeError}
+              mode={ctrl.routeMode}
               onClose={ctrl.stopRoute}
+              onStartNavigation={ctrl.enterNavigation}
+              formatDist={ctrl.formatDist}
+              formatTime={ctrl.formatTime}
+            />
+          </Suspense>
+        )}
+
+        {/* Navigation banner — overlays the map in navigate mode */}
+        {ctrl.routePanelOpen && ctrl.routeMode === 'navigate' && (
+          <Suspense fallback={<PanelFallback />}>
+            <NavigationBanner
+              active={ctrl.activeStep}
+              onShowSteps={ctrl.exitNavigation}
+              onStop={ctrl.stopRoute}
               formatDist={ctrl.formatDist}
               formatTime={ctrl.formatTime}
             />
