@@ -10,6 +10,10 @@ Playwright-based end-to-end tests covering critical user flows in
 - Map dev server (default `http://localhost:5174`)
 - Optional: override URLs via `CRM_URL`, `MAP_URL`, `E2E_EMAIL`,
   `E2E_PASSWORD` environment variables
+- The default E2E user should be an owner/admin account and should start
+  with 2FA disabled. The 2FA test enables it and disables it again.
+- Seed data must include at least one rabbanut/authority and one hechsher
+  so the restaurant CRUD form can select required options.
 
 ## Running locally
 
@@ -27,6 +31,13 @@ npx playwright test --project=crm
 npx playwright test --project=map
 ```
 
+## Coverage
+
+- CRM login success and invalid-password error
+- CRM 2FA settings: enable and disable with generated TOTP
+- CRM restaurant CRUD: create, edit, delete
+- Public map: map render and filter panel
+
 ## CI integration
 
 Currently NOT wired into `.github/workflows/ci.yml` because the workflow
@@ -36,5 +47,8 @@ introduced, add an `e2e` job to CI that does:
 
 ```yaml
 - run: docker compose -f docker-compose.test.yml up -d --wait
-- run: cd e2e && npm ci && npx playwright install --with-deps chromium && npm test
+- run: cd e2e && npm install && npx playwright install --with-deps chromium && npm test
 ```
+
+Once `e2e/package-lock.json` is committed, switch the second command to
+`npm ci` for deterministic installs.

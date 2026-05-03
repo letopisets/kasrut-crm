@@ -3,14 +3,20 @@ import { restaurantsRepo } from '../db/restaurants.repo'
 import { hechsherimRepo } from '../db/hechsherim.repo'
 import { mashgichimRepo } from '../db/mashgichim.repo'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
-import { invalidatePattern } from '../lib/cache'
+import { invalidatePattern, withCache } from '../lib/cache'
 import { validate } from '../lib/validate'
 import { createRestaurantSchema, updateRestaurantSchema, paginationSchema } from '../schemas'
 
+const RESTAURANTS_CACHE_TTL = 300
+
 const invalidateMapCache = () => Promise.all([
+  invalidatePattern('restaurants:*'),
   invalidatePattern('map:restaurants:*'),
   invalidatePattern('map:options'),
 ])
+
+const restaurantsCacheKey = (filter: Record<string, unknown>) =>
+  `restaurants:list:${JSON.stringify(filter)}`
 
 async function validateRestaurantOwnership(input: {
   rabbanutId: string
@@ -39,29 +45,56 @@ export const restaurantController = {
 
       // Mashgiach filtering is non-paginated (small set by definition)
       if (mashgiachId) {
-        const items = await restaurantsRepo.findByMashgiach(mashgiachId)
-        res.json(serializeRestaurants(items))
+        const data = await withCache(
+          restaurantsCacheKey({ mashgiachId }),
+          RESTAURANTS_CACHE_TTL,
+          async () => serializeRestaurants(await restaurantsRepo.findByMashgiach(mashgiachId)),
+        )
+        res.json(data)
         return
       }
 
       // Paginated path — only when limit explicitly provided
       if (pageInput.limit) {
-        const page = await restaurantsRepo.findPage({
-          rabbanutId,
-          status: q.status,
-          limit:  pageInput.limit,
-          cursor: pageInput.cursor,
-        })
-        res.json({
-          items:      serializeRestaurants(page.items),
-          nextCursor: page.nextCursor,
-        })
+        const limit = pageInput.limit
+        const cursor = pageInput.cursor
+        const data = await withCache(
+          restaurantsCacheKey({
+            rabbanutId: rabbanutId ?? null,
+            status: q.status ?? null,
+            limit,
+            cursor: cursor ?? null,
+          }),
+          RESTAURANTS_CACHE_TTL,
+          async () => {
+            const page = await restaurantsRepo.findPage({
+              rabbanutId,
+              status: q.status,
+              limit,
+              cursor,
+            })
+            return {
+              items:      serializeRestaurants(page.items),
+              nextCursor: page.nextCursor,
+            }
+          },
+        )
+        res.json(data)
         return
       }
 
       // Backwards-compatible — return full array
-      const items = await restaurantsRepo.findAll({ rabbanutId, status: q.status })
-      res.json(serializeRestaurants(items))
+      const data = await withCache(
+        restaurantsCacheKey({
+          rabbanutId: rabbanutId ?? null,
+          status: q.status ?? null,
+          limit: null,
+          cursor: null,
+        }),
+        RESTAURANTS_CACHE_TTL,
+        async () => serializeRestaurants(await restaurantsRepo.findAll({ rabbanutId, status: q.status })),
+      )
+      res.json(data)
     } catch (e) { next(e) }
   },
 

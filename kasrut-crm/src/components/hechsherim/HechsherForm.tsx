@@ -4,6 +4,8 @@ import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
 import type { Hechsher, HechsherType } from '@/types'
 
 const HECHSHER_TYPES: HechsherType[] = ['Rabbanut', 'Badatz', 'Mehadrin', 'Private']
@@ -12,11 +14,13 @@ interface SelectOption { value: string; label: string }
 
 interface Props {
   rabbanutOptions: SelectOption[]
-  onSave:  (data: Omit<Hechsher, 'id'>) => void
+  onSave:  (data: Omit<Hechsher, 'id'>) => void | Promise<void>
   onClose: () => void
+  error?:   string | null
+  saving?:  boolean
 }
 
-export function HechsherForm({ rabbanutOptions, onSave, onClose }: Props) {
+export function HechsherForm({ rabbanutOptions, onSave, onClose, error, saving = false }: Props) {
   const t    = useLang()
   const user = useAuthStore(s => s.user)
 
@@ -32,7 +36,7 @@ export function HechsherForm({ rabbanutOptions, onSave, onClose }: Props) {
 
   const handleSave = () => {
     if (!form.name || !form.shortName || !form.type) return
-    onSave({ ...form, type: form.type as HechsherType })
+    void onSave({ ...form, type: form.type as HechsherType })
   }
 
   const typeOptions = HECHSHER_TYPES.map(t => ({ value: t, label: t }))
@@ -49,9 +53,10 @@ export function HechsherForm({ rabbanutOptions, onSave, onClose }: Props) {
       {rabbanutOptions.length > 1 && (
         <Input label="Rabbanut" value={form.rabbanutId} onChange={v => set('rabbanutId', v)} options={rabbanutOptions} />
       )}
+      {error && <Alert severity="error">{error}</Alert>}
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
-        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.shortName || !form.type} disableElevation>
-          {t.addRest?.save ?? 'Save'}
+        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.shortName || !form.type || saving} disableElevation>
+          {saving ? <CircularProgress size={16} color="inherit" /> : (t.addRest?.save ?? 'Save')}
         </Button>
         <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>
           {t.addRest?.cancel ?? 'Cancel'}

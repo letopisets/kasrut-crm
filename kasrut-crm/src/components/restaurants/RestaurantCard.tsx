@@ -67,6 +67,7 @@ export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanut
             <>
               <Tooltip title="Edit">
                 <IconButton
+                  aria-label={`Edit ${r.name}`}
                   size="small"
                   onClick={e => { e.stopPropagation(); onEdit(r) }}
                   sx={{ color: '#50526A', '&:hover': { color: '#9A9AB0' } }}
@@ -76,6 +77,7 @@ export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanut
               </Tooltip>
               <Tooltip title="Delete">
                 <IconButton
+                  aria-label={`Delete ${r.name}`}
                   size="small"
                   onClick={e => { e.stopPropagation(); onDelete(r.id) }}
                   sx={{ color: alpha('#E74C3C', 0.6), '&:hover': { color: '#E74C3C' } }}

@@ -16,6 +16,22 @@ import type { Hechsher } from '@/types'
 
 const CITIES = ['Jerusalem', 'Haifa', 'Tel Aviv', 'Tzfat', 'Tiberias', 'Bnei Brak', 'Other']
 
+function extractApiError(err: unknown, fallback: string): string {
+  if (typeof err === 'object' && err !== null) {
+    if ('data' in err) {
+      const data = (err as { data: unknown }).data
+      if (typeof data === 'object' && data !== null) {
+        if ('message' in data) return String((data as { message: unknown }).message)
+        if ('error' in data) return String((data as { error: unknown }).error)
+      }
+      if (typeof data === 'string') return data
+    }
+    if ('message' in err) return String((err as { message: unknown }).message)
+    if ('error' in err) return String((err as { error: unknown }).error)
+  }
+  return fallback
+}
+
 interface Props {
   initial?: Restaurant
   onClose:  () => void
@@ -31,12 +47,13 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const { data: rabbanuts  = [] } = useGetRabbanutsQuery()
   const [createMutation, { isLoading: creating }] = useCreateRestaurantMutation()
   const [updateMutation, { isLoading: updating }] = useUpdateRestaurantMutation()
-  const [createHechsher] = useCreateHechsherMutation()
+  const [createHechsher, { isLoading: creatingHechsher }] = useCreateHechsherMutation()
 
   const isEdit    = !!initial
   const isLoading = creating || updating
 
   const [showAddHechsher, setShowAddHechsher] = useState(false)
+  const [addHechsherError, setAddHechsherError] = useState<string | null>(null)
 
   const FOOD_TYPES: FoodType[] = ['meat', 'dairy', 'pareve', 'takeaway']
 
@@ -84,10 +101,16 @@ export function RestaurantForm({ initial, onClose }: Props) {
 
   const handleAddHechsher = async (data: Omit<Hechsher, 'id'>) => {
     try {
+      setAddHechsherError(null)
       const h = await createHechsher(data).unwrap()
       set('hechsherId', h.id)
       setShowAddHechsher(false)
-    } catch {}
+    } catch (err) {
+      setAddHechsherError(extractApiError(
+        err,
+        'Не удалось добавить кашрут. Проверьте данные и попробуйте ещё раз.',
+      ))
+    }
   }
 
   const filteredHechsherim = perm.isOwner
@@ -137,7 +160,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
           <Button
             size="small"
             variant="outlined"
-            onClick={() => setShowAddHechsher(true)}
+            onClick={() => { setAddHechsherError(null); setShowAddHechsher(true) }}
             sx={{ mt: 0.25, whiteSpace: 'nowrap', minWidth: 'auto', fontSize: '0.75rem' }}
           >
             + {t.hechsherim?.addTitle ?? 'Добавить кашрут'}
@@ -168,7 +191,9 @@ export function RestaurantForm({ initial, onClose }: Props) {
         <HechsherForm
           rabbanutOptions={rabbanutOptions}
           onSave={handleAddHechsher}
-          onClose={() => setShowAddHechsher(false)}
+          onClose={() => { setAddHechsherError(null); setShowAddHechsher(false) }}
+          error={addHechsherError}
+          saving={creatingHechsher}
         />
       )}
     </>

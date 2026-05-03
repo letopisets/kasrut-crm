@@ -87,7 +87,7 @@ export function TwoFactorSettings({ onClose }: Props) {
 
   if (success) {
     return (
-      <Paper sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
+      <Paper data-testid="two-factor-success" sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
         <CheckCircleIcon sx={{ fontSize: 48, color: '#2ECC71' }} />
       </Paper>
     )
@@ -120,7 +120,7 @@ export function TwoFactorSettings({ onClose }: Props) {
             <Box sx={{
               fontFamily: 'monospace', fontSize: 12, color: 'text.secondary',
               background: '#1E2235', borderRadius: 1, p: '6px 10px', wordBreak: 'break-all',
-            }}>
+            }} data-testid="totp-secret">
               {secret}
             </Box>
           </Box>

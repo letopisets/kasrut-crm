@@ -24,6 +24,14 @@ describe('OpenAPI spec', () => {
     expect(res.body.info.title).toBe('KashrutCRM API')
   })
 
+  it('uses the production API as the primary Swagger server', async () => {
+    const res = await request(app).get('/api/openapi.json')
+    expect(res.body.servers[0]).toMatchObject({
+      url: 'https://api.mykoshermap.com/api',
+      description: 'Production',
+    })
+  })
+
   it('documents the /restaurants endpoint with pagination params', async () => {
     const res = await request(app).get('/api/openapi.json')
     const params = res.body.paths['/restaurants'].get.parameters.map((p: { name: string }) => p.name)
