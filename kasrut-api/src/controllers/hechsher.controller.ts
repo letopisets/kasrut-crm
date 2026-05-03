@@ -3,12 +3,13 @@ import { hechsherimRepo } from '../db/hechsherim.repo'
 import { serializeHechsher, serializeHechsherim } from '../serializers/hechsher.serializer'
 import { validate } from '../lib/validate'
 import { createHechsherSchema, updateHechsherSchema } from '../schemas'
-import { invalidatePattern } from '../lib/cache'
+import { invalidatePattern, withCache } from '../lib/cache'
 
 const invalidateMapCache = () => Promise.all([
   invalidatePattern('map:restaurants:*'),
   invalidatePattern('map:options'),
   invalidatePattern('map:hechsherim'),
+  invalidatePattern('hechsherim:*'),
 ])
 
 export const hechsherController = {
@@ -16,7 +17,10 @@ export const hechsherController = {
     try {
       const q          = req.query as Record<string, string>
       const rabbanutId = req.user?.role === 'rabbanut' ? req.user.rabbanutId : q.rabbanutId
-      res.json(serializeHechsherim(await hechsherimRepo.findAll({ rabbanutId })))
+
+      const cacheKey = `hechsherim:list:${rabbanutId ?? 'all'}`
+      const data = await withCache(cacheKey, 300, () => hechsherimRepo.findAll({ rabbanutId }))
+      res.json(serializeHechsherim(data))
     } catch (e) { next(e) }
   },
 
