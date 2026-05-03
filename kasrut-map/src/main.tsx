@@ -7,8 +7,11 @@ import { store } from '@/store'
 import { useAppSelector } from '@/store/hooks'
 import { createKashrutMapTheme } from '@/theme'
 import type { ThemeMode } from '@/theme'
+import { initSentry } from '@/lib/sentry'
 import App from '@/App'
 import '@/index.css'
+
+initSentry()
 
 function getInitialThemeMode(): ThemeMode {
   const saved = localStorage.getItem('kasrut-map-theme')
