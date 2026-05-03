@@ -17,14 +17,12 @@
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
     "@reduxjs/toolkit": "^2.11.2",
-    "@tailwindcss/vite": "^4.2.2",
     "axios": "^1.13.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.13.2",
-    "redux": "^5.0.1",
-    "tailwindcss": "^4.2.2"
+    "redux": "^5.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
