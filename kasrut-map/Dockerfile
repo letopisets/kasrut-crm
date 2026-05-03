@@ -9,6 +9,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci
 
 COPY kasrut-map/ ./
+COPY packages/shared ../packages/shared
 
 ARG VITE_API_URL=/api
 ARG VITE_APPLE_REDIRECT_URI=/
