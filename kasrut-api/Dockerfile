@@ -45,4 +45,4 @@ USER appuser
 EXPOSE 3000
 
 ENTRYPOINT ["api-entrypoint.sh"]
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/kasrut-api/src/server.js"]

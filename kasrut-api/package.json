@@ -2,11 +2,11 @@
   "name": "kasrut-api",
   "version": "1.0.0",
   "description": "KashrutCRM Express API",
-  "main": "dist/server.js",
+  "main": "dist/kasrut-api/src/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/kasrut-api/src/server.js",
     "seed": "ts-node-dev --transpile-only prisma/seed.ts",
     "import:pdf": "ts-node --transpile-only scripts/import-pdf-data.ts",
     "export:pdf": "ts-node --transpile-only scripts/import-pdf-data.ts --source ../docs-kashrut --dry-run --export --out ../docs/kashrut-export",
