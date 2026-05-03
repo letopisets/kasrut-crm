@@ -11,7 +11,9 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY kasrut-crm/ ./
 
 ARG VITE_API_URL=/api
+ARG VITE_SENTRY_DSN=
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
 RUN npx vite build
 
 FROM nginx:1.27-alpine

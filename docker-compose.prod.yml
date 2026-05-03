@@ -1,6 +1,7 @@
 services:
   api:
     environment:
+      API_PUBLIC_URL: https://api.mykoshermap.com/api
       CORS_ORIGINS: ${CORS_ORIGINS:?Set production CORS_ORIGINS}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       SEED_DB: ${SEED_DB:-false}
@@ -10,11 +11,13 @@ services:
       args:
         VITE_API_URL: /api
         VITE_APPLE_REDIRECT_URI: ${VITE_APPLE_REDIRECT_URI:?Set production VITE_APPLE_REDIRECT_URI}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
 
   kasrut-crm:
     build:
       args:
         VITE_API_URL: /api
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
 
   nginx:
     ports:

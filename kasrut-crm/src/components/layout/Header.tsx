@@ -151,6 +151,7 @@ export function Header() {
             {/* 2FA Button */}
             <Tooltip title={t.twoFactor?.settingsTitle ?? '2FA'}>
               <IconButton
+                aria-label={t.twoFactor?.settingsTitle ?? '2FA'}
                 onClick={() => setShow2faPanel(v => !v)}
                 size="small"
                 sx={{

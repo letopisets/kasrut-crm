@@ -1,4 +1,14 @@
 import swaggerJsdoc from 'swagger-jsdoc'
+import { env } from '../config/env'
+
+const localApiUrl = 'http://localhost:3000/api'
+const servers = [
+  { url: env.API_PUBLIC_URL, description: 'Production' },
+]
+
+if (process.env.NODE_ENV !== 'production' && env.API_PUBLIC_URL !== localApiUrl) {
+  servers.push({ url: localApiUrl, description: 'Local development' })
+}
 
 export const swaggerSpec = swaggerJsdoc({
   definition: {
@@ -10,9 +20,7 @@ export const swaggerSpec = swaggerJsdoc({
         'REST API for kashrut certification management. ' +
         'Backend for kasrut-crm (admin) and kasrut-map (public) clients.',
     },
-    servers: [
-      { url: 'http://localhost:3000/api', description: 'Local' },
-    ],
+    servers,
     components: {
       securitySchemes: {
         bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },

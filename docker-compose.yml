@@ -39,6 +39,7 @@ services:
     environment:
       NODE_ENV:        production
       PORT:            3000
+      API_PUBLIC_URL:  ${API_PUBLIC_URL:-http://localhost:8080/api}
       DATABASE_URL:    "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-kashrutcrm_db}?schema=public"
       REDIS_URL:       redis://redis:6379
       # :? — упадёт при старте если не задан
@@ -68,6 +69,7 @@ services:
       args:
         VITE_API_URL:            /api
         VITE_APPLE_REDIRECT_URI: ${VITE_APPLE_REDIRECT_URI:-http://localhost:8080/}
+        VITE_SENTRY_DSN:         ${VITE_SENTRY_DSN:-}
     restart: unless-stopped
     depends_on:
       api:
@@ -79,6 +81,7 @@ services:
       dockerfile: kasrut-crm/Dockerfile
       args:
         VITE_API_URL: /api
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
     restart: unless-stopped
     depends_on:
       api:

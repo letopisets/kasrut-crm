@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:crm": "playwright test --project=crm",
+    "test:map": "playwright test --project=map"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

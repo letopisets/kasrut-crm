@@ -15,6 +15,7 @@ if (!encryptionKey || encryptionKey.length !== 64) {
 
 export const env = {
   PORT:           parseInt(process.env.PORT ?? '3000', 10),
+  API_PUBLIC_URL: process.env.API_PUBLIC_URL ?? 'https://api.mykoshermap.com/api',
   JWT_SECRET:     jwtSecret,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN ?? '7d',
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
