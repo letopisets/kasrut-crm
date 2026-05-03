@@ -10,6 +10,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci
 
 COPY kasrut-api/ ./
+COPY packages/shared ../packages/shared
 
 # prisma generate only reads the schema — placeholder URL is enough
 ENV DATABASE_URL="postgresql://x:x@x:5432/x"
