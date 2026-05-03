@@ -47,7 +47,9 @@ export function FilterPanel({
       anchor="left"
       open={open}
       onClose={onClose}
-      PaperProps={{ sx: { width: 300, p: 0 } }}
+      slotProps={{
+        paper: { sx: { width: 300, p: 0 } }
+      }}
     >
       <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="h6" sx={{ color: 'primary.main' }}>
@@ -65,13 +67,12 @@ export function FilterPanel({
         </Box>
       </Box>
       <Divider />
-
       <Box sx={{ px: 2.5, py: 2, overflowY: 'auto', flex: 1 }}>
         {/* Food type */}
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           {t.foodTypeSection}
         </Typography>
-        <Stack direction="row" flexWrap="wrap" gap={1} mb={3}>
+        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, mb: 3 }}>
           {FOOD_TYPES.map(foodType => {
             const active = filters.foodType.includes(foodType)
             return (
@@ -120,7 +121,7 @@ export function FilterPanel({
             </Typography>
           </AccordionSummary>
           <AccordionDetails sx={{ px: 1.5, pt: 0, pb: 1.5 }}>
-            <Stack direction="column" gap={0.75} sx={{ maxHeight: 220, overflowY: 'auto', pr: 0.5 }}>
+            <Stack direction="column" sx={{ maxHeight: 220, overflowY: 'auto', pr: 0.5, gap: 0.75 }}>
               {availableHechshers.map(h => {
                 const active = filters.hechsher.includes(h)
                 return (
@@ -172,7 +173,7 @@ export function FilterPanel({
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
           {t.radiusSection}
         </Typography>
-        <Stack direction="row" flexWrap="wrap" gap={1}>
+        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
           {RADIUS_VALUES.map((value, index) => {
             const active = filters.radius === value
             return (
@@ -188,7 +189,6 @@ export function FilterPanel({
           })}
         </Stack>
       </Box>
-
       <Divider />
       <Box sx={{ p: 2 }}>
         <Button fullWidth variant="contained" onClick={onClose}>
@@ -196,5 +196,5 @@ export function FilterPanel({
         </Button>
       </Box>
     </Drawer>
-  )
+  );
 }

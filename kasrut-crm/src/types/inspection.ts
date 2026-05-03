@@ -1,5 +1,5 @@
-export type InspectionResult = 'pending' | 'open' | 'pass' | 'fail'
-export type InspectionType = 'planned' | 'urgent'
+export type { InspectionResult, InspectionType } from '../../../packages/shared/types'
+import type { InspectionResult, InspectionType } from '../../../packages/shared/types'
 
 export interface Inspection {
   id: string

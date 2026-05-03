@@ -39,9 +39,12 @@ export const createKashrutMapTheme = (mode: ThemeMode) => createTheme({
       },
     },
     MuiButton: {
-      styleOverrides: {
-        containedPrimary: { color: '#0F1117', fontWeight: 700 },
-      },
+      variants: [
+        {
+          props: { variant: 'contained', color: 'primary' },
+          style: { color: '#0F1117', fontWeight: 700 },
+        },
+      ],
     },
     MuiDrawer: {
       styleOverrides: {

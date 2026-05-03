@@ -140,7 +140,6 @@ export default function Login() {
       >
         <LangBar />
         <Logo />
-
         <Paper
           sx={{
             display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -208,7 +207,7 @@ export default function Login() {
           </Button>
         </Paper>
       </Box>
-    )
+    );
   }
 
   // ── Main login form ────────────────────────────────────────────

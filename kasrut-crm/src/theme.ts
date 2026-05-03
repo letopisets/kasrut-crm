@@ -147,23 +147,23 @@ export const theme = createTheme({
           fontSize: '0.8125rem',
           borderRadius: 10,
           whiteSpace: 'nowrap',
-          '&.MuiButton-containedPrimary': {
+          "&.MuiButton-contained.MuiButton-colorPrimary": {
             background: `linear-gradient(135deg, ${GOLD_DIM}, ${GOLD})`,
             color: BG.card,
             '&:hover': { opacity: 0.88, background: `linear-gradient(135deg, ${GOLD_DIM}, ${GOLD})` },
           },
-          '&.MuiButton-outlinedPrimary': {
+          "&.MuiButton-outlined.MuiButton-colorPrimary": {
             borderColor: alpha(GOLD, 0.4),
             color: GOLD,
             '&:hover': { background: alpha(GOLD, 0.07) },
           },
-          '&.MuiButton-outlinedError': {
+          "&.MuiButton-outlined.MuiButton-colorError": {
             borderColor: alpha('#E74C3C', 0.3),
             color: '#E74C3C',
             background: alpha('#E74C3C', 0.05),
             '&:hover': { background: alpha('#E74C3C', 0.12) },
           },
-          '&.MuiButton-textSecondary': {
+          "&.MuiButton-text.MuiButton-colorSecondary": {
             color: '#9A9AB0',
             '&:hover': { background: alpha('#fff', 0.05) },
           },
@@ -320,7 +320,7 @@ export const theme = createTheme({
         root: {
           borderRadius: 6,
           fontSize: '0.8125rem',
-          '&.MuiAlert-standardError': {
+          "&.MuiAlert-standard.MuiAlert-colorError": {
             background: alpha('#E74C3C', 0.08),
             border: `1px solid ${alpha('#E74C3C', 0.2)}`,
             color: '#E74C3C',

@@ -1,16 +1,29 @@
-// Shared domain types — mirrors kasrut-crm/src/types/
+// Shared domain types — re-exported from @kasrut/shared (single source of truth)
+export type {
+  Role,
+  CertStatus,
+  HechsherType,
+  InspectionResult,
+  InspectionType,
+  DocumentCategory,
+  DocExt,
+  MapAuthProvider,
+  MapSuggestionType,
+  MapSuggestionStatus,
+  MapPasswordResetChannel,
+  Page,
+  PaginationParams,
+} from '../../../packages/shared/types'
 
-export type Role          = 'owner' | 'rabbanut' | 'mashgiach'
-export type CertStatus    = 'ok' | 'warning' | 'critical'
-export type HechsherType  = 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private'
-export type InspectionResult = 'pending' | 'open' | 'pass' | 'fail'
-export type InspectionType   = 'planned' | 'urgent'
-export type DocumentCategory = 'Instructions' | 'Forms' | 'Regulations' | 'Pesach'
-export type DocExt = 'PDF' | 'DOCX' | 'XLSX'
-export type MapAuthProvider = 'google' | 'apple'
-export type MapSuggestionType = 'add' | 'update'
-export type MapSuggestionStatus = 'pending' | 'approved' | 'rejected'
-export type MapPasswordResetChannel = 'email' | 'phone'
+import type {
+  Role,
+  CertStatus,
+  HechsherType,
+  InspectionResult,
+  InspectionType,
+  DocumentCategory,
+  DocExt,
+} from '../../../packages/shared/types'
 
 export interface User {
   id:                   string

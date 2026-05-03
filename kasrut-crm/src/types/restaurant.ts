@@ -1,5 +1,5 @@
-export type CertStatus = 'ok' | 'warning' | 'critical'
-export type FoodType = 'meat' | 'dairy' | 'pareve' | 'takeaway'
+export type { CertStatus, FoodType, RestaurantLevel } from '../../../packages/shared/types'
+import type { CertStatus, FoodType } from '../../../packages/shared/types'
 
 export interface Restaurant {
   id: string

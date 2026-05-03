@@ -1,4 +1,6 @@
-export type FoodType     = 'meat' | 'dairy' | 'pareve' | 'takeaway'
+export type { FoodType, MapAuthProvider, MapSuggestionType, MapSuggestionStatus, MapPasswordResetChannel as PasswordResetChannel, Page } from '../../../packages/shared/types'
+import type { FoodType, MapAuthProvider, MapSuggestionType, MapSuggestionStatus } from '../../../packages/shared/types'
+
 export type KashrutLevel = 'mehadrin' | 'badatz' | 'regular'
 
 export interface MapHechsher {
@@ -52,8 +54,6 @@ export interface MapOptions {
   hechshers: string[]
 }
 
-export type MapAuthProvider = 'google' | 'apple'
-
 export interface MapUser {
   id: string
   email: string
@@ -79,16 +79,11 @@ export interface MapAuthResponse {
   token: string
 }
 
-export type PasswordResetChannel = 'email' | 'phone'
-
 export interface PasswordResetRequestResponse {
   ok: boolean
   message: string
   devResetToken?: string
 }
-
-export type MapSuggestionType = 'add' | 'update'
-export type MapSuggestionStatus = 'pending' | 'approved' | 'rejected'
 
 export interface MapSuggestionPayload {
   type: MapSuggestionType

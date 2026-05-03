@@ -3,6 +3,11 @@ import type { Restaurant } from '@/types'
 
 type CreateInput = Omit<Restaurant, 'id' | 'status'>
 
+export interface RestaurantsPage {
+  items:      Restaurant[]
+  nextCursor: string | null
+}
+
 export const restaurantsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getRestaurants: build.query<Restaurant[], { rabbanutId?: string; status?: string } | void>({
@@ -15,6 +20,20 @@ export const restaurantsApi = baseApi.injectEndpoints({
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: 'Restaurant' as const, id })), 'Restaurant']
+          : ['Restaurant'],
+    }),
+    getRestaurantsPage: build.query<RestaurantsPage, { rabbanutId?: string; status?: string; limit: number; cursor?: string }>({
+      query: ({ rabbanutId, status, limit, cursor }) => {
+        const q = new URLSearchParams()
+        if (rabbanutId) q.set('rabbanutId', rabbanutId)
+        if (status)     q.set('status', status)
+        q.set('limit', String(limit))
+        if (cursor) q.set('cursor', cursor)
+        return `/restaurants?${q}`
+      },
+      providesTags: (result) =>
+        result
+          ? [...result.items.map(({ id }) => ({ type: 'Restaurant' as const, id })), 'Restaurant']
           : ['Restaurant'],
     }),
     getRestaurant: build.query<Restaurant, string>({
@@ -38,6 +57,7 @@ export const restaurantsApi = baseApi.injectEndpoints({
 
 export const {
   useGetRestaurantsQuery,
+  useGetRestaurantsPageQuery,
   useGetRestaurantQuery,
   useCreateRestaurantMutation,
   useUpdateRestaurantMutation,

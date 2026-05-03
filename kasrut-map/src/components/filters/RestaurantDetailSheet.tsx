@@ -43,24 +43,25 @@ export function RestaurantDetailSheet({
       onClose={onClose}
       onOpen={() => {}}
       disableSwipeToOpen
-      PaperProps={{
-        sx: {
-          borderTopLeftRadius: 8,
-          borderTopRightRadius: 8,
-          maxHeight: '82vh',
-          p: 0,
-        },
+      slotProps={{
+        paper: {
+          sx: {
+            borderTopLeftRadius: 8,
+            borderTopRightRadius: 8,
+            maxHeight: '82vh',
+            p: 0,
+          },
+        }
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
         <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'divider' }} />
       </Box>
-
       {r && (
         <Box sx={{ px: 2.5, pb: 3, overflowY: 'auto' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="h6" fontWeight={700}>{r.name}</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>{r.name}</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
                 <PlaceIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">{r.address}, {r.city}</Typography>
@@ -71,7 +72,7 @@ export function RestaurantDetailSheet({
             </IconButton>
           </Box>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap mb={2}>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 2 }}>
             <Chip
               label={`${FOOD_TYPE_EMOJI[r.foodType]} ${t.foodType[r.foodType]}`}
               size="small"
@@ -105,10 +106,10 @@ export function RestaurantDetailSheet({
 
           <Divider sx={{ mb: 2 }} />
 
-          <Stack spacing={1.25} mb={2.5}>
+          <Stack spacing={1.25} sx={{ mb: 2.5 }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary" minWidth={100}>{t.certificate}</Typography>
-              <Typography variant="body2" fontWeight={600}>{r.hechsher}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 100 }}>{t.certificate}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{r.hechsher}</Typography>
             </Box>
             {r.phone && (
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -156,5 +157,5 @@ export function RestaurantDetailSheet({
         </Box>
       )}
     </SwipeableDrawer>
-  )
+  );
 }

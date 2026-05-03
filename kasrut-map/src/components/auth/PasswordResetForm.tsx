@@ -32,8 +32,10 @@ export function PasswordResetForm({ busy, onRequestReset, onConfirmReset }: Prop
         value={channel}
         onChange={(e) => setChannel(e.target.value as PasswordResetChannel)}
         select
-        SelectProps={{ native: true }}
         fullWidth
+        slotProps={{
+          select: { native: true }
+        }}
       >
         <option value="email">{t.emailOption}</option>
         <option value="phone">{t.phoneOption}</option>
@@ -52,14 +54,12 @@ export function PasswordResetForm({ busy, onRequestReset, onConfirmReset }: Prop
       >
         {t.getCode}
       </Button>
-
       {resetRequested && (
         <Alert severity="success">{t.codeSent}</Alert>
       )}
       {devResetToken && (
         <Alert severity="info">{t.devCodePrefix}{devResetToken}</Alert>
       )}
-
       <TextField label={t.resetCode} value={token} onChange={(e) => setToken(e.target.value)} fullWidth />
       <TextField
         label={t.newPassword}
@@ -78,5 +78,5 @@ export function PasswordResetForm({ busy, onRequestReset, onConfirmReset }: Prop
         {t.changePassword}
       </Button>
     </Stack>
-  )
+  );
 }

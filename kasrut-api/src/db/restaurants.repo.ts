@@ -27,6 +27,11 @@ function toRestaurant(r: PrismaRestaurant): Restaurant {
   }
 }
 
+export interface PageResult<T> {
+  items: T[]
+  nextCursor: string | null
+}
+
 export const restaurantsRepo = {
   async findAll(filter?: { rabbanutId?: string; status?: string }): Promise<Restaurant[]> {
     const rows = await prisma.restaurant.findMany({
@@ -37,6 +42,30 @@ export const restaurantsRepo = {
       orderBy: { name: 'asc' },
     })
     return rows.map(r => ({ ...toRestaurant(r), status: calcStatus(r.expires) }))
+  },
+
+  async findPage(filter: {
+    rabbanutId?: string
+    status?:     string
+    limit:       number
+    cursor?:     string
+  }): Promise<PageResult<Restaurant>> {
+    const rows = await prisma.restaurant.findMany({
+      where: {
+        ...(filter.rabbanutId ? { rabbanutId: filter.rabbanutId } : {}),
+        ...(filter.status     ? { status: filter.status as CertStatus } : {}),
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: filter.limit + 1,
+      ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
+    })
+
+    const hasMore   = rows.length > filter.limit
+    const pageRows  = hasMore ? rows.slice(0, filter.limit) : rows
+    const items     = pageRows.map(r => ({ ...toRestaurant(r), status: calcStatus(r.expires) }))
+    const nextCursor = hasMore ? pageRows[pageRows.length - 1].id : null
+
+    return { items, nextCursor }
   },
 
   async findById(id: string): Promise<Restaurant | null> {

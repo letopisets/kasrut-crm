@@ -122,7 +122,7 @@ describe('POST /api/users', () => {
     const res = await request(app)
       .post('/api/users')
       .set('Authorization', `Bearer ${ownerToken()}`)
-      .send({ name: 'New User', email: 'new@test.il', password: 'pass', role: 'rabbanut' })
+      .send({ name: 'New User', email: 'new@test.il', password: 'password123', role: 'rabbanut' })
 
     expect(res.status).toBe(201)
     expect(res.body.email).toBe('new@test.il')

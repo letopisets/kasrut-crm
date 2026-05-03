@@ -1,6 +1,11 @@
 import { baseApi } from './baseApi'
 import type { Inspection, InspectionResult } from '@/types'
 
+export interface InspectionsPage {
+  items:      Inspection[]
+  nextCursor: string | null
+}
+
 export const inspectionsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getInspections: build.query<Inspection[], { restaurantId?: string; mashgiachId?: string; result?: string; type?: string } | void>({
@@ -15,6 +20,22 @@ export const inspectionsApi = baseApi.injectEndpoints({
       providesTags: (result) =>
         result
           ? [...result.map(({ id }) => ({ type: 'Inspection' as const, id })), 'Inspection']
+          : ['Inspection'],
+    }),
+    getInspectionsPage: build.query<InspectionsPage, { restaurantId?: string; mashgiachId?: string; result?: string; type?: string; limit: number; cursor?: string }>({
+      query: ({ restaurantId, mashgiachId, result, type, limit, cursor }) => {
+        const q = new URLSearchParams()
+        if (restaurantId) q.set('restaurantId', restaurantId)
+        if (mashgiachId)  q.set('mashgiachId',  mashgiachId)
+        if (result)       q.set('result',       result)
+        if (type)         q.set('type',         type)
+        q.set('limit', String(limit))
+        if (cursor) q.set('cursor', cursor)
+        return `/inspections?${q}`
+      },
+      providesTags: (result) =>
+        result
+          ? [...result.items.map(({ id }) => ({ type: 'Inspection' as const, id })), 'Inspection']
           : ['Inspection'],
     }),
     createInspection: build.mutation<Inspection, Omit<Inspection, 'id' | 'result'>>({
@@ -34,6 +55,7 @@ export const inspectionsApi = baseApi.injectEndpoints({
 
 export const {
   useGetInspectionsQuery,
+  useGetInspectionsPageQuery,
   useCreateInspectionMutation,
   useSetInspectionResultMutation,
   useDeleteInspectionMutation,

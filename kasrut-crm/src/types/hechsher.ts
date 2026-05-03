@@ -1,4 +1,5 @@
-export type HechsherType = 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private'
+export type { HechsherType } from '../../../packages/shared/types'
+import type { HechsherType } from '../../../packages/shared/types'
 
 export interface Hechsher {
   id: string
