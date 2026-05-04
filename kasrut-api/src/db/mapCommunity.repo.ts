@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
-import type { MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
+import type { FoodType, MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
 import type {
+  FoodType as PrismaFoodType,
   MapAuthProvider as PrismaMapAuthProvider,
   MapPasswordResetChannel as PrismaMapPasswordResetChannel,
   MapSuggestionType as PrismaMapSuggestionType,
@@ -39,6 +40,8 @@ export interface CreateSuggestionInput {
   proposedCity?: string | null
   proposedHechsher?: string | null
   proposedKashrutStatus?: string | null
+  proposedFoodType?: FoodType | null
+  proposedImageUrl?: string | null
   proposedLat?: number | null
   proposedLng?: number | null
   notes?: string | null
@@ -373,6 +376,8 @@ export const mapCommunityRepo = {
         proposedCity: input.proposedCity || undefined,
         proposedHechsher: input.proposedHechsher || undefined,
         proposedKashrutStatus: input.proposedKashrutStatus || undefined,
+        proposedFoodType: input.proposedFoodType ? input.proposedFoodType as PrismaFoodType : undefined,
+        proposedImageUrl: input.proposedImageUrl || undefined,
         proposedLat: input.proposedLat ?? undefined,
         proposedLng: input.proposedLng ?? undefined,
         notes: input.notes || undefined,
@@ -410,6 +415,7 @@ export const mapCommunityRepo = {
         if (suggestion.proposedName)    patch.name    = suggestion.proposedName
         if (suggestion.proposedAddress) patch.address = suggestion.proposedAddress
         if (suggestion.proposedCity)    patch.city    = suggestion.proposedCity
+        if (suggestion.proposedFoodType) patch.foodType = suggestion.proposedFoodType
         if (
           isFiniteNumber(suggestion.proposedLat) &&
           isFiniteNumber(suggestion.proposedLng)
@@ -468,7 +474,7 @@ export const mapCommunityRepo = {
             notes: communityNotes(suggestion.notes),
             lat: suggestion.proposedLat,
             lng: suggestion.proposedLng,
-            foodType: DEFAULT_ADD_FOOD_TYPE,
+            foodType: suggestion.proposedFoodType ?? DEFAULT_ADD_FOOD_TYPE,
           },
           select: { id: true },
         })

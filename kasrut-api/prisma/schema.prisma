@@ -298,6 +298,8 @@ model MapRestaurantSuggestion {
   proposedCity          String?
   proposedHechsher      String?
   proposedKashrutStatus String?
+  proposedFoodType      FoodType?
+  proposedImageUrl      String?
   proposedLat           Float?
   proposedLng           Float?
   notes                 String?

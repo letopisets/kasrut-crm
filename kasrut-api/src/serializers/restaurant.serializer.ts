@@ -9,6 +9,7 @@ export const serializeRestaurant = (r: Restaurant) => ({
   hechsherId:     r.hechsherId,
   mashgiachId:    r.mashgiachId ?? null,
   kitniyot:       r.kitniyot,
+  foodType:       r.foodType ?? null,
   expires:        r.expires,
   status:         r.status,
   rabbanutId:     r.rabbanutId,

@@ -149,7 +149,35 @@ export default function Suggestions() {
                   <Field label={ts.proposedCity}    value={s.proposedCity} />
                   <Field label={ts.proposedHechsher} value={s.proposedHechsher} />
                   <Field label={ts.proposedStatus}  value={s.proposedKashrutStatus} />
+                  <Field label={ts.proposedFoodType} value={s.proposedFoodType ? (t.addRest.foodTypeLabels?.[s.proposedFoodType] ?? s.proposedFoodType) : null} />
                 </Box>
+
+                {/* Attached image */}
+                {s.proposedImageUrl && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography sx={{ fontSize: 10, color: 'text.disabled', mb: 0.5 }}>{ts.proposedImage}</Typography>
+                    <Box
+                      component="a"
+                      href={s.proposedImageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{ display: 'inline-block' }}
+                    >
+                      <Box
+                        component="img"
+                        src={s.proposedImageUrl}
+                        alt={ts.proposedImage}
+                        sx={{
+                          maxWidth: '100%',
+                          maxHeight: 220,
+                          borderRadius: 1.5,
+                          border: '1px solid #252840',
+                          display: 'block',
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                )}
 
                 {/* User notes */}
                 {s.notes && (

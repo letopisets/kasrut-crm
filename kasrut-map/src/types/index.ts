@@ -93,6 +93,8 @@ export interface MapSuggestionPayload {
   proposedCity?: string | null
   proposedHechsher?: string | null
   proposedKashrutStatus?: string | null
+  proposedFoodType?: FoodType | null
+  proposedImageUrl?: string | null
   proposedLat?: number | null
   proposedLng?: number | null
   notes?: string | null
