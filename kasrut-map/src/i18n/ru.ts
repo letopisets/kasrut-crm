@@ -55,6 +55,8 @@ const ru: MapTranslations = {
   loginBtn: 'Войти',
   suggestionSent: 'Спасибо. Предложение отправлено на проверку.',
   suggestionError: 'Не удалось отправить предложение. Попробуйте ещё раз.',
+  suggestionLocationError: 'Не удалось определить точку на карте. Уточните адрес или откройте карту в нужном районе и попробуйте ещё раз.',
+  locatingAddress: 'Ищем адрес...',
   currentEstablishment: 'Текущее заведение: {name}, {address}, {city}',
   nameField: 'Название',
   addressField: 'Адрес',

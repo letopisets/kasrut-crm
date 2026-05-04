@@ -53,6 +53,8 @@ export interface MapTranslations {
   loginBtn: string
   suggestionSent: string
   suggestionError: string
+  suggestionLocationError: string
+  locatingAddress: string
   currentEstablishment: string      // template: "{name}, {address}, {city}"
   nameField: string
   addressField: string

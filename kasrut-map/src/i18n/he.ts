@@ -55,6 +55,8 @@ const he: MapTranslations = {
   loginBtn: 'כניסה',
   suggestionSent: 'תודה. ההצעה נשלחה לבדיקה.',
   suggestionError: 'לא ניתן לשלוח הצעה. נסה שוב.',
+  suggestionLocationError: 'לא ניתן למקם את הכתובת על המפה. דייק את הכתובת או פתח את המפה באזור המקום ונסה שוב.',
+  locatingAddress: 'מאתר כתובת...',
   currentEstablishment: 'מקום נוכחי: {name}, {address}, {city}',
   nameField: 'שם',
   addressField: 'כתובת',
