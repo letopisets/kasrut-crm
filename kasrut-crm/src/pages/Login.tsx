@@ -29,53 +29,16 @@ function extractError(err: unknown): string | null {
   return 'Ошибка входа'
 }
 
-export default function Login() {
-  const navigate = useNavigate()
-  const {
-    user, login, isLoading,
-    twoFactorPending, verify2fa, cancelTwoFactor, error,
-  } = useAuthController()
-  const lang    = useLangStore(s => s.lang)
-  const setLang = useLangStore(s => s.setLang)
-  const t       = useLang()
-  const tf      = t.twoFactor
-
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [totpCode, setTotpCode] = useState('')
-  const [totpError,setTotpError]= useState('')
-
-  useEffect(() => {
-    if (user) navigate('/dashboard', { replace: true })
-  }, [user, navigate])
-
-  useEffect(() => {
-    if (twoFactorPending) { setTotpCode(''); setTotpError('') }
-  }, [twoFactorPending])
-
-  const handleLogin = async () => {
-    if (!email || !password) return
-    try { await login(email, password) } catch { /* handled by RTK */ }
-  }
-
-  const handleVerify = async () => {
-    if (totpCode.length !== 6) {
-      setTotpError(tf?.codeMustBe6 ?? 'Enter 6-digit code')
-      return
-    }
-    try {
-      setTotpError('')
-      await verify2fa(totpCode)
-    } catch {
-      setTotpError(tf?.codeMustBe6 ?? 'Invalid code')
-    }
-  }
-
-  const isRtl  = lang === 'he'
-  const errMsg = extractError(error)
-  const rc     = PRIMARY
-
-  const LangBar = () => (
+function LoginLangBar({
+  lang,
+  setLang,
+  isRtl,
+}: {
+  lang: Lang
+  setLang: (lang: Lang) => void
+  isRtl: boolean
+}) {
+  return (
     <Box sx={{
       position: 'absolute', top: 18,
       right: isRtl ? 'auto' : 22,
@@ -104,8 +67,10 @@ export default function Login() {
       ))}
     </Box>
   )
+}
 
-  const Logo = () => (
+function LoginLogo({ appName, appSub }: { appName: string; appSub: string }) {
+  return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25, mb: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
         <Box sx={{
@@ -118,12 +83,57 @@ export default function Login() {
           כ
         </Box>
         <Typography variant="h1" sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem' }, fontWeight: 800, color: '#E8C96D', lineHeight: 1.1 }}>
-          {t.appName}
+          {appName}
         </Typography>
       </Box>
-      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{t.appSub}</Typography>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{appSub}</Typography>
     </Box>
   )
+}
+
+export default function Login() {
+  const navigate = useNavigate()
+  const {
+    user, login, isLoading,
+    twoFactorPending, verify2fa, cancelTwoFactor, error,
+  } = useAuthController()
+  const lang    = useLangStore(s => s.lang)
+  const setLang = useLangStore(s => s.setLang)
+  const t       = useLang()
+  const tf      = t.twoFactor
+
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
+  const [totpError,setTotpError]= useState('')
+
+  useEffect(() => {
+    if (user) navigate('/dashboard', { replace: true })
+  }, [user, navigate])
+
+  const handleLogin = async () => {
+    if (!email || !password) return
+    setTotpCode('')
+    setTotpError('')
+    try { await login(email, password) } catch { /* handled by RTK */ }
+  }
+
+  const handleVerify = async () => {
+    if (totpCode.length !== 6) {
+      setTotpError(tf?.codeMustBe6 ?? 'Enter 6-digit code')
+      return
+    }
+    try {
+      setTotpError('')
+      await verify2fa(totpCode)
+    } catch {
+      setTotpError(tf?.codeMustBe6 ?? 'Invalid code')
+    }
+  }
+
+  const isRtl  = lang === 'he'
+  const errMsg = extractError(error)
+  const rc     = PRIMARY
 
   // ── 2FA step ─────────────────────────────────────────────────
   if (twoFactorPending) {
@@ -138,8 +148,8 @@ export default function Login() {
           position: 'relative',
         }}
       >
-        <LangBar />
-        <Logo />
+        <LoginLangBar lang={lang} setLang={setLang} isRtl={isRtl} />
+        <LoginLogo appName={t.appName} appSub={t.appSub} />
         <Paper
           sx={{
             display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -200,7 +210,7 @@ export default function Login() {
 
           <Button
             variant="text"
-            onClick={cancelTwoFactor}
+            onClick={() => { setTotpCode(''); setTotpError(''); cancelTwoFactor() }}
             sx={{ color: 'text.secondary', fontSize: 13 }}
           >
             {tf?.backToLogin ?? '← Back'}
@@ -222,8 +232,8 @@ export default function Login() {
         position: 'relative',
       }}
     >
-      <LangBar />
-      <Logo />
+      <LoginLangBar lang={lang} setLang={setLang} isRtl={isRtl} />
+      <LoginLogo appName={t.appName} appSub={t.appSub} />
 
       <Paper
         sx={{

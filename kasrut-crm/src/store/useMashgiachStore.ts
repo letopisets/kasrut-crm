@@ -32,7 +32,7 @@ export function useMashgiachStore<T>(selector: (state: MashgiachStoreShim) => T)
     remove:           (id)                       => { void deleteMutation(id) },
     toggle:           (id)                       => { void toggleMutation(id) },
     update:           (id, patch)                => { void updateMutation({ id, patch }) },
-    assignRestaurant: (_mashgiachId, _restId)    => { /* handled via update */ },
+    assignRestaurant: ()                         => { /* handled via update */ },
   }
 
   return selector(state)

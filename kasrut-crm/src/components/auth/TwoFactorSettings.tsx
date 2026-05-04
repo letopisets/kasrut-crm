@@ -17,6 +17,53 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 interface Props { onClose: () => void }
 type Step = 'status' | 'setup' | 'disable'
 
+function TwoFactorHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.primary' }}>{title}</Typography>
+      <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+    </Box>
+  )
+}
+
+function OtpInput({
+  value,
+  placeholder,
+  autoFocus = false,
+  onChange,
+  onSubmit,
+}: {
+  value: string
+  placeholder: string
+  autoFocus?: boolean
+  onChange: (value: string) => void
+  onSubmit: () => void
+}) {
+  return (
+    <TextField
+      fullWidth
+      value={value}
+      onChange={e => onChange(e.target.value.replace(/\D/g, ''))}
+      onKeyDown={e => e.key === 'Enter' && onSubmit()}
+      slotProps={{
+        htmlInput: {
+          inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
+          style: { fontSize: 24, fontWeight: 700, letterSpacing: 10, textAlign: 'center', padding: '12px 14px' },
+        },
+      }}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          '& fieldset': { borderWidth: 2, borderColor: '#252840' },
+          '&.Mui-focused fieldset': { borderColor: '#E8C96D' },
+        },
+        '& input::placeholder': { letterSpacing: 8, fontSize: 20, color: '#50526A' },
+      }}
+    />
+  )
+}
+
 export function TwoFactorSettings({ onClose }: Props) {
   const t  = useLang()
   const tf = t.twoFactor
@@ -61,30 +108,6 @@ export function TwoFactorSettings({ onClose }: Props) {
     } catch { setCodeError(tf?.codeMustBe6 ?? 'Invalid code') }
   }
 
-  const OtpInput = ({ autoFocus = false }: { autoFocus?: boolean }) => (
-    <TextField
-      fullWidth
-      value={code}
-      onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-      onKeyDown={e => e.key === 'Enter' && void (step === 'setup' ? handleEnable() : handleDisable())}
-      slotProps={{
-        htmlInput: {
-          inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
-          style: { fontSize: 24, fontWeight: 700, letterSpacing: 10, textAlign: 'center', padding: '12px 14px' },
-        },
-      }}
-      placeholder={tf?.codePlaceholder ?? '000000'}
-      autoFocus={autoFocus}
-      sx={{
-        '& .MuiOutlinedInput-root': {
-          '& fieldset': { borderWidth: 2, borderColor: '#252840' },
-          '&.Mui-focused fieldset': { borderColor: '#E8C96D' },
-        },
-        '& input::placeholder': { letterSpacing: 8, fontSize: 20, color: '#50526A' },
-      }}
-    />
-  )
-
   if (success) {
     return (
       <Paper data-testid="two-factor-success" sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
@@ -93,17 +116,10 @@ export function TwoFactorSettings({ onClose }: Props) {
     )
   }
 
-  const Header = ({ title }: { title: string }) => (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.primary' }}>{title}</Typography>
-      <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
-    </Box>
-  )
-
   if (step === 'setup') {
     return (
       <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Header title={tf?.setupTitle ?? 'Set up 2FA'} />
+        <TwoFactorHeader title={tf?.setupTitle ?? 'Set up 2FA'} onClose={onClose} />
         <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.5 }}>
           {tf?.setupInstruction}
         </Typography>
@@ -125,7 +141,13 @@ export function TwoFactorSettings({ onClose }: Props) {
             </Box>
           </Box>
         )}
-        <OtpInput autoFocus />
+        <OtpInput
+          value={code}
+          placeholder={tf?.codePlaceholder ?? '000000'}
+          autoFocus
+          onChange={setCode}
+          onSubmit={() => void handleEnable()}
+        />
         {codeError && <Alert severity="error" sx={{ fontSize: 12 }}>{codeError}</Alert>}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Button
@@ -146,11 +168,17 @@ export function TwoFactorSettings({ onClose }: Props) {
   if (step === 'disable') {
     return (
       <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Header title={tf?.disableTitle ?? 'Disable 2FA'} />
+        <TwoFactorHeader title={tf?.disableTitle ?? 'Disable 2FA'} onClose={onClose} />
         <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.5 }}>
           {tf?.disableInstruction}
         </Typography>
-        <OtpInput autoFocus />
+        <OtpInput
+          value={code}
+          placeholder={tf?.codePlaceholder ?? '000000'}
+          autoFocus
+          onChange={setCode}
+          onSubmit={() => void handleDisable()}
+        />
         {codeError && <Alert severity="error" sx={{ fontSize: 12 }}>{codeError}</Alert>}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Button
@@ -171,7 +199,7 @@ export function TwoFactorSettings({ onClose }: Props) {
 
   return (
     <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Header title={tf?.settingsTitle ?? 'Two-Factor Authentication'} />
+      <TwoFactorHeader title={tf?.settingsTitle ?? 'Two-Factor Authentication'} onClose={onClose} />
       <Box sx={{
         display: 'flex', alignItems: 'center', gap: 1.5,
         p: '12px 14px', background: '#1E2235', borderRadius: 1.5,
