@@ -140,7 +140,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   }, [ctrl.isFetching])
 
   const mapRestaurants = ctrl.view === 'map' ? ctrl.restaurants : []
-  const suggestionDefaultPosition = ctrl.geo.position ?? getViewportCenter(ctrl.viewport) ?? ipCenter
+  const suggestionDefaultPosition = getViewportCenter(ctrl.viewport) ?? ctrl.geo.position ?? ipCenter
   const restaurantCountLabel = ctrl.restaurantResultLimited
     ? t.establishmentCountLimited
       .replace('{shown}', String(ctrl.restaurants.length))

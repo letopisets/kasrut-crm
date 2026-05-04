@@ -6,6 +6,7 @@ import {
 import { useSubmitSuggestionMutation } from '@/store/api/mapCommunityApi'
 import { useGetMapHechsherimQuery } from '@/store/api/restaurantsApi'
 import { useMapLang } from '@/i18n/useMapLang'
+import { geocodeRestaurantAddress } from '@/lib/geocode'
 import type { MapRestaurant, MapSuggestionPayload } from '@/types'
 
 interface Props {
@@ -27,6 +28,7 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
   const [notes, setNotes] = useState('')
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false)
   const [submitSuggestion, submitState] = useSubmitSuggestionMutation()
 
   const { data: hechsherim = [] } = useGetMapHechsherimQuery(undefined, { skip: !open })
@@ -45,6 +47,7 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
     setNotes('')
     setSuccess(false)
     setError(null)
+    setIsResolvingLocation(false)
   }, [open, restaurant])
 
   const canSubmit = useMemo(() => {
@@ -56,7 +59,21 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
   const handleSubmit = async () => {
     if (!isAuthenticated) { onRequireAuth(); return }
 
-    const position = restaurant ? [restaurant.lat, restaurant.lng] : defaultPosition
+    setError(null)
+    setIsResolvingLocation(mode === 'add')
+
+    const position = restaurant
+      ? [restaurant.lat, restaurant.lng] as [number, number]
+      : await geocodeRestaurantAddress(address.trim(), city.trim())
+        .catch(() => null) ?? defaultPosition
+
+    setIsResolvingLocation(false)
+
+    if (!position) {
+      setError(t.suggestionLocationError)
+      return
+    }
+
     const payload: MapSuggestionPayload = {
       type: mode,
       restaurantId: restaurant?.id ?? null,
@@ -178,10 +195,10 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={!canSubmit || submitState.isLoading}
+            disabled={!canSubmit || submitState.isLoading || isResolvingLocation}
             sx={{ borderRadius: 1 }}
           >
-            {t.submitBtn}
+            {isResolvingLocation ? t.locatingAddress : t.submitBtn}
           </Button>
         )}
       </DialogActions>

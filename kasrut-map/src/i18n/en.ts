@@ -55,6 +55,8 @@ const en: MapTranslations = {
   loginBtn: 'Login',
   suggestionSent: 'Thank you. Your suggestion has been submitted for review.',
   suggestionError: 'Failed to submit suggestion. Please try again.',
+  suggestionLocationError: 'Could not place this address on the map. Refine the address or open the map near the place and try again.',
+  locatingAddress: 'Finding address...',
   currentEstablishment: 'Current place: {name}, {address}, {city}',
   nameField: 'Name',
   addressField: 'Address',

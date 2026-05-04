@@ -42,7 +42,7 @@ export const hechsherController = {
         ? { ...body, rabbanutId: req.user.rabbanutId! }
         : body
       const h = await hechsherimRepo.create(payload)
-      void invalidateMapCache()
+      await invalidateMapCache()
       res.status(201).json(serializeHechsher(h))
     } catch (e) { next(e) }
   },
@@ -65,7 +65,7 @@ export const hechsherController = {
         : body
       const h = await hechsherimRepo.update(req.params.id, payload)
       if (!h) { res.status(404).json({ error: 'Not found' }); return }
-      void invalidateMapCache()
+      await invalidateMapCache()
       res.json(serializeHechsher(h))
     } catch (e) { next(e) }
   },
@@ -75,7 +75,7 @@ export const hechsherController = {
       const result = await hechsherimRepo.remove(req.params.id)
       if (result === 'not_found') { res.status(404).json({ error: 'Not found' }); return }
       if (result === 'conflict')  { res.status(409).json({ error: 'Cannot delete: hechsher has restaurants assigned. Reassign them first.' }); return }
-      void invalidateMapCache()
+      await invalidateMapCache()
       res.status(204).send()
     } catch (e) { next(e) }
   },

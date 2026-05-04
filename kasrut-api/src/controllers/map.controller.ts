@@ -22,6 +22,7 @@ const OSRM_BASE_URL = (process.env.OSRM_BASE_URL ?? 'https://router.project-osrm
 const ROUTE_TIMEOUT_MS = 8_000
 
 const invalidateMapCache = () => Promise.all([
+  invalidatePattern('restaurants:*'),
   invalidatePattern('map:restaurants:*'),
   invalidatePattern('map:options'),
   invalidatePattern('map:hechsherim'),
@@ -336,7 +337,7 @@ export const mapController = {
         res.status(404).json({ error: 'Suggestion not found or already reviewed' })
         return
       }
-      if (status === 'approved') void invalidateMapCache()
+      if (status === 'approved') await invalidateMapCache()
       res.json(serializeMapSuggestionFull(result))
     } catch (e) {
       if (e instanceof Error && e.message.startsWith('Cannot approve suggestion')) {
