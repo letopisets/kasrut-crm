@@ -30,44 +30,18 @@ function isThisWeek(date: string): boolean {
   return d >= start && d < end
 }
 
-export default function Dashboard() {
-  const navigate    = useNavigate()
-  const t           = useLang()
-  const perm        = usePermissions()
-  const scopedRests = useRestaurants()
-  const scopedInsps = useInspections()
-  const allRests    = useRestaurantStore(s => s.restaurants)
-  const rabbanuts   = useRabbanutStore(s => s.rabbanuts)
-  const hechsherim  = useHechsherStore(s => s.hechsherim)
-
-  const activeCount   = scopedRests.filter(r => r.status === 'ok').length
-  const warningCount  = scopedRests.filter(r => r.status === 'warning').length
-  const criticalCount = scopedRests.filter(r => r.status === 'critical').length
-  const weekInsps     = scopedInsps.filter(i => isThisWeek(i.date)).length
-
-  const stats = [
-    { icon: '✓',  value: activeCount,   color: STATUS_COLORS.ok,       label: t.stats[0], sub: t.statsSub[0], to: '/restaurants?status=ok' },
-    { icon: '⏳', value: warningCount,  color: STATUS_COLORS.warning,  label: t.stats[1], sub: t.statsSub[1], to: '/restaurants?status=warning' },
-    { icon: '!',  value: criticalCount, color: STATUS_COLORS.critical, label: t.status.critical, sub: t.restaurants.filters[3], to: '/restaurants?status=critical' },
-    { icon: '🔍', value: weekInsps,     color: ROLE_COLORS.rabbanut,   label: t.stats[2], sub: t.inspections.sub, to: '/inspections?range=week' },
-  ]
-
-  const activeRabbanuts = rabbanuts.filter(rb => rb.active).length
-  const rabbanutsWithIssues = rabbanuts.filter(rb =>
-    allRests.some(r => r.rabbanutId === rb.id && r.status !== 'ok')
-  ).length
-
-  const OverviewCard = ({ icon, title, value, sub, color, to, children }: {
-    icon: ReactNode
-    title: string
-    value: string
-    sub: string
-    color: string
-    to: string
-    children?: ReactNode
-  }) => (
+function OverviewCard({ icon, title, value, sub, color, children, onClick }: {
+  icon: ReactNode
+  title: string
+  value: string
+  sub: string
+  color: string
+  children?: ReactNode
+  onClick: () => void
+}) {
+  return (
     <ButtonBase
-      onClick={() => navigate(to)}
+      onClick={onClick}
       sx={{
         width: '100%',
         height: '100%',
@@ -101,6 +75,34 @@ export default function Dashboard() {
       </Box>
     </ButtonBase>
   )
+}
+
+export default function Dashboard() {
+  const navigate    = useNavigate()
+  const t           = useLang()
+  const perm        = usePermissions()
+  const scopedRests = useRestaurants()
+  const scopedInsps = useInspections()
+  const allRests    = useRestaurantStore(s => s.restaurants)
+  const rabbanuts   = useRabbanutStore(s => s.rabbanuts)
+  const hechsherim  = useHechsherStore(s => s.hechsherim)
+
+  const activeCount   = scopedRests.filter(r => r.status === 'ok').length
+  const warningCount  = scopedRests.filter(r => r.status === 'warning').length
+  const criticalCount = scopedRests.filter(r => r.status === 'critical').length
+  const weekInsps     = scopedInsps.filter(i => isThisWeek(i.date)).length
+
+  const stats = [
+    { icon: '✓',  value: activeCount,   color: STATUS_COLORS.ok,       label: t.stats[0], sub: t.statsSub[0], to: '/restaurants?status=ok' },
+    { icon: '⏳', value: warningCount,  color: STATUS_COLORS.warning,  label: t.stats[1], sub: t.statsSub[1], to: '/restaurants?status=warning' },
+    { icon: '!',  value: criticalCount, color: STATUS_COLORS.critical, label: t.status.critical, sub: t.restaurants.filters[3], to: '/restaurants?status=critical' },
+    { icon: '🔍', value: weekInsps,     color: ROLE_COLORS.rabbanut,   label: t.stats[2], sub: t.inspections.sub, to: '/inspections?range=week' },
+  ]
+
+  const activeRabbanuts = rabbanuts.filter(rb => rb.active).length
+  const rabbanutsWithIssues = rabbanuts.filter(rb =>
+    allRests.some(r => r.rabbanutId === rb.id && r.status !== 'ok')
+  ).length
 
   return (
     <Box>
@@ -120,7 +122,7 @@ export default function Dashboard() {
               value={`${activeRabbanuts}/${rabbanuts.length}`}
               sub={`${allRests.length} ${t.rabbanuts.restaurants ?? 'est.'}`}
               color={ROLE_COLORS.owner}
-              to="/rabbanuts"
+              onClick={() => navigate('/rabbanuts')}
             >
               <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
                 <Badge label={t.rabbanuts.active} color={STATUS_COLORS.ok} small />
@@ -135,7 +137,7 @@ export default function Dashboard() {
               value={String(hechsherim.length)}
               sub={t.hechsherim.sub}
               color={ROLE_COLORS.rabbanut}
-              to="/hechsherim"
+              onClick={() => navigate('/hechsherim')}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
@@ -145,7 +147,7 @@ export default function Dashboard() {
               value="24h"
               sub={t.logs?.sub ?? 'Service health'}
               color={STATUS_COLORS.critical}
-              to="/logs"
+              onClick={() => navigate('/logs')}
             />
           </Grid>
         </Grid>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useLangStore } from '@/store/useLangStore'
@@ -42,10 +42,10 @@ export function Header() {
   const perm   = usePermissions()
   const rc     = ROLE_COLORS[role]
 
-  const [drawerOpen,   setDrawerOpen]   = useState(false)
+  const [drawerPath,   setDrawerPath]   = useState<string | null>(null)
   const [show2faPanel, setShow2faPanel] = useState(false)
 
-  useEffect(() => { setDrawerOpen(false) }, [pathname])
+  const drawerOpen = drawerPath === pathname
 
   const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
   const navLabels = t.nav as Record<string, string>
@@ -176,7 +176,7 @@ export function Header() {
             {/* Hamburger — mobile only */}
             <IconButton
               sx={{ display: { xs: 'flex', md: 'none' }, color: '#9A9AB0' }}
-              onClick={() => setDrawerOpen(v => !v)}
+              onClick={() => setDrawerPath(current => current === pathname ? null : pathname)}
               aria-label="Menu"
             >
               {drawerOpen ? <CloseIcon /> : <MenuIcon />}
@@ -206,7 +206,7 @@ export function Header() {
       <Drawer
         anchor="top"
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => setDrawerPath(null)}
         sx={{
           display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': {
@@ -226,7 +226,7 @@ export function Header() {
             return (
               <ListItemButton
                 key={id}
-                onClick={() => { navigate(`/${id}`); setDrawerOpen(false) }}
+                onClick={() => { navigate(`/${id}`); setDrawerPath(null) }}
                 sx={{
                   borderInlineStart: `3px solid ${active ? rc : 'transparent'}`,
                   background: active ? alpha(rc, 0.06) : 'transparent',
