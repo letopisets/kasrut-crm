@@ -63,6 +63,14 @@ export interface MapTranslations {
   hechsherPlaceholder: string
   newHechsherHint: string
   kashrutStatusField: string
+  foodTypeField: string
+  foodTypeAny: string
+  imageField: string
+  imageHint: string
+  imageAdd: string
+  imageRemove: string
+  imageProcessing: string
+  imageError: string
   notesField: string
   notesPlaceholder: string
   closeBtn: string

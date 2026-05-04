@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma'
-import type { Restaurant, CertStatus } from '../models/types'
-import type { Restaurant as PrismaRestaurant } from '../generated/prisma/client'
+import type { Restaurant, CertStatus, FoodType } from '../models/types'
+import type { Restaurant as PrismaRestaurant, FoodType as PrismaFoodType } from '../generated/prisma/client'
 
 function calcStatus(expires: Date): CertStatus {
   const days = Math.floor((expires.getTime() - Date.now()) / 86_400_000)
@@ -19,6 +19,7 @@ function toRestaurant(r: PrismaRestaurant): Restaurant {
     hechsherId:     r.hechsherId,
     mashgiachId:    r.mashgiachId ?? undefined,
     kitniyot:       r.kitniyot,
+    foodType:       r.foodType as FoodType,
     expires:        r.expires.toISOString().slice(0, 10),
     status:         r.status as CertStatus,
     rabbanutId:     r.rabbanutId,
@@ -89,6 +90,7 @@ export const restaurantsRepo = {
         hechsherId:     input.hechsherId,
         mashgiachId:    input.mashgiachId ?? null,
         kitniyot:       input.kitniyot,
+        ...(input.foodType ? { foodType: input.foodType as PrismaFoodType } : {}),
         expires,
         status:         calcStatus(expires),
         rabbanutId:     input.rabbanutId,
@@ -101,11 +103,12 @@ export const restaurantsRepo = {
 
   async update(id: string, patch: Partial<Omit<Restaurant, 'id'>>): Promise<Restaurant | null> {
     try {
-      const { expires, lastInspection, ...rest } = patch
+      const { expires, lastInspection, foodType, ...rest } = patch
       const r = await prisma.restaurant.update({
         where: { id },
         data: {
           ...rest,
+          ...(foodType       ? { foodType: foodType as PrismaFoodType } : {}),
           ...(expires        ? { expires: new Date(expires), status: calcStatus(new Date(expires)) } : {}),
           ...(lastInspection ? { lastInspection: new Date(lastInspection) } : {}),
         },

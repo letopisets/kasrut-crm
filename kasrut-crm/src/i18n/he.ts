@@ -168,6 +168,8 @@ const he: Translations = {
     proposedCity:           'עיר',
     proposedHechsher:       'הכשר',
     proposedStatus:         'סטטוס כשרות',
+    proposedFoodType:       'סוג מטבח',
+    proposedImage:          'תמונה',
     notes:                  'הערת משתמש',
     user:                   'הוגש על ידי',
     restaurant:             'עסק',

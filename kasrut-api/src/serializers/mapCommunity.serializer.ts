@@ -20,6 +20,8 @@ type SuggestionBase = {
   proposedCity: string | null
   proposedHechsher: string | null
   proposedKashrutStatus: string | null
+  proposedFoodType: string | null
+  proposedImageUrl: string | null
   proposedLat: number | null
   proposedLng: number | null
   notes: string | null
@@ -36,6 +38,8 @@ export const serializeMapSuggestion = (s: SuggestionBase) => ({
   proposedCity: s.proposedCity,
   proposedHechsher: s.proposedHechsher,
   proposedKashrutStatus: s.proposedKashrutStatus,
+  proposedFoodType: s.proposedFoodType,
+  proposedImageUrl: s.proposedImageUrl,
   proposedLat: s.proposedLat,
   proposedLng: s.proposedLng,
   notes: s.notes,

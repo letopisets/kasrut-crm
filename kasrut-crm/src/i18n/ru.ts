@@ -168,6 +168,8 @@ const ru: Translations = {
     proposedCity:           'Город',
     proposedHechsher:       'Гекшер',
     proposedStatus:         'Статус кашрута',
+    proposedFoodType:       'Тип кухни',
+    proposedImage:          'Фотография',
     notes:                  'Комментарий пользователя',
     user:                   'Автор',
     restaurant:             'Заведение',

@@ -17,9 +17,12 @@ export function createApp() {
   app.use(helmet())
   app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }))
 
-  // Body parsing with explicit size limits
-  app.use(express.json({ limit: '512kb' }))
-  app.use(express.urlencoded({ extended: false, limit: '512kb' }))
+  // Body parsing with explicit size limits.
+  // 2 MB headroom is needed for community suggestions that include a base64
+  // attachment image (we cap such payloads in the schema, but the parser must
+  // accept them before validation runs).
+  app.use(express.json({ limit: '2mb' }))
+  app.use(express.urlencoded({ extended: false, limit: '2mb' }))
 
   // Structured request logging — pino-http (silent in tests via logger config)
   app.use(pinoHttp({

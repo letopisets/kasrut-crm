@@ -1,3 +1,5 @@
+import type { FoodType } from './restaurant'
+
 export type SuggestionStatus = 'pending' | 'approved' | 'rejected'
 export type SuggestionType   = 'add' | 'update'
 
@@ -11,6 +13,8 @@ export interface MapSuggestion {
   proposedCity: string | null
   proposedHechsher: string | null
   proposedKashrutStatus: string | null
+  proposedFoodType: FoodType | null
+  proposedImageUrl: string | null
   proposedLat: number | null
   proposedLng: number | null
   notes: string | null

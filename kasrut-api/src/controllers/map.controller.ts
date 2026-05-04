@@ -94,6 +94,10 @@ function parseCsv<T extends string>(value: string | undefined): T[] | undefined 
   return parts.length ? [...new Set(parts)].sort() : undefined
 }
 
+// Capped well below the 2 MB body limit so any other request fields still fit.
+const MAX_SUGGESTION_IMAGE_BYTES = 1_400_000
+const SUGGESTION_IMAGE_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/
+
 const suggestionSchema = z.object({
   type: z.enum(['add', 'update']),
   restaurantId: z.string().optional().nullable(),
@@ -102,6 +106,12 @@ const suggestionSchema = z.object({
   proposedCity: z.string().trim().min(1).max(120).optional().nullable(),
   proposedHechsher: z.string().trim().min(1).max(180).optional().nullable(),
   proposedKashrutStatus: z.string().trim().min(1).max(120).optional().nullable(),
+  proposedFoodType: z.enum(['meat', 'dairy', 'pareve', 'takeaway']).optional().nullable(),
+  proposedImageUrl: z.string()
+    .max(MAX_SUGGESTION_IMAGE_BYTES, 'Image is too large')
+    .regex(SUGGESTION_IMAGE_PATTERN, 'Image must be a JPEG, PNG or WebP data URL')
+    .optional()
+    .nullable(),
   proposedLat: z.number().finite().optional().nullable(),
   proposedLng: z.number().finite().optional().nullable(),
   notes: z.string().trim().max(1200).optional().nullable(),
@@ -123,6 +133,8 @@ const suggestionSchema = z.object({
     value.proposedCity ||
     value.proposedHechsher ||
     value.proposedKashrutStatus ||
+    value.proposedFoodType ||
+    value.proposedImageUrl ||
     value.notes,
   )
   if (!hasChange) {

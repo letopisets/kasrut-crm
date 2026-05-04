@@ -7,6 +7,7 @@ export type {
   InspectionType,
   DocumentCategory,
   DocExt,
+  FoodType,
   MapAuthProvider,
   MapSuggestionType,
   MapSuggestionStatus,
@@ -23,6 +24,7 @@ import type {
   InspectionType,
   DocumentCategory,
   DocExt,
+  FoodType,
 } from '../../../packages/shared/types'
 
 export interface User {
@@ -82,6 +84,7 @@ export interface Restaurant {
   hechsherId:      string
   mashgiachId?:    string
   kitniyot:        string
+  foodType?:       FoodType
   expires:         string
   status:          CertStatus
   rabbanutId:      string

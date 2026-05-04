@@ -168,6 +168,8 @@ const en: Translations = {
     proposedCity:           'City',
     proposedHechsher:       'Hechsher',
     proposedStatus:         'Kashrut status',
+    proposedFoodType:       'Cuisine type',
+    proposedImage:          'Photo',
     notes:                  'User comment',
     user:                   'Submitted by',
     restaurant:             'Venue',
