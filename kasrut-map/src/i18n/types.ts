@@ -68,9 +68,13 @@ export interface MapTranslations {
   imageField: string
   imageHint: string
   imageAdd: string
+  imageAddCamera: string
+  imageAddGallery: string
   imageRemove: string
   imageProcessing: string
   imageError: string
+  kashrutPhotoNotice: string
+  kashrutPhotoRequired: string
   notesField: string
   notesPlaceholder: string
   closeBtn: string

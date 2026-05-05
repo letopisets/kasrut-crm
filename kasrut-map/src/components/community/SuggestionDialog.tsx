@@ -36,7 +36,8 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
   const [error, setError] = useState<string | null>(null)
   const [isResolvingLocation, setIsResolvingLocation] = useState(false)
   const [submitSuggestion, submitState] = useSubmitSuggestionMutation()
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const galleryInputRef = useRef<HTMLInputElement | null>(null)
 
   const { data: hechsherim = [] } = useGetMapHechsherimQuery(undefined, { skip: !open })
   const hechsherNames = useMemo(() => hechsherim.map(h => h.name), [hechsherim])
@@ -63,7 +64,7 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
   const canSubmit = useMemo(() => {
     if (!isAuthenticated) return false
     if (imageBusy) return false
-    if (mode === 'add') return Boolean(name.trim() && address.trim() && city.trim())
+    if (mode === 'add') return Boolean(name.trim() && address.trim() && city.trim() && imageDataUrl)
     return Boolean(
       name.trim() || address.trim() || city.trim() ||
       hechsher.trim() || kashrutStatus.trim() || notes.trim() ||
@@ -89,6 +90,11 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
 
   const handleSubmit = async () => {
     if (!isAuthenticated) { onRequireAuth(); return }
+
+    if (mode === 'add' && !imageDataUrl) {
+      setError(t.kashrutPhotoRequired)
+      return
+    }
 
     setError(null)
     setIsResolvingLocation(mode === 'add')
@@ -235,11 +241,24 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
           />
 
           <Box>
-            <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
-              {t.imageField}
+            <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary' }}>
+              {mode === 'add' ? `${t.imageField} *` : t.imageField}
             </Typography>
+            {mode === 'add' && (
+              <Alert severity="info" sx={{ mb: 1 }}>
+                {t.kashrutPhotoNotice}
+              </Alert>
+            )}
             <input
-              ref={fileInputRef}
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={handleImageChange}
+            />
+            <input
+              ref={galleryInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
               hidden
@@ -267,15 +286,26 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
                 </IconButton>
               </Box>
             ) : (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={imageBusy}
-                sx={{ borderRadius: 1, textTransform: 'none' }}
-              >
-                {imageBusy ? t.imageProcessing : t.imageAdd}
-              </Button>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={imageBusy}
+                  sx={{ borderRadius: 1, textTransform: 'none' }}
+                >
+                  {imageBusy ? t.imageProcessing : t.imageAddCamera}
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => galleryInputRef.current?.click()}
+                  disabled={imageBusy}
+                  sx={{ borderRadius: 1, textTransform: 'none' }}
+                >
+                  {imageBusy ? t.imageProcessing : t.imageAddGallery}
+                </Button>
+              </Stack>
             )}
             <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
               {t.imageHint}

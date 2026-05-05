@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="KashrutMap">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f6c14a"/>
+      <stop offset="100%" stop-color="#e8a507"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <g transform="translate(256 256)">
+    <circle r="170" fill="#ffffff" opacity="0.12"/>
+    <g stroke="#ffffff" stroke-width="60" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M-104 -104 L120 -104 Q168 -104 168 -56 L168 56 Q168 104 120 104 L-104 104"/>
+    </g>
+    <g stroke="#7a4f00" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.25">
+      <path d="M-104 -104 L120 -104 Q168 -104 168 -56 L168 56 Q168 104 120 104 L-104 104"/>
+    </g>
+  </g>
+</svg>
