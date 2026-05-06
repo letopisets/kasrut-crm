@@ -75,7 +75,7 @@ export const twoFactorController = {
       const hashedCodes = hashBackupCodes(plainCodes)
       await usersRepo.setBackupCodes(req.user.sub, hashedCodes)
       const updated = await usersRepo.enableTwoFactor(req.user.sub)
-      console.info(`[audit] 2fa_enabled userId=${req.user.sub}`)
+      res.locals.serviceLogMessage = '2FA enabled'
       // Return plain codes once — user must store them safely
       res.json({ user: serializeUser(updated!), backupCodes: plainCodes })
     } catch (e) { next(e) }
@@ -98,7 +98,7 @@ export const twoFactorController = {
       }
 
       const updated = await usersRepo.disableTwoFactor(req.user.sub)
-      console.info(`[audit] 2fa_disabled userId=${req.user.sub}`)
+      res.locals.serviceLogMessage = '2FA disabled'
       res.json({ user: serializeUser(updated!) })
     } catch (e) { next(e) }
   },
@@ -133,8 +133,13 @@ export const twoFactorController = {
       const remaining = user.twoFactorBackupCodes.filter((_, i) => i !== matchIndex)
       await usersRepo.consumeBackupCode(user.id, remaining)
 
-      const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
-      console.info(`[audit] login_backup_code userId=${user.id} remaining=${remaining.length} ip=${ip}`)
+      res.locals.serviceLogActor = {
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        actorType: 'crm_user',
+      }
+      res.locals.serviceLogMessage = `CRM backup-code login succeeded; remaining=${remaining.length}`
       const token = signFullToken(user)
       res.json({ user: serializeUser(user), token, backupCodesRemaining: remaining.length })
     } catch (e) { next(e) }
@@ -163,8 +168,13 @@ export const twoFactorController = {
         res.status(400).json({ error: 'Invalid code' }); return
       }
 
-      const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
-      console.info(`[audit] login_success_2fa userId=${user.id} ip=${ip}`)
+      res.locals.serviceLogActor = {
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        actorType: 'crm_user',
+      }
+      res.locals.serviceLogMessage = 'CRM 2FA login succeeded'
       const token = signFullToken(user)
       res.json({ user: serializeUser(user), token })
     } catch (e) { next(e) }

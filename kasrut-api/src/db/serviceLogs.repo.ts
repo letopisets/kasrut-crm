@@ -119,7 +119,10 @@ export const serviceLogsRepo = {
       SELECT
         COUNT(*) FILTER (WHERE "level" = 'error') AS "errors24h",
         COUNT(*) FILTER (WHERE "level" = 'warn') AS "warnings24h",
-        COUNT(*) FILTER (WHERE "path" LIKE '%/auth/%' AND COALESCE("statusCode", 0) >= 400) AS "authIssues",
+        COUNT(*) FILTER (
+          WHERE ("path" LIKE '%/auth/%' OR "path" LIKE '%/map-auth/%')
+            AND COALESCE("statusCode", 0) >= 400
+        ) AS "authIssues",
         COUNT(*) FILTER (WHERE COALESCE("statusCode", 0) >= 500) AS "api5xx"
       FROM "service_logs"
       WHERE "createdAt" >= NOW() - INTERVAL '24 hours'

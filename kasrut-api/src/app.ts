@@ -24,13 +24,13 @@ export function createApp() {
   app.use(express.json({ limit: '2mb' }))
   app.use(express.urlencoded({ extended: false, limit: '2mb' }))
 
-  // Structured request logging — pino-http (silent in tests via logger config)
+  // Structured console logging for warnings/errors. Platform audit events are stored by serviceLogger.
   app.use(pinoHttp({
     logger,
     customLogLevel: (_req, res, err) => {
       if (err || res.statusCode >= 500) return 'error'
       if (res.statusCode >= 400) return 'warn'
-      return 'info'
+      return 'silent'
     },
     autoLogging: { ignore: req => req.url === '/health' || req.url?.startsWith('/api/docs') === true },
     serializers: {

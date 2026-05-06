@@ -145,6 +145,22 @@ const he: MapTranslations = {
   signInWithGoogle: 'כניסה עם Google',
   googleSignInError: 'לא ניתן לטעון Google Sign-In.',
   appleSignInError: 'לא ניתן להיכנס עם Apple.',
+
+  donate: 'תרומה',
+  donateTitle: 'תמיכה בפרויקט',
+  donateIntro: 'תודה שאתם רוצים לתמוך בפרויקט. בחרו דרך נוחה להעברה.',
+  donateUkraineInternational: 'אוקראינה — העברות מחו"ל',
+  donateUkraineDomestic: 'אוקראינה — העברה בתוך המדינה (כרטיס)',
+  donateIsraelBit: 'ישראל — ביט',
+  donateIban: 'IBAN',
+  donateBic: 'BIC',
+  donateReceiver: 'מוטב',
+  donateCardNumber: 'מספר כרטיס',
+  donateBitPhone: 'מספר טלפון',
+  donateCopy: 'העתק',
+  donateCopied: 'הועתק',
+  donateBack: 'חזרה למפה',
+  donateThanks: 'תודה על התמיכה!',
 }
 
 export default he

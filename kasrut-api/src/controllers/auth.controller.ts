@@ -19,27 +19,43 @@ function signFullToken(user: User) {
   return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN } as object)
 }
 
+function setServiceLogActor(res: Response, user: Pick<User, 'id' | 'email' | 'role'>): void {
+  res.locals.serviceLogActor = {
+    userId: user.id,
+    userEmail: user.email,
+    userRole: user.role,
+    actorType: 'crm_user',
+  }
+}
+
 export const authController = {
   async login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { email, password } = validate(loginSchema, req.body)
-      const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
+      res.locals.serviceLogActor = {
+        userEmail: email.toLowerCase(),
+        userRole: 'auth_attempt',
+        actorType: 'auth_attempt',
+      }
       const user = await usersRepo.findByEmail(email)
 
       if (!user || !usersRepo.verifyPassword(user, password)) {
-        console.info(`[audit] login_failed email=${email} ip=${ip}`)
+        res.locals.serviceLogMessage = 'CRM login failed'
         res.status(401).json({ error: 'Invalid credentials' }); return
       }
+
+      setServiceLogActor(res, user)
 
       // If 2FA is enabled — issue short-lived temp token, ask for TOTP code
       if (user.twoFactorEnabled) {
         const tempToken = jwt.sign({ sub: user.id, jti: randomUUID() }, env.JWT_SECRET, { expiresIn: '5m' })
+        res.locals.serviceLogMessage = 'CRM login requires 2FA'
         res.json({ requiresTwoFactor: true, tempToken })
         return
       }
 
       const token = signFullToken(user)
-      console.info(`[audit] login_success userId=${user.id} ip=${ip}`)
+      res.locals.serviceLogMessage = 'CRM login succeeded'
       res.json({ user: serializeUser(user), token })
 
     } catch (e) { next(e) }
@@ -58,8 +74,8 @@ export const authController = {
     if (req.user?.jti) {
       const remainingTtl = Math.floor((req.user.exp - Date.now() / 1000))
       await blacklistToken(req.user.jti, remainingTtl)
-      console.info(`[audit] logout userId=${req.user.sub} jti=${req.user.jti}`)
     }
+    res.locals.serviceLogMessage = 'CRM logout succeeded'
     res.status(204).send()
   },
 }

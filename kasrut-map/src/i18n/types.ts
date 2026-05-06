@@ -138,4 +138,20 @@ export interface MapTranslations {
   signInWithGoogle: string
   googleSignInError: string
   appleSignInError: string
+
+  donate: string
+  donateTitle: string
+  donateIntro: string
+  donateUkraineInternational: string
+  donateUkraineDomestic: string
+  donateIsraelBit: string
+  donateIban: string
+  donateBic: string
+  donateReceiver: string
+  donateCardNumber: string
+  donateBitPhone: string
+  donateCopy: string
+  donateCopied: string
+  donateBack: string
+  donateThanks: string
 }
