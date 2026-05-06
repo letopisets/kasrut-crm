@@ -145,6 +145,22 @@ const ru: MapTranslations = {
   signInWithGoogle: 'Войти через Google',
   googleSignInError: 'Не удалось загрузить Google Sign-In.',
   appleSignInError: 'Не удалось войти через Apple.',
+
+  donate: 'Пожертвование',
+  donateTitle: 'Поддержать проект',
+  donateIntro: 'Спасибо, что хотите поддержать проект. Выберите удобный способ перевода.',
+  donateUkraineInternational: 'Украина — переводы из-за границы',
+  donateUkraineDomestic: 'Украина — перевод внутри страны (карта)',
+  donateIsraelBit: 'Израиль — Bit',
+  donateIban: 'IBAN',
+  donateBic: 'BIC',
+  donateReceiver: 'Получатель',
+  donateCardNumber: 'Номер карты',
+  donateBitPhone: 'Номер телефона',
+  donateCopy: 'Скопировать',
+  donateCopied: 'Скопировано',
+  donateBack: 'Вернуться на карту',
+  donateThanks: 'Спасибо за поддержку!',
 }
 
 export default ru

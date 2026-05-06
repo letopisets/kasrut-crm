@@ -63,6 +63,15 @@ function signMapToken(user: { id: string; name: string; email: string }): string
   )
 }
 
+function setMapServiceLogActor(res: Response, user: { id: string; email: string }): void {
+  res.locals.serviceLogActor = {
+    userId: user.id,
+    userEmail: user.email,
+    userRole: 'map_user',
+    actorType: 'map_user',
+  }
+}
+
 function genericResetResponse(devResetToken?: string) {
   return {
     ok: true,
@@ -87,6 +96,7 @@ export const mapAuthController = {
       const email = normalizeEmail(parsed.data.email)
       const phone = normalizePhone(parsed.data.phone)
       const passwordHash = await hashPassword(parsed.data.password)
+      res.locals.serviceLogActor = { userEmail: email, userRole: 'auth_attempt', actorType: 'auth_attempt' }
 
       try {
         const user = await mapCommunityRepo.createPasswordUser({
@@ -96,8 +106,11 @@ export const mapAuthController = {
           phone,
           passwordHash,
         })
+        setMapServiceLogActor(res, user)
+        res.locals.serviceLogMessage = 'Map user registered'
         res.status(201).json({ user: serializeMapUser(user), token: signMapToken(user) })
       } catch {
+        res.locals.serviceLogMessage = 'Map registration failed: duplicate email or phone'
         res.status(409).json({ error: 'User with this email or phone already exists' })
       }
     } catch (e) { next(e) }
@@ -111,18 +124,24 @@ export const mapAuthController = {
         return
       }
 
-      const user = await mapCommunityRepo.findAuthUserByEmail(normalizeEmail(parsed.data.email))
+      const email = normalizeEmail(parsed.data.email)
+      res.locals.serviceLogActor = { userEmail: email, userRole: 'auth_attempt', actorType: 'auth_attempt' }
+      const user = await mapCommunityRepo.findAuthUserByEmail(email)
       if (!user?.passwordHash) {
+        res.locals.serviceLogMessage = 'Map login failed'
         res.status(401).json({ error: 'Invalid email or password' })
         return
       }
 
       const passwordOk = await verifyPassword(parsed.data.password, user.passwordHash)
       if (!passwordOk) {
+        res.locals.serviceLogMessage = 'Map login failed'
         res.status(401).json({ error: 'Invalid email or password' })
         return
       }
 
+      setMapServiceLogActor(res, user)
+      res.locals.serviceLogMessage = 'Map login succeeded'
       res.json({ user: serializeMapUser(user), token: signMapToken(user) })
     } catch (e) { next(e) }
   },
@@ -138,13 +157,17 @@ export const mapAuthController = {
       try {
         const profile = await verifyOAuthIdToken(parsed.data.provider, parsed.data.idToken)
         const user = await mapCommunityRepo.upsertUserFromIdentity(profile)
+        setMapServiceLogActor(res, user)
+        res.locals.serviceLogMessage = 'Map OAuth login succeeded'
         res.json({ user: serializeMapUser(user), token: signMapToken(user) })
       } catch (e) {
         if (e instanceof OAuthConfigError) {
+          res.locals.serviceLogMessage = 'Map OAuth configuration error'
           res.status(400).json({ error: e.message })
           return
         }
         if (e instanceof OAuthTokenError) {
+          res.locals.serviceLogMessage = 'Map OAuth token rejected'
           res.status(401).json({ error: 'Invalid OAuth token' })
           return
         }
@@ -180,9 +203,13 @@ export const mapAuthController = {
       const identifier = channel === 'email'
         ? normalizeEmail(parsed.data.identifier)
         : normalizePhone(parsed.data.identifier)
+      if (channel === 'email') {
+        res.locals.serviceLogActor = { userEmail: identifier, userRole: 'auth_attempt', actorType: 'auth_attempt' }
+      }
       const user = await mapCommunityRepo.findUserByResetIdentifier(channel, identifier)
 
       if (!user) {
+        res.locals.serviceLogMessage = 'Map password reset requested'
         res.json(genericResetResponse())
         return
       }
@@ -195,6 +222,8 @@ export const mapAuthController = {
         expiresAt: getPasswordResetExpiry(),
       })
 
+      setMapServiceLogActor(res, user)
+      res.locals.serviceLogMessage = 'Map password reset requested'
       res.json(genericResetResponse(token))
     } catch (e) { next(e) }
   },
@@ -209,6 +238,7 @@ export const mapAuthController = {
 
       const reset = await mapCommunityRepo.findValidPasswordResetToken(hashPasswordResetToken(parsed.data.token))
       if (!reset) {
+        res.locals.serviceLogMessage = 'Map password reset failed'
         res.status(400).json({ error: 'Invalid or expired reset token' })
         return
       }
@@ -217,6 +247,8 @@ export const mapAuthController = {
       await mapCommunityRepo.setPassword(reset.mapUserId, passwordHash)
       await mapCommunityRepo.markPasswordResetTokenUsed(reset.id)
 
+      setMapServiceLogActor(res, reset.mapUser)
+      res.locals.serviceLogMessage = 'Map password reset completed'
       res.json({ user: serializeMapUser(reset.mapUser), token: signMapToken(reset.mapUser) })
     } catch (e) { next(e) }
   },

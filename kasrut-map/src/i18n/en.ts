@@ -145,6 +145,22 @@ const en: MapTranslations = {
   signInWithGoogle: 'Sign in with Google',
   googleSignInError: 'Failed to load Google Sign-In.',
   appleSignInError: 'Failed to sign in with Apple.',
+
+  donate: 'Donate',
+  donateTitle: 'Support the project',
+  donateIntro: 'Thank you for considering supporting the project. Choose a convenient transfer method below.',
+  donateUkraineInternational: 'Ukraine — international transfers',
+  donateUkraineDomestic: 'Ukraine — domestic transfer (card)',
+  donateIsraelBit: 'Israel — Bit',
+  donateIban: 'IBAN',
+  donateBic: 'BIC',
+  donateReceiver: 'Receiver',
+  donateCardNumber: 'Card number',
+  donateBitPhone: 'Phone number',
+  donateCopy: 'Copy',
+  donateCopied: 'Copied',
+  donateBack: 'Back to map',
+  donateThanks: 'Thank you for your support!',
 }
 
 export default en

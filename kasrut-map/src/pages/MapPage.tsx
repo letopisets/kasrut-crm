@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box, AppBar, Toolbar, Typography,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
@@ -16,6 +17,7 @@ import PersonIcon      from '@mui/icons-material/Person'
 import LogoutIcon      from '@mui/icons-material/Logout'
 import DarkModeIcon    from '@mui/icons-material/DarkMode'
 import LightModeIcon   from '@mui/icons-material/LightMode'
+import VolunteerActivismIcon from '@mui/icons-material/VolunteerActivism'
 
 import { LegalNotice }            from '@/components/community/LegalNotice'
 import { useMapController }      from '@/controllers/useMapController'
@@ -91,6 +93,7 @@ function getViewportCenter(viewport: MapViewport | null): [number, number] | nul
 }
 
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
+  const navigate = useNavigate()
   const ipCenter = useIpCenter()
   const ctrl = useMapController({ fallbackPosition: ipCenter })
   const dispatch = useAppDispatch()
@@ -193,6 +196,12 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           <Tooltip title={t.suggestBusiness}>
             <IconButton onClick={openAddSuggestion} sx={{ color: 'text.secondary' }}>
               <AddBusinessIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title={t.donate}>
+            <IconButton onClick={() => navigate('/donate')} sx={{ color: 'text.secondary' }}>
+              <VolunteerActivismIcon />
             </IconButton>
           </Tooltip>
 
