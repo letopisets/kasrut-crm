@@ -89,7 +89,13 @@ function haversine([lat1, lng1]: [number, number], [lat2, lng2]: [number, number
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-export function useMapController() {
+interface UseMapControllerOptions {
+  /** Used as fallback query position when GPS is unavailable, so the count
+   *  badge appears even before (or without) a GPS fix. */
+  fallbackPosition?: [number, number] | null
+}
+
+export function useMapController({ fallbackPosition = null }: UseMapControllerOptions = {}) {
   const [view,          setView]          = useState<'map' | 'list'>('map')
   const [filters,       setFilters]       = useState<MapFilters>(DEFAULT_FILTERS)
   const [filterOpen,    setFilterOpen]    = useState(false)
@@ -105,13 +111,20 @@ export function useMapController() {
   const router = useRoute()
   const lang   = useAppSelector(s => s.mapLang.lang)
   const didAutoPan = useRef(false)
-  const queryUserPositionKey = positionKey(geo.position)
+
+  // Effective position used for radius queries and distance display. Prefers
+  // GPS but falls back to the caller-provided position (e.g. IP-based) so the
+  // list still populates when GPS is denied or still resolving.
+  const effectivePosition = geo.position ?? fallbackPosition
+  const queryUserPositionKey = positionKey(effectivePosition)
   const queryUserPosition = useMemo(
     () => positionFromKey(queryUserPositionKey),
     [queryUserPositionKey],
   )
-  const debouncedQueryUserPosition = useDebouncedValue(queryUserPosition, 1_000)
-  const debouncedViewport = useDebouncedValue(viewport, 450)
+  // GPS itself already filters jitter via MIN_POSITION_UPDATE_METERS, so a
+  // short debounce is enough to coalesce burst updates without making the
+  // user wait a full second for the count badge after the first fix.
+  const debouncedQueryUserPosition = useDebouncedValue(queryUserPosition, 300)
 
   const setStableViewport = useCallback((nextViewport: MapViewport) => {
     const normalized = normalizeViewport(nextViewport)
@@ -126,13 +139,16 @@ export function useMapController() {
     }
   }, [geo.position])
 
+  // Always query restaurants within the user's coverage radius — independent
+  // of the current map viewport — so the list reflects the user's area, not
+  // whatever portion of the map is currently visible.
   const restaurantQuery = useMemo<MapRestaurantQuery>(() => ({
     ...filters,
-    viewport: debouncedViewport,
-    userPosition: debouncedViewport ? null : debouncedQueryUserPosition,
+    viewport: null,
+    userPosition: debouncedQueryUserPosition,
     limit: MAP_RESTAURANT_LIMIT,
-  }), [debouncedQueryUserPosition, debouncedViewport, filters])
-  const shouldSkipRestaurants = !debouncedViewport && !debouncedQueryUserPosition
+  }), [debouncedQueryUserPosition, filters])
+  const shouldSkipRestaurants = !debouncedQueryUserPosition
 
   const {
     data: restaurantPayload = EMPTY_RESTAURANTS_RESPONSE,
@@ -152,18 +168,19 @@ export function useMapController() {
       .sort((a, b) => a.localeCompare(b, lang))
   ), [options.cities, lang])
 
-  /** Attach distance from user, apply radius filter, sort nearest first */
+  /** Attach distance from the effective position (GPS or IP fallback),
+   *  apply radius filter, sort nearest first. */
   const restaurants = useMemo<MapRestaurant[]>(() => {
     const withDist = restaurantPayload.restaurants.map(r => ({
       ...r,
-      distance: geo.position ? haversine(geo.position, [r.lat, r.lng]) : undefined,
+      distance: effectivePosition ? haversine(effectivePosition, [r.lat, r.lng]) : undefined,
     }))
-    const filtered = (filters.radius && geo.position)
+    const filtered = (filters.radius && effectivePosition)
       ? withDist.filter(r => r.distance !== undefined && r.distance <= filters.radius!)
       : withDist
-    if (!geo.position) return filtered
+    if (!effectivePosition) return filtered
     return [...filtered].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
-  }, [restaurantPayload.restaurants, geo.position, filters.radius])
+  }, [restaurantPayload.restaurants, effectivePosition, filters.radius])
 
   const goToMyLocation  = () => { geo.refresh(); setPanToUser(true) }
   const startCorrection = () => { setCorrecting(true); setView('map') }

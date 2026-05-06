@@ -91,8 +91,8 @@ function getViewportCenter(viewport: MapViewport | null): [number, number] | nul
 }
 
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
-  const ctrl = useMapController()
   const ipCenter = useIpCenter()
+  const ctrl = useMapController({ fallbackPosition: ipCenter })
   const dispatch = useAppDispatch()
   const t = useMapLang()
   const user = useAppSelector(state => state.mapAuth.user)
@@ -139,7 +139,15 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     return () => window.clearTimeout(timer)
   }, [ctrl.isFetching])
 
-  const mapRestaurants = ctrl.view === 'map' ? ctrl.restaurants : []
+  // Markers only appear once the map is zoomed in enough — the list (opened
+  // via the count badge) is the primary entry point at the default/overview
+  // zoom, and markers reveal themselves when the user zooms in to inspect a
+  // specific area.
+  const MARKER_VISIBILITY_ZOOM = 14
+  const mapRestaurants: MapRestaurant[] =
+    ctrl.viewport && ctrl.viewport.zoom >= MARKER_VISIBILITY_ZOOM
+      ? ctrl.restaurants
+      : []
   const suggestionDefaultPosition = getViewportCenter(ctrl.viewport) ?? ctrl.geo.position ?? ipCenter
   const restaurantCountLabel = ctrl.restaurantResultLimited
     ? t.establishmentCountLimited
@@ -352,7 +360,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             </Tooltip>
           </Box>
 
-          {ctrl.geo.position && ctrl.restaurants.length > 0 && !ctrl.correcting && (
+          {ctrl.restaurants.length > 0 && !ctrl.correcting && (
             <Box
               onClick={() => ctrl.setView('list')}
               sx={{
