@@ -1,6 +1,11 @@
 // Compatibility shim — same API as Zustand useAuthStore, backed by Redux
 import { useAppSelector, useAppDispatch } from './index'
-import { setUser as setUserAction, setRabbanutFilter as setRabbanutFilterAction, logout as logoutAction } from './authSlice'
+import {
+  clearPersistedAuth,
+  setUser as setUserAction,
+  setRabbanutFilter as setRabbanutFilterAction,
+  logout as logoutAction,
+} from './authSlice'
 import type { User, Role } from '@/types'
 
 export const DEMO_USERS: Record<Role, User> = {
@@ -27,18 +32,11 @@ export function useAuthStore<T>(selector: (state: AuthShimState) => T): T {
     ...authState,
     setUser:           (user, token) => dispatch(setUserAction({ user, token })),
     setRabbanutFilter: (id)          => dispatch(setRabbanutFilterAction(id)),
-    logout:            ()            => dispatch(logoutAction()),
+    logout:            ()            => {
+      dispatch(logoutAction())
+      clearPersistedAuth()
+    },
   }
-
-  // Persist auth state to localStorage on every change (replaces Zustand persist)
-  try {
-    localStorage.setItem('auth-storage', JSON.stringify({
-      user:           authState.user,
-      token:          authState.token,
-      role:           authState.role,
-      rabbanutFilter: authState.rabbanutFilter,
-    }))
-  } catch { /* ignore */ }
 
   return selector(state)
 }

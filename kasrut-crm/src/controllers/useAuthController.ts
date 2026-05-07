@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '@/store'
 import {
+  clearPersistedAuth,
   setUser,
   setTwoFactorPending,
   clearTwoFactorPending,
@@ -14,14 +15,6 @@ import {
   useDisable2faMutation,
 } from '@/store/api/authApi'
 import { PERMISSIONS } from '@/lib/permissions'
-
-function persistAuth(user: import('@/types').User, token: string) {
-  try {
-    localStorage.setItem('auth-storage', JSON.stringify({
-      user, token, role: user.role, rabbanutFilter: '',
-    }))
-  } catch { /* ignore */ }
-}
 
 export function useAuthController() {
   const dispatch  = useAppDispatch()
@@ -50,7 +43,6 @@ export function useAuthController() {
     }
     const full = result as { user: import('@/types').User; token: string }
     dispatch(setUser({ user: full.user, token: full.token }))
-    persistAuth(full.user, full.token)
     navigate('/dashboard', { replace: true })
   }
 
@@ -58,7 +50,6 @@ export function useAuthController() {
     if (!pendingTempToken) return
     const result = await verify2faMut({ tempToken: pendingTempToken, code }).unwrap()
     dispatch(setUser({ user: result.user, token: result.token }))
-    persistAuth(result.user, result.token)
     navigate('/dashboard', { replace: true })
   }
 
@@ -73,7 +64,6 @@ export function useAuthController() {
     // update user in store with twoFactorEnabled: true
     if (token) {
       dispatch(setUser({ user: result.user, token }))
-      persistAuth(result.user, token)
     }
     return result.user
   }
@@ -82,13 +72,13 @@ export function useAuthController() {
     const result = await disable2faMut({ code }).unwrap()
     if (token) {
       dispatch(setUser({ user: result.user, token }))
-      persistAuth(result.user, token)
     }
     return result.user
   }
 
   const logout = () => {
     dispatch(logoutAction())
+    clearPersistedAuth()
     navigate('/login', { replace: true })
   }
 
