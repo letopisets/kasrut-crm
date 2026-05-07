@@ -1,15 +1,27 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useLangStore } from '@/store/useLangStore'
+import { useGetMeQuery } from '@/store/api/authApi'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import Box from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
 
 export default function AppLayout() {
   const user = useAuthStore(s => s.user)
+  const token = useAuthStore(s => s.token)
   const lang = useLangStore(s => s.lang)
+  const { isLoading: isCheckingSession } = useGetMeQuery(undefined, { skip: !token })
 
-  if (!user) return <Navigate to="/login" replace />
+  if (!user || !token) return <Navigate to="/login" replace />
+
+  if (isCheckingSession) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
+        <CircularProgress size={28} />
+      </Box>
+    )
+  }
 
   return (
     <Box
