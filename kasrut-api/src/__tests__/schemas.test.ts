@@ -3,6 +3,7 @@ import {
   loginSchema,
   createRestaurantSchema,
   createInspectionSchema,
+  createRabbanutSchema,
 } from '../schemas'
 
 describe('paginationSchema', () => {
@@ -98,5 +99,30 @@ describe('createInspectionSchema', () => {
 
   it('rejects oversized notes', () => {
     expect(createInspectionSchema.safeParse({ ...valid, notes: 'x'.repeat(2001) }).success).toBe(false)
+  })
+})
+
+describe('createRabbanutSchema', () => {
+  const valid = {
+    name: 'Rabbanut Test',
+    city: 'Jerusalem',
+    contact: '',
+    phone: '',
+    email: '',
+    active: true,
+    color: '#E8C96D',
+  }
+
+  it('accepts an empty contact email', () => {
+    expect(createRabbanutSchema.parse(valid).email).toBe('')
+  })
+
+  it('lowercases a valid contact email', () => {
+    const r = createRabbanutSchema.parse({ ...valid, email: 'Info@Test.IL' })
+    expect(r.email).toBe('info@test.il')
+  })
+
+  it('rejects malformed contact email when provided', () => {
+    expect(createRabbanutSchema.safeParse({ ...valid, email: 'not-email' }).success).toBe(false)
   })
 })
