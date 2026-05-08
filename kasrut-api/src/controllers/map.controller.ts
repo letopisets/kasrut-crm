@@ -226,8 +226,42 @@ function buildInstruction({ maneuver: { type, modifier }, name }: OsrmStep): str
   return `Продолжайте движение${street}`
 }
 
+// Common reverse-proxy headers carrying client geolocation hints. We trust
+// these only as a coarse default for the initial map centre — never as user
+// position. Cloudflare exposes `cf-iplatitude/cf-iplongitude`; some CDNs use
+// `x-vercel-ip-latitude`/`x-vercel-ip-longitude`.
+function geoFromHeaders(req: Request): { lat: number; lng: number } | null {
+  const tryPair = (latKey: string, lngKey: string) => {
+    const lat = Number(req.header(latKey))
+    const lng = Number(req.header(lngKey))
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat, lng }
+    }
+    return null
+  }
+  return tryPair('cf-iplatitude', 'cf-iplongitude')
+    ?? tryPair('x-vercel-ip-latitude', 'x-vercel-ip-longitude')
+    ?? tryPair('x-appengine-citylatlong-lat', 'x-appengine-citylatlong-lng')
+}
+
 export const mapController = {
-  async getRoute(req: Request, res: Response, next: NextFunction): Promise<void> {
+  /**
+   * Coarse IP-based geolocation for the initial map centre. Returns CDN-
+   * provided coordinates when available; never falls back to a third-party
+   * service so the API stays self-contained. Returns 204 if nothing usable —
+   * the client will keep its cached/default centre.
+   */
+  async getGeo(req: Request, res: Response): Promise<void> {
+    const geo = geoFromHeaders(req)
+    if (!geo) {
+      res.status(204).end()
+      return
+    }
+    res.set('cache-control', 'public, max-age=600')
+    res.json(geo)
+  },
+
+  async getRoute(req: Request, res: Response): Promise<void> {
     const parsed = routeQuerySchema.safeParse(req.query)
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid route coordinates' })

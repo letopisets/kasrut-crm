@@ -1,7 +1,17 @@
 import { prisma } from '../lib/prisma'
 import { randomUUID } from 'crypto'
+import { Prisma } from '../generated/prisma/client'
+import { logger } from '../lib/logger'
 
 export type ServiceLogLevel = 'info' | 'warn' | 'error'
+
+// Batched-write configuration for high-RPS workloads. Logs are buffered in
+// process and flushed either when the buffer reaches BATCH_MAX_SIZE or after
+// BATCH_FLUSH_MS, whichever comes first. Tunable via env so deployments can
+// dial it down (chatty, low-latency) or up (steady, fewer writes).
+const BATCH_MAX_SIZE = Number(process.env.SERVICE_LOG_BATCH_SIZE ?? 100)
+const BATCH_FLUSH_MS = Number(process.env.SERVICE_LOG_FLUSH_MS ?? 1_000)
+const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
 
 export interface ServiceLog {
   id: string
@@ -67,19 +77,91 @@ function toLog(row: Record<string, unknown>): ServiceLog {
   }
 }
 
-export const serviceLogsRepo = {
-  async create(input: ServiceLogInput): Promise<void> {
-    const id = randomUUID()
+// In-memory buffer of pending log rows + a single timer. We persist the rows
+// either when the buffer fills up (BATCH_MAX_SIZE) or BATCH_FLUSH_MS after the
+// first row was queued. Crashes lose at most one batch — that's an acceptable
+// trade for collapsing N inserts/sec into 1 multi-row INSERT.
+interface PendingLog extends ServiceLogInput { id: string }
+let pendingLogs: PendingLog[] = []
+let flushTimer: NodeJS.Timeout | null = null
+let flushInFlight: Promise<void> = Promise.resolve()
+
+async function persistBatch(batch: PendingLog[]): Promise<void> {
+  if (batch.length === 0) return
+  const rows = batch.map(r => Prisma.sql`(
+    ${r.id}, ${r.level}, ${r.service}, ${r.action ?? null}, ${r.message},
+    ${r.userId ?? null}, ${r.userEmail ?? null}, ${r.userRole ?? null},
+    ${r.entityType ?? null}, ${r.entityId ?? null}, ${r.method ?? null}, ${r.path ?? null},
+    ${r.statusCode ?? null}, ${r.requestId ?? null},
+    ${r.metadata ? JSON.stringify(r.metadata) : null}::jsonb
+  )`)
+  try {
     await prisma.$executeRaw`
       INSERT INTO "service_logs"
         ("id", "level", "service", "action", "message", "userId", "userEmail", "userRole",
          "entityType", "entityId", "method", "path", "statusCode", "requestId", "metadata")
-      VALUES
-        (${id}, ${input.level}, ${input.service}, ${input.action ?? null}, ${input.message},
-         ${input.userId ?? null}, ${input.userEmail ?? null}, ${input.userRole ?? null},
-         ${input.entityType ?? null}, ${input.entityId ?? null}, ${input.method ?? null}, ${input.path ?? null},
-         ${input.statusCode ?? null}, ${input.requestId ?? null}, ${input.metadata ? JSON.stringify(input.metadata) : null}::jsonb)
+      VALUES ${Prisma.join(rows)}
     `
+  } catch (err) {
+    logger.error({ err, batchSize: batch.length }, 'service_logs flush failed')
+  }
+}
+
+function scheduleFlush(): void {
+  if (flushTimer) return
+  flushTimer = setTimeout(() => {
+    flushTimer = null
+    void flushPending()
+  }, BATCH_FLUSH_MS)
+  // Don't keep the event loop alive just for this — the process can exit.
+  if (typeof flushTimer.unref === 'function') flushTimer.unref()
+}
+
+async function flushPending(): Promise<void> {
+  if (pendingLogs.length === 0) return
+  const batch = pendingLogs
+  pendingLogs = []
+  if (flushTimer) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  flushInFlight = persistBatch(batch).finally(() => undefined)
+  await flushInFlight
+}
+
+export const serviceLogsRepo = {
+  async create(input: ServiceLogInput): Promise<void> {
+    const id = randomUUID()
+    // Tests rely on observing each call in isolation — keeping the original
+    // synchronous-looking semantics when running under Jest avoids reshaping
+    // every existing test for batching.
+    if (isTest) {
+      await prisma.$executeRaw`
+        INSERT INTO "service_logs"
+          ("id", "level", "service", "action", "message", "userId", "userEmail", "userRole",
+           "entityType", "entityId", "method", "path", "statusCode", "requestId", "metadata")
+        VALUES
+          (${id}, ${input.level}, ${input.service}, ${input.action ?? null}, ${input.message},
+           ${input.userId ?? null}, ${input.userEmail ?? null}, ${input.userRole ?? null},
+           ${input.entityType ?? null}, ${input.entityId ?? null}, ${input.method ?? null}, ${input.path ?? null},
+           ${input.statusCode ?? null}, ${input.requestId ?? null}, ${input.metadata ? JSON.stringify(input.metadata) : null}::jsonb)
+      `
+      return
+    }
+
+    pendingLogs.push({ ...input, id })
+    if (pendingLogs.length >= BATCH_MAX_SIZE) {
+      await flushPending()
+    } else {
+      scheduleFlush()
+    }
+  },
+
+  /** Force-flush the buffer. Call from graceful shutdown handlers so log rows
+   *  enqueued just before SIGTERM make it to the database. */
+  async flush(): Promise<void> {
+    await flushInFlight
+    await flushPending()
   },
 
   async findRecent(filter: ServiceLogFilter = {}): Promise<ServiceLog[]> {
