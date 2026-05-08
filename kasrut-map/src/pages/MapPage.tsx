@@ -95,7 +95,10 @@ function getViewportCenter(viewport: MapViewport | null): [number, number] | nul
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const navigate = useNavigate()
   const ipCenter = useIpCenter()
-  const ctrl = useMapController({ fallbackPosition: ipCenter })
+  const ctrl = useMapController({
+    fallbackPosition: ipCenter.value,
+    fallbackReady: ipCenter.ready,
+  })
   const dispatch = useAppDispatch()
   const t = useMapLang()
   const user = useAppSelector(state => state.mapAuth.user)
@@ -151,7 +154,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     ctrl.viewport && ctrl.viewport.zoom >= MARKER_VISIBILITY_ZOOM
       ? ctrl.restaurants
       : []
-  const suggestionDefaultPosition = getViewportCenter(ctrl.viewport) ?? ctrl.geo.position ?? ipCenter
+  const suggestionDefaultPosition = getViewportCenter(ctrl.viewport) ?? ctrl.geo.position ?? ipCenter.value
   const restaurantCountLabel = ctrl.restaurantResultLimited
     ? t.establishmentCountLimited
       .replace('{shown}', String(ctrl.restaurants.length))
@@ -281,7 +284,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               userPosition={ctrl.geo.position}
               gpsAccuracy={ctrl.geo.accuracy}
               userHeading={ctrl.geo.heading}
-              initialCenter={ipCenter}
+              initialCenter={ipCenter.value}
               panToUser={ctrl.panToUser}
               followUser={ctrl.followUser}
               navigating={ctrl.routeMode === 'navigate'}

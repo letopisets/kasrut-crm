@@ -32,11 +32,21 @@ export async function withCache<T>(key: string, ttl: number, fn: () => Promise<T
 /**
  * Delete all keys matching a glob pattern.
  * Used to invalidate cache after restaurant mutations.
+ *
+ * Uses SCAN with a cursor so it never blocks Redis on large keyspaces —
+ * `KEYS` is O(N) and stalls every other client. Deletions are batched per scan
+ * page, in parallel, so total wall-time stays close to the original.
  */
 export async function invalidatePattern(pattern: string): Promise<void> {
   try {
-    const keys = await redis.keys(pattern)
-    if (keys.length) await redis.del(...keys)
+    let cursor = '0'
+    const deletions: Promise<unknown>[] = []
+    do {
+      const [next, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 200)
+      cursor = next
+      if (batch.length) deletions.push(redis.del(...batch))
+    } while (cursor !== '0')
+    if (deletions.length) await Promise.all(deletions)
   } catch {
     // ignore
   }
