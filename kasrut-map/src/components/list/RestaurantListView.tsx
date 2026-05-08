@@ -19,17 +19,23 @@ const OVERSCAN_ROWS = 6
 export function RestaurantListView({ restaurants, onSelect, onStartRoute, formatDist }: Props) {
   const t = useMapLang()
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const rafRef = useRef<number | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
 
+  // ResizeObserver tracks both window resizes AND parent layout changes (e.g.
+  // the count badge appearing/disappearing) — a window-level listener would
+  // miss the latter.
   useEffect(() => {
-    const updateViewportHeight = () => {
-      setViewportHeight(containerRef.current?.clientHeight ?? 0)
-    }
-
-    updateViewportHeight()
-    window.addEventListener('resize', updateViewportHeight)
-    return () => window.removeEventListener('resize', updateViewportHeight)
+    const node = containerRef.current
+    if (!node) return
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0]
+      if (entry) setViewportHeight(entry.contentRect.height)
+    })
+    observer.observe(node)
+    setViewportHeight(node.clientHeight)
+    return () => observer.disconnect()
   }, [])
 
   useEffect(() => {
@@ -37,9 +43,17 @@ export function RestaurantListView({ restaurants, onSelect, onStartRoute, format
     setScrollTop(0)
   }, [restaurants.length])
 
+  useEffect(() => () => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+  }, [])
+
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
-    setScrollTop(event.currentTarget.scrollTop)
-    setViewportHeight(event.currentTarget.clientHeight)
+    const next = event.currentTarget.scrollTop
+    if (rafRef.current !== null) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      setScrollTop(next)
+    })
   }
 
   const visibleRange = useMemo(() => {
@@ -80,26 +94,33 @@ export function RestaurantListView({ restaurants, onSelect, onStartRoute, format
         {t.foundCount.replace('{n}', String(restaurants.length))}
       </Typography>
       <Box sx={{ height: restaurants.length * ROW_HEIGHT, position: 'relative' }}>
-        {visibleRestaurants.map((r, index) => (
-          <Box
-            key={r.id}
-            sx={{
-              position: 'absolute',
-              top: (visibleRange.start + index) * ROW_HEIGHT,
-              left: 0,
-              right: 0,
-              height: ROW_HEIGHT,
-              pb: 1.5,
-            }}
-          >
-            <RestaurantListItem
-              restaurant={r}
-              onSelect={onSelect}
-              onStartRoute={onStartRoute}
-              formatDist={formatDist}
-            />
-          </Box>
-        ))}
+        {visibleRestaurants.map((r, index) => {
+          const offset = (visibleRange.start + index) * ROW_HEIGHT
+          return (
+            <Box
+              key={r.id}
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: ROW_HEIGHT,
+                pb: 1.5,
+                // translate is GPU-composited; far cheaper than animating `top`
+                // when the user is fast-scrolling.
+                transform: `translateY(${offset}px)`,
+                willChange: 'transform',
+              }}
+            >
+              <RestaurantListItem
+                restaurant={r}
+                onSelect={onSelect}
+                onStartRoute={onStartRoute}
+                formatDist={formatDist}
+              />
+            </Box>
+          )
+        })}
       </Box>
     </Box>
   )
