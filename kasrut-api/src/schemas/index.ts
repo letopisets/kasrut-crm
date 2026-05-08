@@ -3,6 +3,10 @@ import { z } from 'zod'
 // Shared primitives
 const id       = z.string().uuid()
 const email    = z.string().email().max(254).trim().toLowerCase()
+const contactEmail = z.string().max(254).trim().toLowerCase().refine(
+  value => value === '' || z.string().email().safeParse(value).success,
+  'Invalid email',
+)
 const phone    = z.string().max(32).trim()
 const color    = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color')
 const dateStr  = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
@@ -110,7 +114,7 @@ export const createRabbanutSchema = z.object({
   city:    z.string().min(1).max(100).trim(),
   contact: z.string().max(100).trim(),
   phone,
-  email,
+  email:   contactEmail,
   active:  z.boolean(),
   color,
 })
