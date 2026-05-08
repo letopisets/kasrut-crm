@@ -13,6 +13,23 @@ export function initSentry(): void {
     environment: import.meta.env.MODE,
     tracesSampleRate: import.meta.env.PROD ? 0.1 : 1,
     integrations: [Sentry.browserTracingIntegration()],
+    // Browser extensions inject their own scripts that throw freely; they
+    // surface as our errors but we cannot fix them. Filter the common ones
+    // so they don't drown out real issues.
+    ignoreErrors: [
+      'Could not establish connection. Receiving end does not exist.',
+      "Cannot read properties of undefined (reading 'useCache')",
+      'ResizeObserver loop limit exceeded',
+      'ResizeObserver loop completed with undelivered notifications',
+    ],
+    denyUrls: [
+      /content[-_]script/i,
+      /\bpolyfill\.js/,
+      /^chrome-extension:\/\//,
+      /^moz-extension:\/\//,
+      /^safari-extension:\/\//,
+      /^webkit-masked-url:\/\//,
+    ],
   })
 }
 

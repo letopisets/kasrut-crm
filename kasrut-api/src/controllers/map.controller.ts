@@ -23,11 +23,13 @@ const MAX_RESTAURANT_LIMIT = 1500
 const OSRM_BASE_URL = (process.env.OSRM_BASE_URL ?? 'https://router.project-osrm.org/route/v1').replace(/\/$/, '')
 const ROUTE_TIMEOUT_MS = 8_000
 
+// Single SCAN over the whole map namespace beats four separate scans — the
+// cursor walks the keyspace once and any new map:* sub-namespace is covered
+// without touching this list. `restaurants:*` is the legacy CRM cache, kept
+// separate because it lives outside the map namespace.
 const invalidateMapCache = () => Promise.all([
   invalidatePattern('restaurants:*'),
-  invalidatePattern('map:restaurants:*'),
-  invalidatePattern('map:options'),
-  invalidatePattern('map:hechsherim'),
+  invalidatePattern('map:*'),
 ])
 
 function queryString(value: unknown): string | undefined {

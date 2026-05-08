@@ -10,6 +10,6 @@ export const baseApi = createApi({
       return headers
     },
   }),
-  tagTypes: ['Restaurant', 'Review', 'Suggestion', 'MapAuth'],
+  tagTypes: ['Restaurant', 'MapOptions', 'Hechsher', 'Review', 'Suggestion', 'MapAuth'],
   endpoints: () => ({}),
 })

@@ -38,11 +38,11 @@ export const restaurantsApi = baseApi.injectEndpoints({
     }),
     getMapOptions: build.query<MapOptions, void>({
       query: () => '/map/options',
-      providesTags: ['Restaurant'],
+      providesTags: ['MapOptions'],
     }),
     getMapHechsherim: build.query<MapHechsher[], void>({
       query: () => '/map/hechsherim',
-      providesTags: ['Restaurant'],
+      providesTags: ['Hechsher'],
     }),
   }),
 })
