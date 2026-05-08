@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
+import { createHash } from 'crypto'
 import { mapRepo }                  from '../db/map.repo'
 import { mapCommunityRepo }         from '../db/mapCommunity.repo'
 import { serializeMapRestaurantsPage }  from '../serializers/map.serializer'
@@ -16,6 +17,7 @@ const HECHSHERIM_CACHE_TTL = 600 // 10 minutes
 const MAP_OPTIONS_CACHE_TTL = 600 // 10 minutes
 
 const CACHE_TTL = 300 // 5 minutes
+const ROUTE_CACHE_TTL = 60 * 60 // 1 hour — pedestrian routes are stable
 const DEFAULT_RESTAURANT_LIMIT = 750
 const MAX_RESTAURANT_LIMIT = 1500
 const OSRM_BASE_URL = (process.env.OSRM_BASE_URL ?? 'https://router.project-osrm.org/route/v1').replace(/\/$/, '')
@@ -34,6 +36,44 @@ function queryString(value: unknown): string | undefined {
 
 function roundCoord(value: number): number {
   return Math.round(value * 100_000) / 100_000
+}
+
+/** Coarse rounding used only for cache keys — collapses fine-grained map drag
+ *  noise so adjacent viewports share a Redis entry. ~110m precision is well
+ *  inside the radius/marker resolution we render. */
+function roundCacheCoord(value: number): number {
+  return Math.round(value * 1_000) / 1_000
+}
+
+/** Build a deterministic, compact cache key for restaurant queries.
+ *  - keys are sorted so JS object iteration order doesn't affect the hash
+ *  - centre coords are rounded coarser than the response so ±100m drags share
+ *    a cache entry (huge cache-hit improvement for typical pan gestures)
+ *  - the final value is hashed so massive hechsher/city lists don't blow up
+ *    Redis memory with multi-KB key strings */
+function restaurantsCacheKey(filter: MapFilter): string {
+  const normalized: Record<string, unknown> = {
+    city:         filter.city ?? null,
+    kashrutLevel: filter.kashrutLevel ? [...filter.kashrutLevel].sort() : null,
+    hechsher:     filter.hechsher ? [...filter.hechsher].sort() : null,
+    foodType:     filter.foodType ? [...filter.foodType].sort() : null,
+    bounds:       filter.bounds
+      ? {
+          north: roundCacheCoord(filter.bounds.north),
+          south: roundCacheCoord(filter.bounds.south),
+          east:  roundCacheCoord(filter.bounds.east),
+          west:  roundCacheCoord(filter.bounds.west),
+        }
+      : null,
+    center:       filter.center
+      ? { lat: roundCacheCoord(filter.center.lat), lng: roundCacheCoord(filter.center.lng) }
+      : null,
+    radius:       filter.radius ?? null,
+    limit:        filter.limit,
+  }
+  const ordered = Object.keys(normalized).sort().map(k => [k, normalized[k]] as const)
+  const hash = createHash('sha1').update(JSON.stringify(ordered)).digest('hex').slice(0, 16)
+  return `map:restaurants:${hash}`
 }
 
 function parseNumber(value: unknown, min: number, max: number): number | undefined {
@@ -195,52 +235,66 @@ export const mapController = {
     }
 
     const { fromLat, fromLng, toLat, toLng } = parsed.data
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), ROUTE_TIMEOUT_MS)
+    // Round to ~110m so a user retrying or two users walking the same path
+    // share the same cached response — pedestrian routes don't differ at this
+    // resolution and the upstream OSRM call dominates total latency.
+    const r = (v: number) => Math.round(v * 1_000) / 1_000
+    const cacheKey = `map:route:foot:${r(fromLat)},${r(fromLng)}=>${r(toLat)},${r(toLng)}`
 
     try {
-      const coordinates = `${fromLng},${fromLat};${toLng},${toLat}`
-      const params = new URLSearchParams({
-        steps: 'true',
-        overview: 'full',
-        geometries: 'geojson',
+      const data = await withCache(cacheKey, ROUTE_CACHE_TTL, async () => {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), ROUTE_TIMEOUT_MS)
+        try {
+          const coordinates = `${fromLng},${fromLat};${toLng},${toLat}`
+          const params = new URLSearchParams({
+            steps: 'true',
+            overview: 'full',
+            geometries: 'geojson',
+          })
+          const url = `${OSRM_BASE_URL}/foot/${coordinates}?${params.toString()}`
+          const upstream = await fetch(url, { signal: controller.signal })
+          const json = await upstream.json() as OsrmResponse
+
+          if (!upstream.ok) {
+            throw Object.assign(new Error(json.message || 'Сервис маршрутов временно недоступен'), { httpStatus: 502 })
+          }
+
+          const route = json.routes?.[0]
+          if (json.code !== 'Ok' || !route) {
+            throw Object.assign(new Error(json.message || 'Маршрут не найден'), { httpStatus: 404 })
+          }
+
+          const steps = route.legs[0]?.steps.map(step => ({
+            instruction: buildInstruction(step),
+            distance: step.distance,
+            duration: step.duration,
+          })) ?? []
+          const geometry = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+
+          return {
+            geometry,
+            steps,
+            totalDistance: route.distance,
+            totalDuration: route.duration,
+          }
+        } finally {
+          clearTimeout(timeout)
+        }
       })
-      const url = `${OSRM_BASE_URL}/foot/${coordinates}?${params.toString()}`
-      const upstream = await fetch(url, { signal: controller.signal })
-      const json = await upstream.json() as OsrmResponse
 
-      if (!upstream.ok) {
-        res.status(502).json({ error: json.message || 'Сервис маршрутов временно недоступен' })
-        return
-      }
-
-      const route = json.routes?.[0]
-      if (json.code !== 'Ok' || !route) {
-        res.status(404).json({ error: json.message || 'Маршрут не найден' })
-        return
-      }
-
-      const steps = route.legs[0]?.steps.map(step => ({
-        instruction: buildInstruction(step),
-        distance: step.distance,
-        duration: step.duration,
-      })) ?? []
-      const geometry = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-
-      res.json({
-        geometry,
-        steps,
-        totalDistance: route.distance,
-        totalDuration: route.duration,
-      })
+      res.json(data)
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
         res.status(504).json({ error: 'Сервис маршрутов не ответил вовремя' })
         return
       }
+      const status = (e as { httpStatus?: number }).httpStatus
+      if (status === 404) {
+        res.status(404).json({ error: (e as Error).message })
+        return
+      }
       res.status(502).json({ error: 'Сервис маршрутов временно недоступен' })
-    } finally {
-      clearTimeout(timeout)
     }
   },
 
@@ -278,9 +332,7 @@ export const mapController = {
         limit:        parseLimit(q.limit),
       }
 
-      // Build a stable cache key from the filter
-      const cacheKey = `map:restaurants:${JSON.stringify(filter)}`
-
+      const cacheKey = restaurantsCacheKey(filter)
       const data = await withCache(cacheKey, CACHE_TTL, () =>
         mapRepo.findForMap(filter)
       )

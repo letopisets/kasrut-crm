@@ -106,6 +106,10 @@ export function useMapController({
   const [view,          setView]          = useState<'map' | 'list'>('map')
   const [filters,       setFilters]       = useState<MapFilters>(DEFAULT_FILTERS)
   const [filterOpen,    setFilterOpen]    = useState(false)
+  // Whether the user has ever opened the filter panel — gates the
+  // /map/options request so cold loads do not pay for data the user may
+  // never see. Once we have the options we keep them around (no refetch).
+  const [filterEverOpened, setFilterEverOpened] = useState(false)
   const [selected,      setSelected]      = useState<MapRestaurant | null>(null)
   const [routePanelOpen, setRoutePanelOpen] = useState(false)
   const [routeMode,     setRouteMode]     = useState<RouteMode>('steps')
@@ -169,7 +173,10 @@ export function useMapController({
     skip: shouldSkipRestaurants || skipUntilPositionReady,
   })
 
-  const { data: options = { cities: [], hechshers: [] } } = useGetMapOptionsQuery()
+  const { data: options = { cities: [], hechshers: [] } } = useGetMapOptionsQuery(
+    undefined,
+    { skip: !filterEverOpened },
+  )
 
   const availableHechshers = useMemo(() => (
     [...new Set(options.hechshers.filter(Boolean))]
@@ -268,11 +275,16 @@ export function useMapController({
     (filters.city !== '' ? 1 : 0) +
     (filters.radius !== null ? 1 : 0)
 
+  const openFilters = useCallback((open: boolean) => {
+    setFilterOpen(open)
+    if (open) setFilterEverOpened(true)
+  }, [])
+
   return {
     // view
     view, setView,
     // filters
-    filters, filterOpen, setFilterOpen,
+    filters, filterOpen, setFilterOpen: openFilters,
     activeFilterCount, toggleHechsher, toggleFoodType, setCity, setRadius, resetFilters,
     availableHechshers, availableCities,
     // data
