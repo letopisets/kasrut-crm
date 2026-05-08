@@ -9,6 +9,29 @@ export default defineConfig({
     alias: { '@': resolve(__dirname, './src') },
   },
   server: { port: 5174 },
+  build: {
+    rollupOptions: {
+      output: {
+        // Splitting heavy vendor groups so a code-only deploy doesn't bust
+        // the leaflet/mui chunks (which dominate first-paint cost). Order
+        // matches what the user-perceived load tree actually fetches.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-leaflet'
+          if (id.includes('@mui') || id.includes('@emotion')) return 'vendor-mui'
+          if (id.includes('@reduxjs') || id.includes('react-redux')) return 'vendor-redux'
+          if (id.includes('@sentry')) return 'vendor-sentry'
+          if (id.includes('react-router')) return 'vendor-router'
+          if (
+            id.includes('node_modules/react/') ||
+            id.includes('node_modules/react-dom/') ||
+            id.includes('scheduler')
+          ) return 'vendor-react'
+          return 'vendor'
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

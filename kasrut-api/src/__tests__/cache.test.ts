@@ -5,7 +5,7 @@ jest.mock('../lib/redis', () => ({
   redis: {
     get:    jest.fn(),
     setex:  jest.fn(),
-    keys:   jest.fn(),
+    scan:   jest.fn(),
     del:    jest.fn(),
   },
 }))
@@ -13,7 +13,7 @@ jest.mock('../lib/redis', () => ({
 const mockedRedis = redis as unknown as {
   get:   jest.Mock
   setex: jest.Mock
-  keys:  jest.Mock
+  scan:  jest.Mock
   del:   jest.Mock
 }
 
@@ -70,20 +70,25 @@ describe('invalidatePattern', () => {
     jest.clearAllMocks()
   })
 
-  it('deletes all matching keys', async () => {
-    mockedRedis.keys.mockResolvedValueOnce(['a:1', 'a:2'])
+  it('deletes all matching keys across multiple scan pages', async () => {
+    mockedRedis.scan
+      .mockResolvedValueOnce(['10', ['a:1', 'a:2']])
+      .mockResolvedValueOnce(['0',  ['a:3']])
     await invalidatePattern('a:*')
+    expect(mockedRedis.scan).toHaveBeenNthCalledWith(1, '0', 'MATCH', 'a:*', 'COUNT', 200)
+    expect(mockedRedis.scan).toHaveBeenNthCalledWith(2, '10', 'MATCH', 'a:*', 'COUNT', 200)
     expect(mockedRedis.del).toHaveBeenCalledWith('a:1', 'a:2')
+    expect(mockedRedis.del).toHaveBeenCalledWith('a:3')
   })
 
   it('does nothing when no keys match', async () => {
-    mockedRedis.keys.mockResolvedValueOnce([])
+    mockedRedis.scan.mockResolvedValueOnce(['0', []])
     await invalidatePattern('z:*')
     expect(mockedRedis.del).not.toHaveBeenCalled()
   })
 
   it('swallows redis errors silently', async () => {
-    mockedRedis.keys.mockRejectedValueOnce(new Error('down'))
+    mockedRedis.scan.mockRejectedValueOnce(new Error('down'))
     await expect(invalidatePattern('a:*')).resolves.toBeUndefined()
   })
 })
