@@ -93,9 +93,16 @@ interface UseMapControllerOptions {
   /** Used as fallback query position when GPS is unavailable, so the count
    *  badge appears even before (or without) a GPS fix. */
   fallbackPosition?: [number, number] | null
+  /** When true, `fallbackPosition` is considered final (resolved or settled).
+   *  While false AND no GPS fix has arrived, the restaurants query is skipped
+   *  to avoid firing once with DEFAULT_CENTER and again with the real IP centre. */
+  fallbackReady?: boolean
 }
 
-export function useMapController({ fallbackPosition = null }: UseMapControllerOptions = {}) {
+export function useMapController({
+  fallbackPosition = null,
+  fallbackReady = true,
+}: UseMapControllerOptions = {}) {
   const [view,          setView]          = useState<'map' | 'list'>('map')
   const [filters,       setFilters]       = useState<MapFilters>(DEFAULT_FILTERS)
   const [filterOpen,    setFilterOpen]    = useState(false)
@@ -150,11 +157,17 @@ export function useMapController({ fallbackPosition = null }: UseMapControllerOp
   }), [debouncedQueryUserPosition, filters])
   const shouldSkipRestaurants = !debouncedQueryUserPosition
 
+  // Skip until either GPS gives us a real fix OR the fallback (IP lookup) has
+  // settled. Without this guard a cold load fires the query once on the cached
+  // DEFAULT_CENTER and again on the resolved IP centre.
+  const skipUntilPositionReady = !geo.position && !fallbackReady
   const {
     data: restaurantPayload = EMPTY_RESTAURANTS_RESPONSE,
     isLoading,
     isFetching,
-  } = useGetMapRestaurantsQuery(restaurantQuery, { skip: shouldSkipRestaurants })
+  } = useGetMapRestaurantsQuery(restaurantQuery, {
+    skip: shouldSkipRestaurants || skipUntilPositionReady,
+  })
 
   const { data: options = { cities: [], hechshers: [] } } = useGetMapOptionsQuery()
 

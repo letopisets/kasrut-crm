@@ -194,28 +194,31 @@ export const mapRepo = {
   async findForMap(filter: MapFilter): Promise<MapRestaurantPage> {
     const where = buildMapWhere(filter)
 
-    const [total, rows] = await Promise.all([
-      prisma.restaurant.count({ where }),
-      prisma.restaurant.findMany({
-        where,
-        select: {
-          id:       true,
-          name:     true,
-          address:  true,
-          city:     true,
-          lat:      true,
-          lng:      true,
-          foodType: true,
-          phone:    true,
-          hours:    true,
-          hechsher: { select: { name: true, type: true } },
-        },
-        orderBy: { name: 'asc' },
-        take: filter.limit,
-      }),
-    ])
+    // Fetch limit + 1 so we can detect "more rows exist" without a separate
+    // count(*). Only when we actually overflow do we pay for a real count —
+    // most queries fit comfortably under the limit.
+    const rows = await prisma.restaurant.findMany({
+      where,
+      select: {
+        id:       true,
+        name:     true,
+        address:  true,
+        city:     true,
+        lat:      true,
+        lng:      true,
+        foodType: true,
+        phone:    true,
+        hours:    true,
+        hechsher: { select: { name: true, type: true } },
+      },
+      orderBy: { name: 'asc' },
+      take: filter.limit + 1,
+    })
 
-    const restaurants: MapRestaurantRow[] = rows.map(r => ({
+    const limited = rows.length > filter.limit
+    const visibleRows = limited ? rows.slice(0, filter.limit) : rows
+
+    const restaurants: MapRestaurantRow[] = visibleRows.map(r => ({
       id:           r.id,
       name:         r.name,
       address:      r.address,
@@ -229,11 +232,15 @@ export const mapRepo = {
       hours:        r.hours ?? undefined,
     }))
 
+    const total = limited
+      ? await prisma.restaurant.count({ where })
+      : restaurants.length
+
     return {
       restaurants,
       total,
       limit: filter.limit,
-      limited: total > restaurants.length,
+      limited,
     }
   },
 }
