@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAppSelector } from '@/store'
-import { PERMISSIONS } from '@/lib/permissions'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface Props {
   page: string
@@ -9,6 +8,6 @@ interface Props {
 }
 
 export default function ProtectedRoute({ page, children }: Props) {
-  const role = useAppSelector(s => s.auth.role)
-  return PERMISSIONS[role].tabs.includes(page) ? <>{children}</> : <Navigate to="/dashboard" replace />
+  const perm = usePermissions()
+  return perm.tabs.includes(page) ? <>{children}</> : <Navigate to="/dashboard" replace />
 }
