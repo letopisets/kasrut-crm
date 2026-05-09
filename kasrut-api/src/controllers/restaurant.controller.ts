@@ -2,7 +2,8 @@ import type { Request, Response, NextFunction } from 'express'
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { prisma } from '../lib/prisma'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
-import { invalidatePattern, withCache } from '../lib/cache'
+import { withCache } from '../lib/cache'
+import { invalidateMapCache } from '../lib/mapCache'
 import { validate } from '../lib/validate'
 import { createRestaurantSchema, updateRestaurantSchema, paginationSchema } from '../schemas'
 import {
@@ -12,11 +13,6 @@ import {
 } from '../lib/rabbanutScope'
 
 const RESTAURANTS_CACHE_TTL = 300
-
-const invalidateMapCache = () => Promise.all([
-  invalidatePattern('restaurants:*'),
-  invalidatePattern('map:*'),
-])
 
 const restaurantsCacheKey = (filter: Record<string, unknown>) =>
   `restaurants:list:${JSON.stringify(filter)}`

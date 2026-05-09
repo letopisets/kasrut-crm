@@ -4,6 +4,7 @@ import { serializeHechsher, serializeHechsherim } from '../serializers/hechsher.
 import { validate } from '../lib/validate'
 import { createHechsherSchema, updateHechsherSchema } from '../schemas'
 import { invalidatePattern, withCache } from '../lib/cache'
+import { invalidateMapCache as invalidateMapNamespace } from '../lib/mapCache'
 import {
   applyWriteScope,
   assertOwnsRabbanut,
@@ -11,7 +12,7 @@ import {
 } from '../lib/rabbanutScope'
 
 const invalidateMapCache = () => Promise.all([
-  invalidatePattern('map:*'),
+  invalidateMapNamespace(),
   invalidatePattern('hechsherim:*'),
 ])
 
