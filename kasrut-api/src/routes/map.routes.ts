@@ -3,15 +3,25 @@ import { mapController } from '../controllers/map.controller'
 import { authenticateMapJWT } from '../middleware/mapAuth'
 import { authenticateJWT } from '../middleware/auth'
 import { requireRole } from '../middleware/requireRole'
+import { rateLimit } from '../middleware/rateLimit'
 
 const router = Router()
+
+// /route proxies to an external OSRM instance — every request costs us a
+// pending fetch + a Redis cache write. Cap it per IP so a runaway client
+// (or a scraper) can't drain the upstream budget or pile up sockets.
+const routeRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  keyPrefix: 'map:route',
+})
 
 // Public — no auth required
 // GET /api/map/restaurants?city=ירושלים&hechsher=בד"ץ העדה החרדית&foodType=meat,dairy
 router.get('/hechsherim', mapController.listHechsherim)
 router.get('/options', mapController.listOptions)
 router.get('/geo', mapController.getGeo)
-router.get('/route', mapController.getRoute)
+router.get('/route', routeRateLimit, mapController.getRoute)
 router.get('/restaurants', mapController.listRestaurants)
 router.get('/restaurants/:restaurantId/reviews', mapController.listReviews)
 

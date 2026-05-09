@@ -289,7 +289,12 @@ export const mapController = {
             geometries: 'geojson',
           })
           const url = `${OSRM_BASE_URL}/foot/${coordinates}?${params.toString()}`
-          const upstream = await fetch(url, { signal: controller.signal })
+          // Public OSRM tightens limits on UA-less traffic; identify ourselves
+          // so a self-hosted setup can also distinguish our traffic in logs.
+          const upstream = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'User-Agent': 'kasrut-crm/1.0 (+https://mykoshermap.com)' },
+          })
           const json = await upstream.json() as OsrmResponse
 
           if (!upstream.ok) {
