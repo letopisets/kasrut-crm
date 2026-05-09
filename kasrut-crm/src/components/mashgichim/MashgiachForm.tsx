@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
 import Box from '@mui/material/Box'
@@ -18,7 +18,7 @@ interface Props {
 
 export function MashgiachForm({ hechsherOptions, initial, onSave, onClose }: Props) {
   const t    = useLang()
-  const user = useAuthStore(s => s.user)
+  const user = useAppSelector(s => s.auth.user)
 
   const [form, setForm] = useState({
     name:          initial?.name          ?? '',

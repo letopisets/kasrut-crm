@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuthStore } from '@/store/useAuthStore'
-import { useLangStore } from '@/store/useLangStore'
+import { useAppDispatch, useAppSelector } from '@/store'
+import { clearPersistedAuth, logout as logoutAction } from '@/store/authSlice'
+import { setLang as setLangAction, type Lang } from '@/store/langSlice'
 import { useLang } from '@/i18n/useLang'
 import { usePermissions } from '@/hooks/usePermissions'
 import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings'
@@ -24,7 +25,6 @@ import MenuIcon from '@mui/icons-material/Menu'
 import CloseIcon from '@mui/icons-material/Close'
 import LockIcon from '@mui/icons-material/Lock'
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew'
-import type { Lang } from '@/store/useLangStore'
 
 const LANGS: Lang[] = ['en', 'ru', 'he']
 
@@ -33,14 +33,15 @@ export function Header() {
   const { pathname } = useLocation()
   const activeTab    = pathname.split('/')[1] || 'dashboard'
 
-  const role   = useAuthStore(s => s.role)
-  const user   = useAuthStore(s => s.user)
-  const logout = useAuthStore(s => s.logout)
-  const lang   = useLangStore(s => s.lang)
-  const setLang= useLangStore(s => s.setLang)
-  const t      = useLang()
-  const perm   = usePermissions()
-  const rc     = ROLE_COLORS[role]
+  const dispatch = useAppDispatch()
+  const role     = useAppSelector(s => s.auth.role)
+  const user     = useAppSelector(s => s.auth.user)
+  const lang     = useAppSelector(s => s.lang.lang)
+  const setLang  = (l: Lang) => dispatch(setLangAction(l))
+  const logout   = () => { dispatch(logoutAction()); clearPersistedAuth() }
+  const t        = useLang()
+  const perm     = usePermissions()
+  const rc       = ROLE_COLORS[role]
 
   const [drawerPath,   setDrawerPath]   = useState<string | null>(null)
   const [show2faPanel, setShow2faPanel] = useState(false)

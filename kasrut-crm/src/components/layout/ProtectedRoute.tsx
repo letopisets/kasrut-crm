@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { PERMISSIONS } from '@/lib/permissions'
 
 interface Props {
@@ -9,6 +9,6 @@ interface Props {
 }
 
 export default function ProtectedRoute({ page, children }: Props) {
-  const role = useAuthStore(s => s.role)
+  const role = useAppSelector(s => s.auth.role)
   return PERMISSIONS[role].tabs.includes(page) ? <>{children}</> : <Navigate to="/dashboard" replace />
 }

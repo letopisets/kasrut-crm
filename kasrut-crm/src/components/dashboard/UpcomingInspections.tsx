@@ -1,6 +1,6 @@
 import { useInspections } from '@/hooks/useInspections'
-import { useRestaurantStore } from '@/store/useRestaurantStore'
-import { useMashgiachStore } from '@/store/useMashgiachStore'
+import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
+import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
 import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
 import { TYPE_COLORS } from '@/theme'
@@ -11,8 +11,8 @@ import Paper from '@mui/material/Paper'
 export function UpcomingInspections() {
   const t           = useLang()
   const inspections = useInspections()
-  const restaurants = useRestaurantStore(s => s.restaurants)
-  const mashgichim  = useMashgiachStore(s => s.mashgichim)
+  const { data: restaurants = [] } = useGetRestaurantsQuery()
+  const { data: mashgichim  = [] } = useGetMashgichimQuery()
 
   return (
     <Paper sx={{ p: 2.75, border: '1px solid #252840' }}>

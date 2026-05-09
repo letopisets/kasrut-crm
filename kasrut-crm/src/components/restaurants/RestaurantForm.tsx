@@ -3,7 +3,7 @@ import { useGetHechsherimQuery, useCreateHechsherMutation } from '@/store/api/he
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
 import { useCreateRestaurantMutation, useUpdateRestaurantMutation } from '@/store/api/restaurantsApi'
-import { useAuthStore }  from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
@@ -39,7 +39,7 @@ interface Props {
 
 export function RestaurantForm({ initial, onClose }: Props) {
   const t    = useLang()
-  const user = useAuthStore(s => s.user)
+  const user = useAppSelector(s => s.auth.user)
   const perm = usePermissions()
 
   const { data: hechsherim = [] } = useGetHechsherimQuery()

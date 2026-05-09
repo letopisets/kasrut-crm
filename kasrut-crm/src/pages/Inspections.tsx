@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useInspections } from '@/hooks/useInspections'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { useLang } from '@/i18n/useLang'
 import { InspectionList } from '@/components/inspections/InspectionList'
 import { InspectionForm } from '@/components/inspections/InspectionForm'
@@ -47,7 +47,7 @@ export default function Inspections() {
 
   const t           = useLang()
   const perm        = usePermissions()
-  const role        = useAuthStore(s => s.role)
+  const role        = useAppSelector(s => s.auth.role)
   const rc          = ROLE_COLORS[role]
   const inspections = useInspections()
 
