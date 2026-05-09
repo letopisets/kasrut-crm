@@ -1,8 +1,7 @@
-// hooks/usePermissions.ts
-import { useAuthStore } from '../store/useAuthStore'
-import { PERMISSIONS } from '../lib/permissions'
+import { useAppSelector } from '@/store'
+import { PERMISSIONS } from '@/lib/permissions'
 
 export const usePermissions = () => {
-  const role = useAuthStore(s => s.role)
+  const role = useAppSelector(s => s.auth.role)
   return PERMISSIONS[role]
 }

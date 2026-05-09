@@ -26,9 +26,10 @@ vi.mock('@/controllers/useAuthController', () => ({
   }),
 }))
 
-vi.mock('@/store/useLangStore', () => ({
-  useLangStore: (sel: (s: { lang: string; setLang: () => void }) => unknown) =>
-    sel({ lang: 'en', setLang: vi.fn() }),
+vi.mock('@/store', () => ({
+  useAppDispatch: () => vi.fn(),
+  useAppSelector: (sel: (s: { lang: { lang: string } }) => unknown) =>
+    sel({ lang: { lang: 'en' } }),
 }))
 
 vi.mock('@/i18n/useLang', () => ({

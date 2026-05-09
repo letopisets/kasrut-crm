@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
 import Box from '@mui/material/Box'
@@ -22,7 +22,7 @@ interface Props {
 
 export function HechsherForm({ rabbanutOptions, onSave, onClose, error, saving = false }: Props) {
   const t    = useLang()
-  const user = useAuthStore(s => s.user)
+  const user = useAppSelector(s => s.auth.user)
 
   const [form, setForm] = useState({
     name: '', shortName: '', city: '', contact: '', phone: '', email: '',

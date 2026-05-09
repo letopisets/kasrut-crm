@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import type { Restaurant } from '@/types'
-import { useHechsherStore } from '@/store/useHechsherStore'
-import { useMashgiachStore } from '@/store/useMashgiachStore'
-import { useInspectionStore } from '@/store/useInspectionStore'
+import { useGetHechsherimQuery } from '@/store/api/hechsherimApi'
+import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
+import { useGetInspectionsQuery } from '@/store/api/inspectionsApi'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
@@ -17,15 +17,15 @@ import Grid from '@mui/material/Grid'
 interface Props { restaurant: Restaurant }
 
 export function RestaurantDetailContent({ restaurant: r }: Props) {
-  const t             = useLang()
-  const perm          = usePermissions()
-  const hechsherim    = useHechsherStore(s => s.hechsherim)
-  const mashgichim    = useMashgiachStore(s => s.mashgichim)
-  const allInspections= useInspectionStore(s => s.inspections)
+  const t    = useLang()
+  const perm = usePermissions()
+  const { data: hechsherim     = [] } = useGetHechsherimQuery()
+  const { data: mashgichim     = [] } = useGetMashgichimQuery()
+  const { data: allInspections = [] } = useGetInspectionsQuery()
 
-  const hechsher   = hechsherim.find(h => h.id === r.hechsherId)
-  const mashgiach  = mashgichim.find(m => m.id === r.mashgiachId)
-  const inspections= allInspections.filter(i => i.restaurantId === r.id)
+  const hechsher    = hechsherim.find(h => h.id === r.hechsherId)
+  const mashgiach   = mashgichim.find(m => m.id === r.mashgiachId)
+  const inspections = allInspections.filter(i => i.restaurantId === r.id)
 
   const mashgiachById = useMemo(
     () => new Map(mashgichim.map(m => [m.id, m])),

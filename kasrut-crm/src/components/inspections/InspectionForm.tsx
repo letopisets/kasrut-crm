@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useGetRestaurantsQuery }      from '@/store/api/restaurantsApi'
 import { useGetMashgichimQuery }       from '@/store/api/mashgichimApi'
 import { useCreateInspectionMutation } from '@/store/api/inspectionsApi'
-import { useAuthStore }  from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { useLang }       from '@/i18n/useLang'
 import { Modal, Input }  from '@/components/ui'
 import Box from '@mui/material/Box'
@@ -14,7 +14,7 @@ interface Props { onClose: () => void }
 
 export function InspectionForm({ onClose }: Props) {
   const t    = useLang()
-  const user = useAuthStore(s => s.user)
+  const user = useAppSelector(s => s.auth.user)
 
   const { data: restaurants = [] } = useGetRestaurantsQuery()
   const { data: mashgichim  = [] } = useGetMashgichimQuery()
