@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { restaurantsRepo } from '../db/restaurants.repo'
-import { hechsherimRepo } from '../db/hechsherim.repo'
-import { mashgichimRepo } from '../db/mashgichim.repo'
+import { prisma } from '../lib/prisma'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
 import { invalidatePattern, withCache } from '../lib/cache'
 import { validate } from '../lib/validate'
@@ -22,17 +21,29 @@ const invalidateMapCache = () => Promise.all([
 const restaurantsCacheKey = (filter: Record<string, unknown>) =>
   `restaurants:list:${JSON.stringify(filter)}`
 
+/**
+ * Verifies that the chosen hechsher (and optional mashgiach) both belong to
+ * `rabbanutId`. Collapses what used to be 1-2 separate `findById` calls into
+ * a single Prisma `count` so we save a round-trip on every restaurant write.
+ */
 async function validateRestaurantOwnership(input: {
   rabbanutId: string
   hechsherId: string
   mashgiachId?: string
 }): Promise<boolean> {
-  const hechsher = await hechsherimRepo.findById(input.hechsherId)
-  if (!hechsher || hechsher.rabbanutId !== input.rabbanutId) return false
+  const ok = await prisma.hechsher.count({
+    where: {
+      id: input.hechsherId,
+      rabbanutId: input.rabbanutId,
+    },
+  })
+  if (ok !== 1) return false
 
   if (input.mashgiachId) {
-    const mashgiach = await mashgichimRepo.findById(input.mashgiachId)
-    if (!mashgiach || mashgiach.rabbanutId !== input.rabbanutId) return false
+    const okM = await prisma.mashgiach.count({
+      where: { id: input.mashgiachId, rabbanutId: input.rabbanutId },
+    })
+    if (okM !== 1) return false
   }
 
   return true

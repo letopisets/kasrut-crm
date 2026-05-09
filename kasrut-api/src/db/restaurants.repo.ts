@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
 import type { Restaurant, CertStatus, FoodType } from '../models/types'
 import type { Restaurant as PrismaRestaurant, FoodType as PrismaFoodType } from '../generated/prisma/client'
+import { Prisma } from '../generated/prisma/client'
 
 function calcStatus(expires: Date): CertStatus {
   const days = Math.floor((expires.getTime() - Date.now()) / 86_400_000)
@@ -114,15 +115,25 @@ export const restaurantsRepo = {
         },
       })
       return toRestaurant(r)
-    } catch { return null }
+    } catch (e) {
+      // P2025 = record not found; surface as null. Anything else (DB down,
+      // unique-violation, FK error) must propagate so the API returns a real
+      // error code instead of a misleading 404.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
-    const exists = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } })
-    if (!exists) return 'not_found'
     try {
       await prisma.restaurant.delete({ where: { id } })
       return 'deleted'
-    } catch { return 'conflict' }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === 'P2025') return 'not_found'
+        if (e.code === 'P2003') return 'conflict'  // FK constraint
+      }
+      throw e
+    }
   },
 }
