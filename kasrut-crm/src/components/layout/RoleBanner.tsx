@@ -3,6 +3,7 @@ import { setRabbanutFilter as setRabbanutFilterAction } from '@/store/authSlice'
 import { useGetRabbanutsQuery } from '@/store/api/rabbanutApi'
 import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
 import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { ROLE_COLORS } from '@/theme'
 import { alpha } from '@mui/material/styles'
@@ -12,6 +13,7 @@ import Button from '@mui/material/Button'
 
 export function RoleBanner() {
   const dispatch          = useAppDispatch()
+  const perm              = usePermissions()
   const role              = useAppSelector(s => s.auth.role)
   const user              = useAppSelector(s => s.auth.user)
   const rabbanutFilter    = useAppSelector(s => s.auth.rabbanutFilter)
@@ -67,7 +69,7 @@ export function RoleBanner() {
         )}
       </Box>
 
-      {role === 'owner' && (
+      {perm.isOwner && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography sx={{ fontSize: 10, color: 'text.secondary', mr: 0.5 }}>{t.allRabbanuts}:</Typography>
           <FilterTab
