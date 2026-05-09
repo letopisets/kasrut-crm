@@ -4,11 +4,14 @@ import { serializeHechsher, serializeHechsherim } from '../serializers/hechsher.
 import { validate } from '../lib/validate'
 import { createHechsherSchema, updateHechsherSchema } from '../schemas'
 import { invalidatePattern, withCache } from '../lib/cache'
+import {
+  applyWriteScope,
+  assertOwnsRabbanut,
+  resolveScopeRabbanutId,
+} from '../lib/rabbanutScope'
 
 const invalidateMapCache = () => Promise.all([
-  invalidatePattern('map:restaurants:*'),
-  invalidatePattern('map:options'),
-  invalidatePattern('map:hechsherim'),
+  invalidatePattern('map:*'),
   invalidatePattern('hechsherim:*'),
 ])
 
@@ -16,7 +19,7 @@ export const hechsherController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const q          = req.query as Record<string, string>
-      const rabbanutId = req.user?.role === 'rabbanut' ? req.user.rabbanutId : q.rabbanutId
+      const rabbanutId = resolveScopeRabbanutId(req, q.rabbanutId)
 
       const cacheKey = `hechsherim:list:${rabbanutId ?? 'all'}`
       const data = await withCache(cacheKey, 300, () => hechsherimRepo.findAll({ rabbanutId }))
@@ -28,9 +31,7 @@ export const hechsherController = {
     try {
       const h = await hechsherimRepo.findById(req.params.id)
       if (!h) { res.status(404).json({ error: 'Not found' }); return }
-      if (req.user?.role === 'rabbanut' && h.rabbanutId !== req.user.rabbanutId) {
-        res.status(403).json({ error: 'Forbidden' }); return
-      }
+      assertOwnsRabbanut(req, h)
       res.json(serializeHechsher(h))
     } catch (e) { next(e) }
   },
@@ -38,9 +39,7 @@ export const hechsherController = {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = validate(createHechsherSchema, req.body)
-      const payload = req.user?.role === 'rabbanut'
-        ? { ...body, rabbanutId: req.user.rabbanutId! }
-        : body
+      const payload = applyWriteScope(req, body)
       const h = await hechsherimRepo.create(payload)
       await invalidateMapCache()
       res.status(201).json(serializeHechsher(h))
@@ -50,19 +49,12 @@ export const hechsherController = {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = validate(updateHechsherSchema, req.body)
-      if (req.user?.role === 'rabbanut') {
-        const existing = await hechsherimRepo.findById(req.params.id)
-        if (!existing) { res.status(404).json({ error: 'Not found' }); return }
-        if (existing.rabbanutId !== req.user.rabbanutId) {
-          res.status(403).json({ error: 'Forbidden' }); return
-        }
-        if (body.rabbanutId !== undefined && body.rabbanutId !== req.user.rabbanutId) {
-          res.status(403).json({ error: 'Forbidden' }); return
-        }
-      }
-      const payload = req.user?.role === 'rabbanut'
-        ? { ...body, rabbanutId: req.user.rabbanutId! }
-        : body
+      const existing = await hechsherimRepo.findById(req.params.id)
+      if (!existing) { res.status(404).json({ error: 'Not found' }); return }
+
+      assertOwnsRabbanut(req, existing)
+      const payload = applyWriteScope(req, body)
+
       const h = await hechsherimRepo.update(req.params.id, payload)
       if (!h) { res.status(404).json({ error: 'Not found' }); return }
       await invalidateMapCache()

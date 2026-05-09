@@ -3,12 +3,13 @@ import { mashgichimRepo } from '../db/mashgichim.repo'
 import { serializeMashgiach, serializeMashgichim } from '../serializers/mashgiach.serializer'
 import { validate } from '../lib/validate'
 import { createMashgiachSchema, updateMashgiachSchema, assignMashgiachSchema } from '../schemas'
+import { resolveScopeRabbanutId } from '../lib/rabbanutScope'
 
 export const mashgiachController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const q          = req.query as Record<string, string>
-      const rabbanutId = req.user?.role === 'rabbanut' ? req.user.rabbanutId : q.rabbanutId
+      const rabbanutId = resolveScopeRabbanutId(req, q.rabbanutId)
       const active     = q.active !== undefined ? q.active === 'true' : undefined
       const mashgichim = await mashgichimRepo.findAll({ rabbanutId, active })
       res.json(serializeMashgichim(mashgichim))

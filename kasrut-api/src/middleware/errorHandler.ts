@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { ValidationError } from '../lib/validate'
+import { ForbiddenScopeError } from '../lib/rabbanutScope'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -17,6 +18,12 @@ export function errorHandler(
     } else {
       res.status(400).json({ error: 'Validation failed', issues: err.issues })
     }
+    return
+  }
+
+  if (err instanceof ForbiddenScopeError) {
+    res.locals.serviceErrorMessage = `Cross-rabbanut access denied on ${req.method} ${req.path}`
+    res.status(403).json({ error: 'Forbidden' })
     return
   }
 

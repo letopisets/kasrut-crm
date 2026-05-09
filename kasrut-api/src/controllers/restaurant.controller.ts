@@ -6,13 +6,17 @@ import { serializeRestaurant, serializeRestaurants } from '../serializers/restau
 import { invalidatePattern, withCache } from '../lib/cache'
 import { validate } from '../lib/validate'
 import { createRestaurantSchema, updateRestaurantSchema, paginationSchema } from '../schemas'
+import {
+  applyWriteScope,
+  assertOwnsRabbanut,
+  resolveScopeRabbanutId,
+} from '../lib/rabbanutScope'
 
 const RESTAURANTS_CACHE_TTL = 300
 
 const invalidateMapCache = () => Promise.all([
   invalidatePattern('restaurants:*'),
-  invalidatePattern('map:restaurants:*'),
-  invalidatePattern('map:options'),
+  invalidatePattern('map:*'),
 ])
 
 const restaurantsCacheKey = (filter: Record<string, unknown>) =>
@@ -38,8 +42,8 @@ export const restaurantController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const q = req.query as Record<string, string>
-      const rabbanutId  = req.user?.role === 'rabbanut'  ? req.user.rabbanutId : q.rabbanutId
-      const mashgiachId = req.user?.role === 'mashgiach' ? req.user.sub        : undefined
+      const rabbanutId  = resolveScopeRabbanutId(req, q.rabbanutId)
+      const mashgiachId = req.user?.role === 'mashgiach' ? req.user.sub : undefined
 
       const pageInput = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
 
@@ -102,9 +106,7 @@ export const restaurantController = {
     try {
       const r = await restaurantsRepo.findById(req.params.id)
       if (!r) { res.status(404).json({ error: 'Not found' }); return }
-      if (req.user?.role === 'rabbanut' && r.rabbanutId !== req.user.rabbanutId) {
-        res.status(403).json({ error: 'Forbidden' }); return
-      }
+      assertOwnsRabbanut(req, r)
       res.json(serializeRestaurant(r))
     } catch (e) { next(e) }
   },
@@ -112,9 +114,7 @@ export const restaurantController = {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const body = validate(createRestaurantSchema, req.body)
-      const payload = req.user?.role === 'rabbanut'
-        ? { ...body, rabbanutId: req.user.rabbanutId! }
-        : body
+      const payload = applyWriteScope(req, body)
       if (!await validateRestaurantOwnership(payload)) {
         res.status(400).json({ error: 'Hechsher and mashgiach must belong to the selected rabbanut' }); return
       }
@@ -131,19 +131,9 @@ export const restaurantController = {
       const existing = await restaurantsRepo.findById(req.params.id)
       if (!existing) { res.status(404).json({ error: 'Not found' }); return }
 
-      if (req.user?.role === 'rabbanut') {
-        if (existing.rabbanutId !== req.user.rabbanutId) {
-          res.status(403).json({ error: 'Forbidden' }); return
-        }
-        // Prevent hijacking: rabbanut cannot reassign restaurant to another rabbanut
-        if (body.rabbanutId !== undefined && body.rabbanutId !== req.user.rabbanutId) {
-          res.status(403).json({ error: 'Forbidden' }); return
-        }
-      }
+      assertOwnsRabbanut(req, existing)
 
-      const payload = req.user?.role === 'rabbanut'
-        ? { ...body, rabbanutId: req.user.rabbanutId! }
-        : body
+      const payload = applyWriteScope(req, body)
       const merged = {
         rabbanutId: payload.rabbanutId ?? existing.rabbanutId,
         hechsherId: payload.hechsherId ?? existing.hechsherId,
