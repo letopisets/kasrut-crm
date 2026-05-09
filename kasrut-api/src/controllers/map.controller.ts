@@ -1,36 +1,16 @@
 import type { Request, Response, NextFunction } from 'express'
-import { z } from 'zod'
 import { createHash } from 'crypto'
-import { mapRepo }                  from '../db/map.repo'
-import { mapCommunityRepo }         from '../db/mapCommunity.repo'
-import { serializeMapRestaurantsPage }  from '../serializers/map.serializer'
-import {
-  serializeMapReview,
-  serializeMapReviewsPayload,
-  serializeMapSuggestion,
-  serializeMapSuggestionFull,
-} from '../serializers/mapCommunity.serializer'
-import { invalidatePattern, withCache } from '../lib/cache'
+import { mapRepo } from '../db/map.repo'
+import { serializeMapRestaurantsPage } from '../serializers/map.serializer'
+import { withCache } from '../lib/cache'
 import type { KashrutLevel, MapBounds, MapFilter, MapPoint } from '../db/map.repo'
 
 const HECHSHERIM_CACHE_TTL = 600 // 10 minutes
 const MAP_OPTIONS_CACHE_TTL = 600 // 10 minutes
-
 const CACHE_TTL = 300 // 5 minutes
-const ROUTE_CACHE_TTL = 60 * 60 // 1 hour — pedestrian routes are stable
+
 const DEFAULT_RESTAURANT_LIMIT = 750
 const MAX_RESTAURANT_LIMIT = 1500
-const OSRM_BASE_URL = (process.env.OSRM_BASE_URL ?? 'https://router.project-osrm.org/route/v1').replace(/\/$/, '')
-const ROUTE_TIMEOUT_MS = 8_000
-
-// Single SCAN over the whole map namespace beats four separate scans — the
-// cursor walks the keyspace once and any new map:* sub-namespace is covered
-// without touching this list. `restaurants:*` is the legacy CRM cache, kept
-// separate because it lives outside the map namespace.
-const invalidateMapCache = () => Promise.all([
-  invalidatePattern('restaurants:*'),
-  invalidatePattern('map:*'),
-])
 
 function queryString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
@@ -136,98 +116,6 @@ function parseCsv<T extends string>(value: string | undefined): T[] | undefined 
   return parts.length ? [...new Set(parts)].sort() : undefined
 }
 
-// Capped well below the 2 MB body limit so any other request fields still fit.
-const MAX_SUGGESTION_IMAGE_BYTES = 1_400_000
-const SUGGESTION_IMAGE_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/
-
-const suggestionSchema = z.object({
-  type: z.enum(['add', 'update']),
-  restaurantId: z.string().optional().nullable(),
-  proposedName: z.string().trim().min(1).max(160).optional().nullable(),
-  proposedAddress: z.string().trim().min(1).max(220).optional().nullable(),
-  proposedCity: z.string().trim().min(1).max(120).optional().nullable(),
-  proposedHechsher: z.string().trim().min(1).max(180).optional().nullable(),
-  proposedKashrutStatus: z.string().trim().min(1).max(120).optional().nullable(),
-  proposedFoodType: z.enum(['meat', 'dairy', 'pareve', 'takeaway']).optional().nullable(),
-  proposedImageUrl: z.string()
-    .max(MAX_SUGGESTION_IMAGE_BYTES, 'Image is too large')
-    .regex(SUGGESTION_IMAGE_PATTERN, 'Image must be a JPEG, PNG or WebP data URL')
-    .optional()
-    .nullable(),
-  proposedLat: z.number().finite().optional().nullable(),
-  proposedLng: z.number().finite().optional().nullable(),
-  notes: z.string().trim().max(1200).optional().nullable(),
-}).superRefine((value, ctx) => {
-  if (value.type === 'add') {
-    if (!value.proposedName || !value.proposedAddress || !value.proposedCity) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Name, address and city are required for a new restaurant' })
-    }
-    return
-  }
-
-  if (!value.restaurantId) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'restaurantId is required for an update suggestion' })
-  }
-
-  const hasChange = Boolean(
-    value.proposedName ||
-    value.proposedAddress ||
-    value.proposedCity ||
-    value.proposedHechsher ||
-    value.proposedKashrutStatus ||
-    value.proposedFoodType ||
-    value.proposedImageUrl ||
-    value.notes,
-  )
-  if (!hasChange) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one proposed change is required' })
-  }
-})
-
-const reviewSchema = z.object({
-  rating: z.number().int().min(1).max(5),
-  text: z.string().trim().max(1000).optional().nullable(),
-})
-
-const routeQuerySchema = z.object({
-  fromLat: z.coerce.number().min(-90).max(90),
-  fromLng: z.coerce.number().min(-180).max(180),
-  toLat:   z.coerce.number().min(-90).max(90),
-  toLng:   z.coerce.number().min(-180).max(180),
-})
-
-interface OsrmManeuver { type: string; modifier?: string }
-interface OsrmStep {
-  name: string
-  distance: number
-  duration: number
-  maneuver: OsrmManeuver
-}
-interface OsrmLeg { steps: OsrmStep[] }
-interface OsrmRoute {
-  distance: number
-  duration: number
-  geometry: { coordinates: [number, number][] }
-  legs: OsrmLeg[]
-}
-interface OsrmResponse {
-  code: string
-  message?: string
-  routes?: OsrmRoute[]
-}
-
-function buildInstruction({ maneuver: { type, modifier }, name }: OsrmStep): string {
-  const street = name ? ` по ${name}` : ''
-  if (type === 'depart') return `Начните движение${street}`
-  if (type === 'arrive') return 'Вы прибыли к цели'
-  if (type === 'turn') {
-    const dir = modifier === 'left' ? 'налево' : modifier === 'right' ? 'направо' : 'прямо'
-    return `Поверните ${dir}${street}`
-  }
-  if (type === 'roundabout' || type === 'rotary') return `Въедьте на круговое движение${street}`
-  return `Продолжайте движение${street}`
-}
-
 // Common reverse-proxy headers carrying client geolocation hints. We trust
 // these only as a coarse default for the initial map centre — never as user
 // position. Cloudflare exposes `cf-iplatitude/cf-iplongitude`; some CDNs use
@@ -261,82 +149,6 @@ export const mapController = {
     }
     res.set('cache-control', 'public, max-age=600')
     res.json(geo)
-  },
-
-  async getRoute(req: Request, res: Response): Promise<void> {
-    const parsed = routeQuerySchema.safeParse(req.query)
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid route coordinates' })
-      return
-    }
-
-    const { fromLat, fromLng, toLat, toLng } = parsed.data
-    // Round to ~110m so a user retrying or two users walking the same path
-    // share the same cached response — pedestrian routes don't differ at this
-    // resolution and the upstream OSRM call dominates total latency.
-    const r = (v: number) => Math.round(v * 1_000) / 1_000
-    const cacheKey = `map:route:foot:${r(fromLat)},${r(fromLng)}=>${r(toLat)},${r(toLng)}`
-
-    try {
-      const data = await withCache(cacheKey, ROUTE_CACHE_TTL, async () => {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), ROUTE_TIMEOUT_MS)
-        try {
-          const coordinates = `${fromLng},${fromLat};${toLng},${toLat}`
-          const params = new URLSearchParams({
-            steps: 'true',
-            overview: 'full',
-            geometries: 'geojson',
-          })
-          const url = `${OSRM_BASE_URL}/foot/${coordinates}?${params.toString()}`
-          // Public OSRM tightens limits on UA-less traffic; identify ourselves
-          // so a self-hosted setup can also distinguish our traffic in logs.
-          const upstream = await fetch(url, {
-            signal: controller.signal,
-            headers: { 'User-Agent': 'kasrut-crm/1.0 (+https://mykoshermap.com)' },
-          })
-          const json = await upstream.json() as OsrmResponse
-
-          if (!upstream.ok) {
-            throw Object.assign(new Error(json.message || 'Сервис маршрутов временно недоступен'), { httpStatus: 502 })
-          }
-
-          const route = json.routes?.[0]
-          if (json.code !== 'Ok' || !route) {
-            throw Object.assign(new Error(json.message || 'Маршрут не найден'), { httpStatus: 404 })
-          }
-
-          const steps = route.legs[0]?.steps.map(step => ({
-            instruction: buildInstruction(step),
-            distance: step.distance,
-            duration: step.duration,
-          })) ?? []
-          const geometry = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-
-          return {
-            geometry,
-            steps,
-            totalDistance: route.distance,
-            totalDuration: route.duration,
-          }
-        } finally {
-          clearTimeout(timeout)
-        }
-      })
-
-      res.json(data)
-    } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') {
-        res.status(504).json({ error: 'Сервис маршрутов не ответил вовремя' })
-        return
-      }
-      const status = (e as { httpStatus?: number }).httpStatus
-      if (status === 404) {
-        res.status(404).json({ error: (e as Error).message })
-        return
-      }
-      res.status(502).json({ error: 'Сервис маршрутов временно недоступен' })
-    }
   },
 
   async listHechsherim(_req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -386,106 +198,5 @@ export const mapController = {
       }
       next(e)
     }
-  },
-
-  async createSuggestion(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      if (!req.mapUser) {
-        res.status(401).json({ error: 'Unauthorized' })
-        return
-      }
-
-      const parsed = suggestionSchema.safeParse(req.body)
-      if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid suggestion payload' })
-        return
-      }
-
-      if (parsed.data.restaurantId) {
-        const exists = await mapCommunityRepo.restaurantExists(parsed.data.restaurantId)
-        if (!exists) {
-          res.status(404).json({ error: 'Restaurant not found' })
-          return
-        }
-      }
-
-      const suggestion = await mapCommunityRepo.createSuggestion(req.mapUser.sub, parsed.data)
-      res.status(201).json(serializeMapSuggestion(suggestion))
-    } catch (e) { next(e) }
-  },
-
-  async listSuggestions(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const status = req.query.status as string | undefined
-      const allowed = ['pending', 'approved', 'rejected']
-      const filter = allowed.includes(status ?? '') ? { status: status as 'pending' | 'approved' | 'rejected' } : {}
-      const suggestions = await mapCommunityRepo.listSuggestions(filter)
-      res.json(suggestions.map(serializeMapSuggestionFull))
-    } catch (e) { next(e) }
-  },
-
-  async reviewSuggestion(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = req.params.id
-      const { status, reviewerNote } = req.body as { status?: unknown; reviewerNote?: unknown }
-      if (status !== 'approved' && status !== 'rejected') {
-        res.status(400).json({ error: 'status must be "approved" or "rejected"' })
-        return
-      }
-      const note = typeof reviewerNote === 'string' ? reviewerNote.trim() || null : null
-      const result = await mapCommunityRepo.reviewSuggestion(id, {
-        status,
-        reviewerNote: note,
-        reviewerRabbanutId: req.user?.rabbanutId,
-      })
-      if (!result) {
-        res.status(404).json({ error: 'Suggestion not found or already reviewed' })
-        return
-      }
-      if (status === 'approved') await invalidateMapCache()
-      res.json(serializeMapSuggestionFull(result))
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith('Cannot approve suggestion')) {
-        res.status(400).json({ error: e.message })
-        return
-      }
-      next(e)
-    }
-  },
-
-  async listReviews(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const restaurantId = req.params.restaurantId
-      const exists = await mapCommunityRepo.restaurantExists(restaurantId)
-      if (!exists) {
-        res.status(404).json({ error: 'Restaurant not found' })
-        return
-      }
-
-      const payload = await mapCommunityRepo.listReviews(restaurantId)
-      res.json(serializeMapReviewsPayload(payload))
-    } catch (e) { next(e) }
-  },
-
-  async upsertReview(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      if (!req.mapUser) {
-        res.status(401).json({ error: 'Unauthorized' })
-        return
-      }
-
-      const parsed = reviewSchema.safeParse(req.body)
-      if (!parsed.success) {
-        res.status(400).json({ error: 'rating must be between 1 and 5' })
-        return
-      }
-
-      const review = await mapCommunityRepo.upsertReview(req.mapUser.sub, req.params.restaurantId, parsed.data)
-      if (!review) {
-        res.status(404).json({ error: 'Restaurant not found' })
-        return
-      }
-      res.json(serializeMapReview(review))
-    } catch (e) { next(e) }
   },
 }
