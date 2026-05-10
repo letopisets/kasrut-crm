@@ -127,6 +127,26 @@ export const restaurantsRepo = {
     }
   },
 
+  async validateOwnership(input: {
+    rabbanutId: string
+    hechsherId: string
+    mashgiachId?: string
+  }): Promise<boolean> {
+    const hechsherOk = await prisma.hechsher.count({
+      where: { id: input.hechsherId, rabbanutId: input.rabbanutId },
+    })
+    if (hechsherOk !== 1) return false
+
+    if (input.mashgiachId) {
+      const mashgiachOk = await prisma.mashgiach.count({
+        where: { id: input.mashgiachId, rabbanutId: input.rabbanutId },
+      })
+      if (mashgiachOk !== 1) return false
+    }
+
+    return true
+  },
+
   async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
     try {
       await prisma.restaurant.delete({ where: { id } })
