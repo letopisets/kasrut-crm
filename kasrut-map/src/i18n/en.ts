@@ -161,6 +161,8 @@ const en: MapTranslations = {
   donateCopied: 'Copied',
   donateBack: 'Back to map',
   donateThanks: 'Thank you for your support!',
+
+  sessionExpired: 'Your session expired. Please log in again.',
 }
 
 export default en
