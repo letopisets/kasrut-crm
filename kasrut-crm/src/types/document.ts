@@ -1,5 +1,5 @@
 export type { DocumentCategory, DocExt } from '../../../packages/shared/types'
-import type { DocumentCategory } from '../../../packages/shared/types'
+import type { DocumentCategory, DocExt } from '../../../packages/shared/types'
 
 export interface KashrutDocument {
   id: string
@@ -7,6 +7,6 @@ export interface KashrutDocument {
   category: DocumentCategory
   date: string
   size: string
-  ext: 'PDF' | 'DOCX' | 'XLSX'
+  ext: DocExt
   url?: string
 }
