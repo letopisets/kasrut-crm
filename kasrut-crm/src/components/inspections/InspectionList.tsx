@@ -12,16 +12,34 @@ const SLOT_HEIGHT = ROW_HEIGHT + ROW_GAP
 const OVERSCAN_ROWS = 8
 const VIRTUALIZE_THRESHOLD = 60
 
+// Direct render is cheaper than virtualisation up to ~60 rows; only when the
+// list grows beyond that threshold do we pay for ResizeObserver + scroll
+// state. Splitting into two components keeps each branch's hook count fixed,
+// so React's rules-of-hooks isn't broken when the threshold is crossed.
 export function InspectionList({ inspections }: Props) {
+  if (inspections.length <= VIRTUALIZE_THRESHOLD) {
+    return <SimpleList inspections={inspections} />
+  }
+  return <VirtualList inspections={inspections} />
+}
+
+function SimpleList({ inspections }: Props) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {inspections.map(i => (
+        <InspectionRow key={i.id} inspection={i} />
+      ))}
+    </Box>
+  )
+}
+
+function VirtualList({ inspections }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef<number | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
 
-  const shouldVirtualize = inspections.length > VIRTUALIZE_THRESHOLD
-
   useEffect(() => {
-    if (!shouldVirtualize) return
     const node = containerRef.current
     if (!node) return
     const observer = new ResizeObserver(entries => {
@@ -31,21 +49,11 @@ export function InspectionList({ inspections }: Props) {
     observer.observe(node)
     setViewportHeight(node.clientHeight)
     return () => observer.disconnect()
-  }, [shouldVirtualize])
+  }, [])
 
   useEffect(() => () => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
   }, [])
-
-  if (!shouldVirtualize) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {inspections.map(i => (
-          <InspectionRow key={i.id} inspection={i} />
-        ))}
-      </Box>
-    )
-  }
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const next = event.currentTarget.scrollTop
