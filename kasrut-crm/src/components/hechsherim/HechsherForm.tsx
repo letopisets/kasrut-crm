@@ -34,7 +34,10 @@ export function HechsherForm({ rabbanutOptions, onSave, onClose, error, saving =
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
+  const [submitted, setSubmitted] = useState(false)
+
   const handleSave = () => {
+    setSubmitted(true)
     if (!form.name || !form.shortName || !form.type) return
     void onSave({ ...form, type: form.type as HechsherType })
   }
@@ -43,19 +46,41 @@ export function HechsherForm({ rabbanutOptions, onSave, onClose, error, saving =
 
   return (
     <Modal title={t.hechsherim?.addTitle ?? 'Add Hechsher'} onClose={onClose}>
-      <Input label={t.hechsherim?.name      ?? 'Name'}       value={form.name}      onChange={v => set('name', v)} />
-      <Input label={t.hechsherim?.shortName ?? 'Short name'} value={form.shortName} onChange={v => set('shortName', v)} />
+      <Input
+        label={t.hechsherim?.name ?? 'Name'}
+        value={form.name}
+        onChange={v => set('name', v)}
+        required
+        error={submitted && !form.name}
+        helperText={submitted && !form.name ? t.validation.required : undefined}
+      />
+      <Input
+        label={t.hechsherim?.shortName ?? 'Short name'}
+        value={form.shortName}
+        onChange={v => set('shortName', v)}
+        required
+        error={submitted && !form.shortName}
+        helperText={submitted && !form.shortName ? t.validation.required : undefined}
+      />
       <Input label={t.hechsherim?.city      ?? 'City'}       value={form.city}      onChange={v => set('city', v)} />
       <Input label={t.hechsherim?.contact   ?? 'Contact'}    value={form.contact}   onChange={v => set('contact', v)} />
       <Input label={t.hechsherim?.phone     ?? 'Phone'}      value={form.phone}     onChange={v => set('phone', v)} />
       <Input label={t.hechsherim?.email     ?? 'Email'}      value={form.email}     onChange={v => set('email', v)} />
-      <Input label={t.hechsherim?.type ?? 'Type'} value={form.type} onChange={v => set('type', v as HechsherType)} options={typeOptions} />
+      <Input
+        label={t.hechsherim?.type ?? 'Type'}
+        value={form.type}
+        onChange={v => set('type', v as HechsherType)}
+        options={typeOptions}
+        required
+        error={submitted && !form.type}
+        helperText={submitted && !form.type ? t.validation.required : undefined}
+      />
       {rabbanutOptions.length > 1 && (
         <Input label="Rabbanut" value={form.rabbanutId} onChange={v => set('rabbanutId', v)} options={rabbanutOptions} />
       )}
       {error && <Alert severity="error">{error}</Alert>}
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
-        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.shortName || !form.type || saving} disableElevation>
+        <Button variant="contained" onClick={handleSave} disabled={saving} disableElevation>
           {saving ? <CircularProgress size={16} color="inherit" /> : (t.addRest?.save ?? 'Save')}
         </Button>
         <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>

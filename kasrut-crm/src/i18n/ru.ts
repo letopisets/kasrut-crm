@@ -207,6 +207,12 @@ const ru: Translations = {
     },
     viewDetails: 'Детали',
   },
+  validation: {
+    required:         'Поле обязательно для заполнения',
+    invalidEmail:     'Некорректный адрес электронной почты',
+    passwordTooShort: 'Пароль должен содержать минимум 8 символов',
+    passwordWeak:     'Пароль должен содержать буквы и цифры',
+  },
   noAccess:         'У вас нет доступа к этому разделу.',
   myEstablishments: 'Мои заведения',
   myInspections:    'Мои инспекции',

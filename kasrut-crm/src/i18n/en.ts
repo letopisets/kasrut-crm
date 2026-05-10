@@ -207,6 +207,12 @@ const en: Translations = {
     },
     viewDetails: 'Details',
   },
+  validation: {
+    required:         'This field is required',
+    invalidEmail:     'Invalid email address',
+    passwordTooShort: 'Password must be at least 8 characters',
+    passwordWeak:     'Password must contain letters and digits',
+  },
   noAccess:         "You don't have access to this section.",
   myEstablishments: 'My Establishments',
   myInspections:    'My Inspections',

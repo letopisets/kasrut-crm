@@ -13,9 +13,12 @@ interface InputProps {
   type?:        string
   options?:     (SelectOption | string)[]
   placeholder?: string
+  error?:       boolean
+  helperText?:  string
+  required?:    boolean
 }
 
-export function Input({ label, value, onChange, type = 'text', options, placeholder }: InputProps) {
+export function Input({ label, value, onChange, type = 'text', options, placeholder, error, helperText, required }: InputProps) {
   if (options) {
     return (
       <TextField
@@ -25,6 +28,9 @@ export function Input({ label, value, onChange, type = 'text', options, placehol
         label={label}
         value={value}
         onChange={e => onChange(e.target.value)}
+        error={error}
+        helperText={helperText}
+        required={required}
       >
         <MenuItem value=""><em>—</em></MenuItem>
         {options.map(o => {
@@ -45,6 +51,9 @@ export function Input({ label, value, onChange, type = 'text', options, placehol
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
+      error={error}
+      helperText={helperText}
+      required={required}
       slotProps={type === 'date' ? { inputLabel: { shrink: true } } : undefined}
     />
   )
