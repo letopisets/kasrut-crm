@@ -69,7 +69,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: kasrut-map/package-lock.json
       - run: npm ci
-      - name: Type check + build
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Build
         run: npm run build
       - name: Tests
         run: npm test

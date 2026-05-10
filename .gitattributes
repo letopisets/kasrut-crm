@@ -1,0 +1,16 @@
+# Normalize line endings so Windows contributors don't introduce CRLF into
+# files that are then committed and break Unix tools (node shebangs, sh scripts,
+# Dockerfiles, etc.).
+* text=auto eol=lf
+
+# Binary files — never touch line endings
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
