@@ -1,7 +1,5 @@
 import pino from 'pino'
-
-const isProd = process.env.NODE_ENV === 'production'
-const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
+import { isProd, isTest } from './runtime'
 
 export const logger = pino({
   level: isTest ? 'silent' : (process.env.LOG_LEVEL ?? (isProd ? 'info' : 'debug')),

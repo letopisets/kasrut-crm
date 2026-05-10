@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma'
 import { randomUUID } from 'crypto'
 import { Prisma } from '../generated/prisma/client'
 import { logger } from '../lib/logger'
+import { isTest } from '../lib/runtime'
 
 export type ServiceLogLevel = 'info' | 'warn' | 'error'
 
@@ -11,7 +12,6 @@ export type ServiceLogLevel = 'info' | 'warn' | 'error'
 // dial it down (chatty, low-latency) or up (steady, fewer writes).
 const BATCH_MAX_SIZE = Number(process.env.SERVICE_LOG_BATCH_SIZE ?? 100)
 const BATCH_FLUSH_MS = Number(process.env.SERVICE_LOG_FLUSH_MS ?? 1_000)
-const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
 
 export interface ServiceLog {
   id: string

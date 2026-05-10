@@ -1,7 +1,6 @@
 import Redis from 'ioredis'
 import { env } from '../config/env'
-
-const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
+import { isTest } from './runtime'
 
 // Lazy-connect so the API starts even if Redis is not running
 export const redis = new Redis(env.REDIS_URL, {

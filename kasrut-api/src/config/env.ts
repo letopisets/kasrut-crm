@@ -1,31 +1,36 @@
 import 'dotenv/config'
+import { z } from 'zod'
 import type { SignOptions } from 'jsonwebtoken'
 
-const defaultCorsOrigins = 'http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174'
-const corsOrigins = process.env.CORS_ORIGINS ?? process.env.CORS_ORIGIN ?? defaultCorsOrigins
-const jwtSecret   = process.env.JWT_SECRET ?? ''
-
-if (!jwtSecret || jwtSecret.length < 32) {
-  throw new Error('JWT_SECRET must be set and at least 32 characters long')
-}
-
-const encryptionKey = process.env.ENCRYPTION_KEY ?? ''
-if (!encryptionKey || encryptionKey.length !== 64) {
-  throw new Error('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)')
-}
-
-// jsonwebtoken's `expiresIn` is `number | StringValue` and a plain `string` no
-// longer fits without a cast. Typing the env value once here lets every call
-// site sign tokens without `as object` workarounds.
 type JwtExpiresIn = SignOptions['expiresIn']
 
+const DEFAULT_CORS = 'http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174'
+
+const schema = z.object({
+  PORT:             z.coerce.number().int().positive().default(3000),
+  API_PUBLIC_URL:   z.string().min(1).default('https://api.mykoshermap.com/api'),
+  JWT_SECRET:       z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
+  JWT_EXPIRES_IN:   z.string().default('7d'),
+  ENCRYPTION_KEY:   z.string().length(64, 'ENCRYPTION_KEY must be a 64-character hex string (32 bytes)'),
+  GOOGLE_CLIENT_ID: z.string().default(''),
+  APPLE_CLIENT_ID:  z.string().default(''),
+  REDIS_URL:        z.string().min(1).default('redis://localhost:6379'),
+  // Accept either CORS_ORIGINS or the legacy CORS_ORIGIN (singular)
+  CORS_ORIGINS:     z.string().optional(),
+  CORS_ORIGIN:      z.string().optional(),
+})
+
+const raw = schema.parse(process.env)
+
 export const env = {
-  PORT:           parseInt(process.env.PORT ?? '3000', 10),
-  API_PUBLIC_URL: process.env.API_PUBLIC_URL ?? 'https://api.mykoshermap.com/api',
-  JWT_SECRET:     jwtSecret,
-  JWT_EXPIRES_IN: (process.env.JWT_EXPIRES_IN ?? '7d') as JwtExpiresIn,
-  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
-  APPLE_CLIENT_ID:  process.env.APPLE_CLIENT_ID  ?? '',
-  CORS_ORIGINS:   corsOrigins.split(',').map(s => s.trim()),
-  REDIS_URL:      process.env.REDIS_URL ?? 'redis://localhost:6379',
+  PORT:             raw.PORT,
+  API_PUBLIC_URL:   raw.API_PUBLIC_URL,
+  JWT_SECRET:       raw.JWT_SECRET,
+  JWT_EXPIRES_IN:   raw.JWT_EXPIRES_IN as JwtExpiresIn,
+  ENCRYPTION_KEY:   raw.ENCRYPTION_KEY,
+  GOOGLE_CLIENT_ID: raw.GOOGLE_CLIENT_ID,
+  APPLE_CLIENT_ID:  raw.APPLE_CLIENT_ID,
+  REDIS_URL:        raw.REDIS_URL,
+  CORS_ORIGINS:     (raw.CORS_ORIGINS ?? raw.CORS_ORIGIN ?? DEFAULT_CORS)
+                      .split(',').map(s => s.trim()).filter(Boolean),
 } as const
