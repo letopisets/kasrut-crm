@@ -1,13 +1,14 @@
-import type { Request, Response, NextFunction } from 'express'
+import type { Request } from 'express'
 import { createHash } from 'crypto'
 import { mapRepo } from '../db/map.repo'
 import { serializeMapRestaurantsPage } from '../serializers/map.serializer'
 import { withCache } from '../lib/cache'
+import { asyncHandler } from '../lib/asyncHandler'
 import type { KashrutLevel, MapBounds, MapFilter, MapPoint } from '../db/map.repo'
 
-const HECHSHERIM_CACHE_TTL = 600 // 10 minutes
-const MAP_OPTIONS_CACHE_TTL = 600 // 10 minutes
-const CACHE_TTL = 300 // 5 minutes
+const HECHSHERIM_CACHE_TTL = 600
+const MAP_OPTIONS_CACHE_TTL = 600
+const CACHE_TTL = 300
 
 const DEFAULT_RESTAURANT_LIMIT = 750
 const MAX_RESTAURANT_LIMIT = 1500
@@ -20,19 +21,10 @@ function roundCoord(value: number): number {
   return Math.round(value * 100_000) / 100_000
 }
 
-/** Coarse rounding used only for cache keys — collapses fine-grained map drag
- *  noise so adjacent viewports share a Redis entry. ~110m precision is well
- *  inside the radius/marker resolution we render. */
 function roundCacheCoord(value: number): number {
   return Math.round(value * 1_000) / 1_000
 }
 
-/** Build a deterministic, compact cache key for restaurant queries.
- *  - keys are sorted so JS object iteration order doesn't affect the hash
- *  - centre coords are rounded coarser than the response so ±100m drags share
- *    a cache entry (huge cache-hit improvement for typical pan gestures)
- *  - the final value is hashed so massive hechsher/city lists don't blow up
- *    Redis memory with multi-KB key strings */
 function restaurantsCacheKey(filter: MapFilter): string {
   const normalized: Record<string, unknown> = {
     city:         filter.city ?? null,
@@ -47,11 +39,11 @@ function restaurantsCacheKey(filter: MapFilter): string {
           west:  roundCacheCoord(filter.bounds.west),
         }
       : null,
-    center:       filter.center
+    center: filter.center
       ? { lat: roundCacheCoord(filter.center.lat), lng: roundCacheCoord(filter.center.lng) }
       : null,
-    radius:       filter.radius ?? null,
-    limit:        filter.limit,
+    radius: filter.radius ?? null,
+    limit:  filter.limit,
   }
   const ordered = Object.keys(normalized).sort().map(k => [k, normalized[k]] as const)
   const hash = createHash('sha1').update(JSON.stringify(ordered)).digest('hex').slice(0, 16)
@@ -61,7 +53,6 @@ function restaurantsCacheKey(filter: MapFilter): string {
 function parseNumber(value: unknown, min: number, max: number): number | undefined {
   const raw = queryString(value)
   if (!raw) return undefined
-
   const parsed = Number(raw)
   if (!Number.isFinite(parsed) || parsed < min || parsed > max) return undefined
   return parsed
@@ -75,39 +66,24 @@ function parseLimit(value: unknown): number {
 function parseBounds(query: Record<string, unknown>): MapBounds | undefined {
   const north = parseNumber(query.north, -90, 90)
   const south = parseNumber(query.south, -90, 90)
-  const east = parseNumber(query.east, -180, 180)
-  const west = parseNumber(query.west, -180, 180)
-
+  const east  = parseNumber(query.east, -180, 180)
+  const west  = parseNumber(query.west, -180, 180)
   if ([north, south, east, west].every(v => v === undefined)) return undefined
-  if (
-    north === undefined ||
-    south === undefined ||
-    east === undefined ||
-    west === undefined ||
-    south > north
-  ) {
+  if (north === undefined || south === undefined || east === undefined || west === undefined || south > north) {
     throw new Error('Invalid map bounds')
   }
-
   return {
-    north: roundCoord(north),
-    south: roundCoord(south),
-    east: roundCoord(east),
-    west: roundCoord(west),
+    north: roundCoord(north), south: roundCoord(south),
+    east:  roundCoord(east),  west:  roundCoord(west),
   }
 }
 
 function parseCenter(query: Record<string, unknown>): MapPoint | undefined {
   const lat = parseNumber(query.lat, -90, 90)
   const lng = parseNumber(query.lng, -180, 180)
-
   if (lat === undefined && lng === undefined) return undefined
   if (lat === undefined || lng === undefined) throw new Error('Invalid map center')
-
-  return {
-    lat: roundCoord(lat),
-    lng: roundCoord(lng),
-  }
+  return { lat: roundCoord(lat), lng: roundCoord(lng) }
 }
 
 function parseCsv<T extends string>(value: string | undefined): T[] | undefined {
@@ -116,10 +92,6 @@ function parseCsv<T extends string>(value: string | undefined): T[] | undefined 
   return parts.length ? [...new Set(parts)].sort() : undefined
 }
 
-// Common reverse-proxy headers carrying client geolocation hints. We trust
-// these only as a coarse default for the initial map centre — never as user
-// position. Cloudflare exposes `cf-iplatitude/cf-iplongitude`; some CDNs use
-// `x-vercel-ip-latitude`/`x-vercel-ip-longitude`.
 function geoFromHeaders(req: Request): { lat: number; lng: number } | null {
   const tryPair = (latKey: string, lngKey: string) => {
     const lat = Number(req.header(latKey))
@@ -135,45 +107,26 @@ function geoFromHeaders(req: Request): { lat: number; lng: number } | null {
 }
 
 export const mapController = {
-  /**
-   * Coarse IP-based geolocation for the initial map centre. Returns CDN-
-   * provided coordinates when available; never falls back to a third-party
-   * service so the API stays self-contained. Returns 204 if nothing usable —
-   * the client will keep its cached/default centre.
-   */
-  async getGeo(req: Request, res: Response): Promise<void> {
+  getGeo: asyncHandler(async (req, res) => {
     const geo = geoFromHeaders(req)
-    if (!geo) {
-      res.status(204).end()
-      return
-    }
+    if (!geo) { res.status(204).end(); return }
     res.set('cache-control', 'public, max-age=600')
     res.json(geo)
-  },
+  }),
 
-  async listHechsherim(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  listHechsherim: asyncHandler(async (_req, res) => {
+    const data = await withCache('map:hechsherim', HECHSHERIM_CACHE_TTL, () => mapRepo.findHechsherim())
+    res.json(data)
+  }),
+
+  listOptions: asyncHandler(async (_req, res) => {
+    const data = await withCache('map:options', MAP_OPTIONS_CACHE_TTL, () => mapRepo.findMapOptions())
+    res.json(data)
+  }),
+
+  listRestaurants: asyncHandler(async (req, res) => {
+    const q = req.query as Record<string, unknown>
     try {
-      const data = await withCache('map:hechsherim', HECHSHERIM_CACHE_TTL, () =>
-        mapRepo.findHechsherim()
-      )
-      res.json(data)
-    } catch (e) { next(e) }
-  },
-
-  async listOptions(_req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const data = await withCache('map:options', MAP_OPTIONS_CACHE_TTL, () =>
-        mapRepo.findMapOptions()
-      )
-      res.json(data)
-    } catch (e) { next(e) }
-  },
-
-  async listRestaurants(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const q = req.query as Record<string, unknown>
-      const radius = parseNumber(q.radius, 1, 100_000)
-
       const filter: MapFilter = {
         city:         queryString(q.city) || undefined,
         kashrutLevel: parseCsv<KashrutLevel>(queryString(q.kashrutLevel)),
@@ -181,22 +134,16 @@ export const mapController = {
         foodType:     parseCsv(queryString(q.foodType)),
         bounds:       parseBounds(q),
         center:       parseCenter(q),
-        radius,
+        radius:       parseNumber(q.radius, 1, 100_000),
         limit:        parseLimit(q.limit),
       }
-
-      const cacheKey = restaurantsCacheKey(filter)
-      const data = await withCache(cacheKey, CACHE_TTL, () =>
-        mapRepo.findForMap(filter)
-      )
-
+      const data = await withCache(restaurantsCacheKey(filter), CACHE_TTL, () => mapRepo.findForMap(filter))
       res.json(serializeMapRestaurantsPage(data))
     } catch (e) {
       if (e instanceof Error && e.message.startsWith('Invalid map')) {
-        res.status(400).json({ error: e.message })
-        return
+        res.status(400).json({ error: e.message }); return
       }
-      next(e)
+      throw e
     }
-  },
+  }),
 }

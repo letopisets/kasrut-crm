@@ -1,4 +1,3 @@
-import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
 import {
@@ -6,8 +5,8 @@ import {
   serializeMapSuggestionFull,
 } from '../serializers/mapCommunity.serializer'
 import { invalidateMapCache } from '../lib/mapCache'
+import { asyncHandler } from '../lib/asyncHandler'
 
-// Capped well below the 2 MB body limit so any other request fields still fit.
 const MAX_SUGGESTION_IMAGE_BYTES = 1_400_000
 const SUGGESTION_IMAGE_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/
 
@@ -35,20 +34,13 @@ const suggestionSchema = z.object({
     }
     return
   }
-
   if (!value.restaurantId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'restaurantId is required for an update suggestion' })
   }
-
   const hasChange = Boolean(
-    value.proposedName ||
-    value.proposedAddress ||
-    value.proposedCity ||
-    value.proposedHechsher ||
-    value.proposedKashrutStatus ||
-    value.proposedFoodType ||
-    value.proposedImageUrl ||
-    value.notes,
+    value.proposedName || value.proposedAddress || value.proposedCity ||
+    value.proposedHechsher || value.proposedKashrutStatus || value.proposedFoodType ||
+    value.proposedImageUrl || value.notes,
   )
   if (!hasChange) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one proposed change is required' })
@@ -56,68 +48,50 @@ const suggestionSchema = z.object({
 })
 
 export const mapSuggestionController = {
-  async createSuggestion(req: Request, res: Response, next: NextFunction): Promise<void> {
+  createSuggestion: asyncHandler(async (req, res) => {
+    if (!req.mapUser) { res.status(401).json({ error: 'Unauthorized' }); return }
+
+    const parsed = suggestionSchema.safeParse(req.body)
+    if (!parsed.success) { res.status(400).json({ error: 'Invalid suggestion payload' }); return }
+
+    if (parsed.data.restaurantId) {
+      const exists = await mapCommunityRepo.restaurantExists(parsed.data.restaurantId)
+      if (!exists) { res.status(404).json({ error: 'Restaurant not found' }); return }
+    }
+
+    const suggestion = await mapCommunityRepo.createSuggestion(req.mapUser.sub, parsed.data)
+    res.status(201).json(serializeMapSuggestion(suggestion))
+  }),
+
+  listSuggestions: asyncHandler(async (req, res) => {
+    const status  = req.query.status as string | undefined
+    const allowed = ['pending', 'approved', 'rejected']
+    const filter  = allowed.includes(status ?? '') ? { status: status as 'pending' | 'approved' | 'rejected' } : {}
+    const suggestions = await mapCommunityRepo.listSuggestions(filter)
+    res.json(suggestions.map(serializeMapSuggestionFull))
+  }),
+
+  reviewSuggestion: asyncHandler(async (req, res) => {
+    const id = req.params.id
+    const { status, reviewerNote } = req.body as { status?: unknown; reviewerNote?: unknown }
+    if (status !== 'approved' && status !== 'rejected') {
+      res.status(400).json({ error: 'status must be "approved" or "rejected"' }); return
+    }
+    const note = typeof reviewerNote === 'string' ? reviewerNote.trim() || null : null
     try {
-      if (!req.mapUser) {
-        res.status(401).json({ error: 'Unauthorized' })
-        return
-      }
-
-      const parsed = suggestionSchema.safeParse(req.body)
-      if (!parsed.success) {
-        res.status(400).json({ error: 'Invalid suggestion payload' })
-        return
-      }
-
-      if (parsed.data.restaurantId) {
-        const exists = await mapCommunityRepo.restaurantExists(parsed.data.restaurantId)
-        if (!exists) {
-          res.status(404).json({ error: 'Restaurant not found' })
-          return
-        }
-      }
-
-      const suggestion = await mapCommunityRepo.createSuggestion(req.mapUser.sub, parsed.data)
-      res.status(201).json(serializeMapSuggestion(suggestion))
-    } catch (e) { next(e) }
-  },
-
-  async listSuggestions(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const status = req.query.status as string | undefined
-      const allowed = ['pending', 'approved', 'rejected']
-      const filter = allowed.includes(status ?? '') ? { status: status as 'pending' | 'approved' | 'rejected' } : {}
-      const suggestions = await mapCommunityRepo.listSuggestions(filter)
-      res.json(suggestions.map(serializeMapSuggestionFull))
-    } catch (e) { next(e) }
-  },
-
-  async reviewSuggestion(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const id = req.params.id
-      const { status, reviewerNote } = req.body as { status?: unknown; reviewerNote?: unknown }
-      if (status !== 'approved' && status !== 'rejected') {
-        res.status(400).json({ error: 'status must be "approved" or "rejected"' })
-        return
-      }
-      const note = typeof reviewerNote === 'string' ? reviewerNote.trim() || null : null
       const result = await mapCommunityRepo.reviewSuggestion(id, {
         status,
         reviewerNote: note,
         reviewerRabbanutId: req.user?.rabbanutId,
       })
-      if (!result) {
-        res.status(404).json({ error: 'Suggestion not found or already reviewed' })
-        return
-      }
+      if (!result) { res.status(404).json({ error: 'Suggestion not found or already reviewed' }); return }
       if (status === 'approved') await invalidateMapCache()
       res.json(serializeMapSuggestionFull(result))
     } catch (e) {
       if (e instanceof Error && e.message.startsWith('Cannot approve suggestion')) {
-        res.status(400).json({ error: e.message })
-        return
+        res.status(400).json({ error: e.message }); return
       }
-      next(e)
+      throw e
     }
-  },
+  }),
 }
