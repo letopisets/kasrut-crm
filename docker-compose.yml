@@ -40,7 +40,7 @@ services:
       NODE_ENV:        production
       PORT:            3000
       API_PUBLIC_URL:  ${API_PUBLIC_URL:-http://localhost:8080/api}
-      DATABASE_URL:    "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-kashrutcrm_db}?schema=public"
+      DATABASE_URL:    "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-kashrutcrm_db}?schema=public&connection_limit=${DB_CONNECTION_LIMIT:-10}&pool_timeout=10"
       REDIS_URL:       redis://redis:6379
       # :? — упадёт при старте если не задан
       JWT_SECRET:      ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
