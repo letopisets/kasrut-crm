@@ -1,8 +1,8 @@
-import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { withCache } from '../lib/cache'
+import { asyncHandler } from '../lib/asyncHandler'
 
-const ROUTE_CACHE_TTL = 60 * 60 // 1 hour — pedestrian routes are stable
+const ROUTE_CACHE_TTL = 60 * 60
 const OSRM_BASE_URL = (process.env.OSRM_BASE_URL ?? 'https://router.project-osrm.org/route/v1').replace(/\/$/, '')
 const ROUTE_TIMEOUT_MS = 8_000
 
@@ -14,24 +14,10 @@ const routeQuerySchema = z.object({
 })
 
 interface OsrmManeuver { type: string; modifier?: string }
-interface OsrmStep {
-  name: string
-  distance: number
-  duration: number
-  maneuver: OsrmManeuver
-}
+interface OsrmStep { name: string; distance: number; duration: number; maneuver: OsrmManeuver }
 interface OsrmLeg { steps: OsrmStep[] }
-interface OsrmRoute {
-  distance: number
-  duration: number
-  geometry: { coordinates: [number, number][] }
-  legs: OsrmLeg[]
-}
-interface OsrmResponse {
-  code: string
-  message?: string
-  routes?: OsrmRoute[]
-}
+interface OsrmRoute { distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs: OsrmLeg[] }
+interface OsrmResponse { code: string; message?: string; routes?: OsrmRoute[] }
 
 function buildInstruction({ maneuver: { type, modifier }, name }: OsrmStep): string {
   const street = name ? ` по ${name}` : ''
@@ -46,17 +32,11 @@ function buildInstruction({ maneuver: { type, modifier }, name }: OsrmStep): str
 }
 
 export const mapRouteController = {
-  async getRoute(req: Request, res: Response): Promise<void> {
+  getRoute: asyncHandler(async (req, res) => {
     const parsed = routeQuerySchema.safeParse(req.query)
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid route coordinates' })
-      return
-    }
+    if (!parsed.success) { res.status(400).json({ error: 'Invalid route coordinates' }); return }
 
     const { fromLat, fromLng, toLat, toLng } = parsed.data
-    // Round to ~110m so a user retrying or two users walking the same path
-    // share the same cached response — pedestrian routes don't differ at this
-    // resolution and the upstream OSRM call dominates total latency.
     const r = (v: number) => Math.round(v * 1_000) / 1_000
     const cacheKey = `map:route:foot:${r(fromLat)},${r(fromLng)}=>${r(toLat)},${r(toLng)}`
 
@@ -66,38 +46,27 @@ export const mapRouteController = {
         const timeout = setTimeout(() => controller.abort(), ROUTE_TIMEOUT_MS)
         try {
           const coordinates = `${fromLng},${fromLat};${toLng},${toLat}`
-          const params = new URLSearchParams({
-            steps: 'true',
-            overview: 'full',
-            geometries: 'geojson',
-          })
+          const params = new URLSearchParams({ steps: 'true', overview: 'full', geometries: 'geojson' })
           const url = `${OSRM_BASE_URL}/foot/${coordinates}?${params.toString()}`
-          // Public OSRM tightens limits on UA-less traffic; identify ourselves
-          // so a self-hosted setup can also distinguish our traffic in logs.
           const upstream = await fetch(url, {
             signal: controller.signal,
             headers: { 'User-Agent': 'kasrut-crm/1.0 (+https://mykoshermap.com)' },
           })
           const json = await upstream.json() as OsrmResponse
-
           if (!upstream.ok) {
             throw Object.assign(new Error(json.message || 'Сервис маршрутов временно недоступен'), { httpStatus: 502 })
           }
-
           const route = json.routes?.[0]
           if (json.code !== 'Ok' || !route) {
             throw Object.assign(new Error(json.message || 'Маршрут не найден'), { httpStatus: 404 })
           }
-
           const steps = route.legs[0]?.steps.map(step => ({
             instruction: buildInstruction(step),
             distance: step.distance,
             duration: step.duration,
           })) ?? []
-          const geometry = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-
           return {
-            geometry,
+            geometry: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
             steps,
             totalDistance: route.distance,
             totalDuration: route.duration,
@@ -106,19 +75,14 @@ export const mapRouteController = {
           clearTimeout(timeout)
         }
       })
-
       res.json(data)
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
-        res.status(504).json({ error: 'Сервис маршрутов не ответил вовремя' })
-        return
+        res.status(504).json({ error: 'Сервис маршрутов не ответил вовремя' }); return
       }
       const status = (e as { httpStatus?: number }).httpStatus
-      if (status === 404) {
-        res.status(404).json({ error: (e as Error).message })
-        return
-      }
+      if (status === 404) { res.status(404).json({ error: (e as Error).message }); return }
       res.status(502).json({ error: 'Сервис маршрутов временно недоступен' })
     }
-  },
+  }),
 }
