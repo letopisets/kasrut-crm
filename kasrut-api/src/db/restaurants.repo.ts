@@ -10,6 +10,9 @@ function calcStatus(expires: Date): CertStatus {
   return 'ok'
 }
 
+// `status` lives in the DB but is also recomputed from `expires` on every read
+// because the DB value goes stale without a cron. Single source of truth: the
+// computed value. Callers don't need to override the field after this returns.
 function toRestaurant(r: PrismaRestaurant): Restaurant {
   return {
     id:             r.id,
@@ -22,7 +25,7 @@ function toRestaurant(r: PrismaRestaurant): Restaurant {
     kitniyot:       r.kitniyot,
     foodType:       r.foodType as FoodType,
     expires:        r.expires.toISOString().slice(0, 10),
-    status:         r.status as CertStatus,
+    status:         calcStatus(r.expires),
     rabbanutId:     r.rabbanutId,
     notes:          r.notes ?? undefined,
     lastInspection: r.lastInspection?.toISOString().slice(0, 10),
@@ -43,7 +46,7 @@ export const restaurantsRepo = {
       },
       orderBy: { name: 'asc' },
     })
-    return rows.map(r => ({ ...toRestaurant(r), status: calcStatus(r.expires) }))
+    return rows.map(toRestaurant)
   },
 
   async findPage(filter: {
@@ -64,7 +67,7 @@ export const restaurantsRepo = {
 
     const hasMore   = rows.length > filter.limit
     const pageRows  = hasMore ? rows.slice(0, filter.limit) : rows
-    const items     = pageRows.map(r => ({ ...toRestaurant(r), status: calcStatus(r.expires) }))
+    const items     = pageRows.map(toRestaurant)
     const nextCursor = hasMore ? pageRows[pageRows.length - 1].id : null
 
     return { items, nextCursor }
@@ -72,12 +75,12 @@ export const restaurantsRepo = {
 
   async findById(id: string): Promise<Restaurant | null> {
     const r = await prisma.restaurant.findUnique({ where: { id } })
-    return r ? { ...toRestaurant(r), status: calcStatus(r.expires) } : null
+    return r ? toRestaurant(r) : null
   },
 
   async findByMashgiach(mashgiachId: string): Promise<Restaurant[]> {
     const rows = await prisma.restaurant.findMany({ where: { mashgiachId } })
-    return rows.map(r => ({ ...toRestaurant(r), status: calcStatus(r.expires) }))
+    return rows.map(toRestaurant)
   },
 
   async create(input: Omit<Restaurant, 'id' | 'status'>): Promise<Restaurant> {

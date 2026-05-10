@@ -59,7 +59,7 @@ function signMapToken(user: { id: string; name: string; email: string }): string
   return jwt.sign(
     { sub: user.id, typ: 'map_user', name: user.name, email: user.email },
     env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN } as object,
+    { expiresIn: env.JWT_EXPIRES_IN },
   )
 }
 
