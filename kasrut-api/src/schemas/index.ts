@@ -104,6 +104,14 @@ export const createDocumentSchema = z.object({
   url:      z.string().url().max(2000).optional(),
 })
 
+// Restaurant list query
+export const listRestaurantQuerySchema = z.object({
+  rabbanutId: z.string().uuid().optional(),
+  status:     certStatus.optional(),
+  limit:      z.coerce.number().int().min(1).max(200).optional(),
+  cursor:     z.string().min(1).max(100).optional(),
+})
+
 // Rabbanut
 export const createRabbanutSchema = z.object({
   name:    z.string().min(1).max(200).trim(),

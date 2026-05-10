@@ -1,10 +1,9 @@
 import { restaurantsRepo } from '../db/restaurants.repo'
-import { prisma } from '../lib/prisma'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
 import { withCache } from '../lib/cache'
 import { invalidateMapCache } from '../lib/mapCache'
 import { validate } from '../lib/validate'
-import { createRestaurantSchema, updateRestaurantSchema, paginationSchema } from '../schemas'
+import { createRestaurantSchema, updateRestaurantSchema, listRestaurantQuerySchema } from '../schemas'
 import {
   applyWriteScope,
   assertOwnsRabbanut,
@@ -17,33 +16,11 @@ const RESTAURANTS_CACHE_TTL = 300
 const restaurantsCacheKey = (filter: Record<string, unknown>) =>
   `restaurants:list:${JSON.stringify(filter)}`
 
-async function validateRestaurantOwnership(input: {
-  rabbanutId: string
-  hechsherId: string
-  mashgiachId?: string
-}): Promise<boolean> {
-  const ok = await prisma.hechsher.count({
-    where: { id: input.hechsherId, rabbanutId: input.rabbanutId },
-  })
-  if (ok !== 1) return false
-
-  if (input.mashgiachId) {
-    const okM = await prisma.mashgiach.count({
-      where: { id: input.mashgiachId, rabbanutId: input.rabbanutId },
-    })
-    if (okM !== 1) return false
-  }
-
-  return true
-}
-
 export const restaurantController = {
   list: asyncHandler(async (req, res) => {
-    const q = req.query as Record<string, string>
+    const q           = validate(listRestaurantQuerySchema, req.query)
     const rabbanutId  = resolveScopeRabbanutId(req, q.rabbanutId)
     const mashgiachId = req.user?.role === 'mashgiach' ? req.user.sub : undefined
-
-    const pageInput = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
 
     if (mashgiachId) {
       const data = await withCache(
@@ -55,8 +32,8 @@ export const restaurantController = {
       return
     }
 
-    if (pageInput.limit) {
-      const { limit, cursor } = pageInput
+    if (q.limit) {
+      const { limit, cursor } = q
       const data = await withCache(
         restaurantsCacheKey({ rabbanutId: rabbanutId ?? null, status: q.status ?? null, limit, cursor: cursor ?? null }),
         RESTAURANTS_CACHE_TTL,
@@ -87,7 +64,7 @@ export const restaurantController = {
   create: asyncHandler(async (req, res) => {
     const body = validate(createRestaurantSchema, req.body)
     const payload = applyWriteScope(req, body)
-    if (!await validateRestaurantOwnership(payload)) {
+    if (!await restaurantsRepo.validateOwnership(payload)) {
       res.status(400).json({ error: 'Hechsher and mashgiach must belong to the selected rabbanut' }); return
     }
     const r = await restaurantsRepo.create(payload)
@@ -106,7 +83,7 @@ export const restaurantController = {
       hechsherId:  payload.hechsherId  ?? existing.hechsherId,
       mashgiachId: payload.mashgiachId ?? existing.mashgiachId,
     }
-    if (!await validateRestaurantOwnership(merged)) {
+    if (!await restaurantsRepo.validateOwnership(merged)) {
       res.status(400).json({ error: 'Hechsher and mashgiach must belong to the selected rabbanut' }); return
     }
     const r = await restaurantsRepo.update(req.params.id, payload)
