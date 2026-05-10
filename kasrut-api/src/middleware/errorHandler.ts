@@ -1,8 +1,9 @@
 import type { Request, Response, NextFunction } from 'express'
 import { ValidationError } from '../lib/validate'
 import { ForbiddenScopeError } from '../lib/rabbanutScope'
-
-const isProd = process.env.NODE_ENV === 'production'
+import { Prisma } from '../generated/prisma/client'
+import { logger } from '../lib/logger'
+import { isProd } from '../lib/runtime'
 
 export function errorHandler(
   err: unknown,
@@ -12,7 +13,6 @@ export function errorHandler(
 ): void {
   if (err instanceof ValidationError) {
     res.locals.serviceErrorMessage = `Validation failed for ${req.method} ${req.path}`
-    // In production expose only a generic message — Zod field details aid attackers in mapping the API
     if (isProd) {
       res.status(400).json({ error: 'Invalid request' })
     } else {
@@ -27,10 +27,25 @@ export function errorHandler(
     return
   }
 
+  // Translate known Prisma errors to appropriate HTTP status codes instead of
+  // letting them fall through to the generic 500 handler.
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (err.code) {
+      case 'P2025':
+        res.status(404).json({ error: 'Not found' })
+        return
+      case 'P2002':
+        res.status(409).json({ error: 'Conflict: record already exists' })
+        return
+      case 'P2003':
+        res.status(409).json({ error: 'Conflict: related record not found' })
+        return
+    }
+  }
+
   const message = err instanceof Error ? err.message : String(err)
   res.locals.serviceErrorMessage = message
-  if (isProd) console.error('[ERROR]', message)
-  else        console.error('[ERROR]', err)
+  logger.error({ err, method: req.method, path: req.path }, message)
 
   res.status(500).json({ error: 'Internal server error' })
 }
