@@ -191,6 +191,15 @@ export const serviceLogsRepo = {
     return rows.map(toLog)
   },
 
+  /** Delete rows older than retainDays (default 90). Safe to call repeatedly — no-op when nothing to delete. */
+  async rotate(retainDays = 90): Promise<number> {
+    const result = await prisma.$executeRaw`
+      DELETE FROM "service_logs"
+      WHERE "createdAt" < NOW() - (${retainDays} || ' days')::interval
+    `
+    return result
+  },
+
   async summary24h(): Promise<{ errors24h: number; warnings24h: number; authIssues: number; api5xx: number }> {
     const rows = await prisma.$queryRawUnsafe<Array<{
       errors24h: bigint
