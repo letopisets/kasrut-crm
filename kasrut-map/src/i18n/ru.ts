@@ -161,6 +161,8 @@ const ru: MapTranslations = {
   donateCopied: 'Скопировано',
   donateBack: 'Вернуться на карту',
   donateThanks: 'Спасибо за поддержку!',
+
+  sessionExpired: 'Сессия истекла. Пожалуйста, войдите снова.',
 }
 
 export default ru

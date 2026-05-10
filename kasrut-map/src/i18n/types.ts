@@ -154,4 +154,6 @@ export interface MapTranslations {
   donateCopied: string
   donateBack: string
   donateThanks: string
+
+  sessionExpired: string
 }

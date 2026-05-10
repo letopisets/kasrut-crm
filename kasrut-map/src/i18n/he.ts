@@ -161,6 +161,8 @@ const he: MapTranslations = {
   donateCopied: 'הועתק',
   donateBack: 'חזרה למפה',
   donateThanks: 'תודה על התמיכה!',
+
+  sessionExpired: 'פג תוקף ההתחברות. יש להתחבר מחדש.',
 }
 
 export default he
