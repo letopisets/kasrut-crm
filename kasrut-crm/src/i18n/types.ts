@@ -197,6 +197,12 @@ export interface Translations {
     cards: { errors24h: string; warnings24h: string; authIssues: string; api5xx: string }
     viewDetails: string
   }
+  validation: {
+    required:         string
+    invalidEmail:     string
+    passwordTooShort: string
+    passwordWeak:     string
+  }
   noAccess: string
   myEstablishments: string
   myInspections: string
