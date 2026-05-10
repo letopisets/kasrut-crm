@@ -16,7 +16,7 @@ function signFullToken(user: User) {
     jti:   randomUUID(),
     ...(user.rabbanutId ? { rabbanutId: user.rabbanutId } : {}),
   }
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN } as object)
+  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN })
 }
 
 function setServiceLogActor(res: Response, user: Pick<User, 'id' | 'email' | 'role'>): void {
