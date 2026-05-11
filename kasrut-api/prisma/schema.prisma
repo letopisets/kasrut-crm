@@ -197,6 +197,8 @@ model Restaurant {
   @@index([city])
   @@index([foodType])
   @@index([hechsherId])
+  @@index([mashgiachId])
+  @@index([rabbanutId])
   @@map("restaurants")
 }
 
@@ -212,6 +214,9 @@ model Inspection {
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   mashgiach  Mashgiach  @relation(fields: [mashgiachId],  references: [id])
 
+  @@index([restaurantId])
+  @@index([mashgiachId])
+  @@index([restaurantId, date])
   @@map("inspections")
 }
 
