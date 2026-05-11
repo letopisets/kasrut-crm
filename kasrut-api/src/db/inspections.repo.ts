@@ -65,6 +65,30 @@ export const inspectionsRepo = {
     return i ? toInspection(i) : null
   },
 
+  async findRabbanutIdByRestaurant(restaurantId: string): Promise<string | null> {
+    const r = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { rabbanutId: true },
+    })
+    return r?.rabbanutId ?? null
+  },
+
+  async validateOwnership(input: {
+    rabbanutId:   string
+    restaurantId: string
+    mashgiachId:  string
+  }): Promise<boolean> {
+    const restaurantOk = await prisma.restaurant.count({
+      where: { id: input.restaurantId, rabbanutId: input.rabbanutId },
+    })
+    if (restaurantOk !== 1) return false
+
+    const mashgiachOk = await prisma.mashgiach.count({
+      where: { id: input.mashgiachId, rabbanutId: input.rabbanutId },
+    })
+    return mashgiachOk === 1
+  },
+
   async create(input: Omit<Inspection, 'id'>): Promise<Inspection> {
     const i = await prisma.inspection.create({
       data: {
