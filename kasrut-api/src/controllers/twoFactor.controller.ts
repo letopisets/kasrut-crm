@@ -7,6 +7,7 @@ import { env } from '../config/env'
 import { serializeUser } from '../serializers/user.serializer'
 import { signFullToken } from './auth.controller'
 import { asyncHandler } from '../lib/asyncHandler'
+import { checkTotpAttempt } from '../lib/twoFactorAttempts'
 
 const BACKUP_CODE_COUNT = 8
 const BACKUP_CODE_BYTES = 5
@@ -117,11 +118,19 @@ export const twoFactorController = {
     const { tempToken, code } = req.body as { tempToken?: string; code?: string }
     if (!tempToken || !code) { res.status(400).json({ error: 'tempToken and code required' }); return }
 
-    let payload: { sub: string; jti?: string }
+    let payload: { sub: string; jti?: string; exp?: number }
     try {
-      payload = jwt.verify(tempToken, env.JWT_SECRET) as { sub: string; jti?: string }
+      payload = jwt.verify(tempToken, env.JWT_SECRET) as { sub: string; jti?: string; exp?: number }
     } catch {
       res.status(401).json({ error: 'Invalid or expired token' }); return
+    }
+
+    // Per-token brute-force guard: max 5 attempts per tempToken JTI.
+    // TTL matches the token's remaining lifetime so the counter self-expires.
+    const ttlSeconds = payload.exp ? Math.floor(payload.exp - Date.now() / 1000) : 300
+    const allowed = await checkTotpAttempt(payload.jti ?? payload.sub, ttlSeconds)
+    if (!allowed) {
+      res.status(429).json({ error: 'Too many attempts' }); return
     }
 
     const user = await usersRepo.findById(payload.sub)
