@@ -19,6 +19,11 @@ export interface PageResult<T> {
   nextCursor: string | null
 }
 
+// Hard ceiling for the unpaginated list endpoint. Large rabbanuts with
+// thousands of inspections would otherwise load the full dataset on every
+// request. Callers that need more should use findPage with cursor pagination.
+const FIND_ALL_HARD_LIMIT = 500
+
 export const inspectionsRepo = {
   async findAll(filter?: { restaurantId?: string; mashgiachId?: string; result?: string; type?: string }): Promise<Inspection[]> {
     const rows = await prisma.inspection.findMany({
@@ -29,6 +34,7 @@ export const inspectionsRepo = {
         ...(filter?.type         ? { type:   filter.type   as InspectionType }   : {}),
       },
       orderBy: { date: 'desc' },
+      take: FIND_ALL_HARD_LIMIT,
     })
     return rows.map(toInspection)
   },
