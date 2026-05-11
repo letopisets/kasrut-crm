@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import type { Inspection, InspectionResult } from '@/types'
 import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
@@ -14,7 +14,7 @@ export { RESULT_COLOR } from '@/lib/statusColor'
 
 interface Props { inspection: Inspection }
 
-export function InspectionRow({ inspection: ins }: Props) {
+export const InspectionRow = memo(function InspectionRow({ inspection: ins }: Props) {
   const t    = useLang()
   const perm = usePermissions()
   const [setResultMutation] = useSetInspectionResultMutation()
@@ -90,4 +90,4 @@ export function InspectionRow({ inspection: ins }: Props) {
       )}
     </Box>
   )
-}
+})
