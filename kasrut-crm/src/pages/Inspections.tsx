@@ -1,90 +1,21 @@
-import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { useInspections } from '@/hooks/useInspections'
-import { usePermissions } from '@/hooks/usePermissions'
-import { useAppSelector } from '@/store'
-import { useLang } from '@/i18n/useLang'
-import { InspectionList } from '@/components/inspections/InspectionList'
-import { InspectionForm } from '@/components/inspections/InspectionForm'
+import { useInspectionsController } from '@/controllers/useInspectionsController'
+import { useLang }                  from '@/i18n/useLang'
+import { useAppSelector }           from '@/store'
+import { InspectionList }           from '@/components/inspections/InspectionList'
+import { InspectionForm }           from '@/components/inspections/InspectionForm'
 import { ROLE_COLORS, TYPE_COLORS, RESULT_COLORS } from '@/theme'
-import { alpha } from '@mui/material/styles'
-import Box from '@mui/material/Box'
-import Typography from '@mui/material/Typography'
-import Button from '@mui/material/Button'
-import Divider from '@mui/material/Divider'
-import AddIcon from '@mui/icons-material/Add'
+import { alpha }     from '@mui/material/styles'
+import Box           from '@mui/material/Box'
+import Typography    from '@mui/material/Typography'
+import Button        from '@mui/material/Button'
+import Divider       from '@mui/material/Divider'
+import AddIcon       from '@mui/icons-material/Add'
 import type { InspectionType, InspectionResult } from '@/types'
 
-type TypeFilter   = 'all' | InspectionType
-type ResultFilter = 'all' | InspectionResult
-
-const TYPE_FILTERS:   TypeFilter[]   = ['all', 'planned', 'urgent']
-const RESULT_FILTERS: ResultFilter[] = ['all', 'pending', 'open', 'pass', 'fail']
-
-function isThisWeek(date: string): boolean {
-  const d = new Date(date)
-  if (Number.isNaN(d.getTime())) return false
-  const now = new Date()
-  const start = new Date(now)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setDate(start.getDate() + 7)
-  return d >= start && d < end
-}
-
-export default function Inspections() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const initialType = searchParams.get('type') as InspectionType | null
-  const initialResult = searchParams.get('result') as InspectionResult | null
-  const rangeFilter = searchParams.get('range')
-  const [typeFilter,   setTypeFilterState]   = useState<TypeFilter>(
-    initialType && TYPE_FILTERS.includes(initialType) ? initialType : 'all'
-  )
-  const [resultFilter, setResultFilterState] = useState<ResultFilter>(
-    initialResult && RESULT_FILTERS.includes(initialResult) ? initialResult : 'all'
-  )
-  const [showForm,     setShowForm]     = useState(false)
-
-  const t           = useLang()
-  const perm        = usePermissions()
-  const role        = useAppSelector(s => s.auth.role)
-  const rc          = ROLE_COLORS[role]
-  const inspections = useInspections()
-
-  const filtered = inspections
-    .filter(i => rangeFilter !== 'week' || isThisWeek(i.date))
-    .filter(i => typeFilter   === 'all' || i.type   === typeFilter)
-    .filter(i => resultFilter === 'all' || i.result === resultFilter)
-
-  const setParamFilter = (key: 'type' | 'result', value: TypeFilter | ResultFilter) => {
-    const next = new URLSearchParams(searchParams)
-    if (value === 'all') next.delete(key)
-    else next.set(key, value)
-    setSearchParams(next, { replace: true })
-  }
-
-  const setTypeFilter = (value: TypeFilter) => {
-    setTypeFilterState(value)
-    setParamFilter('type', value)
-  }
-
-  const setResultFilter = (value: ResultFilter) => {
-    setResultFilterState(value)
-    setParamFilter('result', value)
-  }
-
-  const typeLabel = (key: TypeFilter): string => {
-    if (key === 'all')     return t.restaurants.filters[0]
-    if (key === 'planned') return t.inspections.planned
-    return t.inspections.urgent
-  }
-
-  const resultLabel = (key: ResultFilter): string =>
-    key === 'all' ? t.restaurants.filters[0] : t.inspections.result[key]
-
-  const FilterBtn = ({ active, color, onClick, label }: {
-    active: boolean; color: string; onClick: () => void; label: string
-  }) => (
+function FilterBtn({ active, color, onClick, label }: {
+  active: boolean; color: string; onClick: () => void; label: string
+}) {
+  return (
     <Button
       onClick={onClick}
       size="small"
@@ -102,6 +33,30 @@ export default function Inspections() {
       {label}
     </Button>
   )
+}
+
+export default function Inspections() {
+  const {
+    inspections,
+    typeFilter,   setTypeFilter,
+    resultFilter, setResultFilter,
+    showForm, openForm, closeForm,
+    canEdit,
+    TYPE_FILTERS, RESULT_FILTERS,
+  } = useInspectionsController()
+
+  const t    = useLang()
+  const role = useAppSelector(s => s.auth.role)
+  const rc   = ROLE_COLORS[role]
+
+  const typeLabel = (key: typeof TYPE_FILTERS[number]): string => {
+    if (key === 'all')     return t.restaurants.filters[0]
+    if (key === 'planned') return t.inspections.planned
+    return t.inspections.urgent
+  }
+
+  const resultLabel = (key: typeof RESULT_FILTERS[number]): string =>
+    key === 'all' ? t.restaurants.filters[0] : t.inspections.result[key as InspectionResult]
 
   return (
     <Box>
@@ -115,8 +70,8 @@ export default function Inspections() {
           </Typography>
           <Typography sx={{ color: 'text.secondary', fontSize: 12, mt: 0.5 }}>{t.inspections.sub}</Typography>
         </Box>
-        {perm.canEdit && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setShowForm(true)} size="small" disableElevation>
+        {canEdit && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openForm} size="small" disableElevation>
             {t.inspections.add}
           </Button>
         )}
@@ -148,12 +103,12 @@ export default function Inspections() {
         </Box>
       </Box>
 
-      {filtered.length === 0
+      {inspections.length === 0
         ? <Typography sx={{ textAlign: 'center', py: 8, color: 'text.disabled', fontSize: 13 }}>—</Typography>
-        : <InspectionList inspections={filtered} />
+        : <InspectionList inspections={inspections} />
       }
 
-      {showForm && <InspectionForm onClose={() => setShowForm(false)} />}
+      {showForm && <InspectionForm onClose={closeForm} />}
     </Box>
   )
 }
