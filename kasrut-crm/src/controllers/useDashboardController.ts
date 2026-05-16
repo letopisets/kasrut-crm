@@ -4,6 +4,7 @@ import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGetInspectionsQuery } from '@/store/api/inspectionsApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
+import { useGetDashboardSummaryQuery } from '@/store/api/dashboardApi'
 import { daysUntil } from '@/lib/daysUntil'
 
 export function useDashboardController() {
@@ -53,9 +54,12 @@ export function useDashboardController() {
       .slice(0, 6)
   , [inspections])
 
+  const { data: summary, isLoading: sLoading } = useGetDashboardSummaryQuery()
+
   return {
-    isLoading:   rLoading || iLoading,
+    isLoading:   rLoading || iLoading || sLoading,
     stats,
+    summary,
     restaurants,
     inspections,
     expiring,

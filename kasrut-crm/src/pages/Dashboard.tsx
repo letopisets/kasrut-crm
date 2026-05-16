@@ -5,6 +5,7 @@ import { useInspections } from '@/hooks/useInspections'
 import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGetRabbanutsQuery } from '@/store/api/rabbanutApi'
 import { useGetHechsherimQuery } from '@/store/api/hechsherimApi'
+import { useGetDashboardSummaryQuery } from '@/store/api/dashboardApi'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
@@ -87,10 +88,13 @@ export default function Dashboard() {
   const { data: rabbanuts  = [] } = useGetRabbanutsQuery()
   const { data: hechsherim = [] } = useGetHechsherimQuery()
 
-  const activeCount   = scopedRests.filter(r => r.status === 'ok').length
-  const warningCount  = scopedRests.filter(r => r.status === 'warning').length
+  const { data: summary } = useGetDashboardSummaryQuery()
+
+  const activeCount   = summary?.activeRestaurants ?? scopedRests.filter(r => r.status === 'ok').length
+  const warningCount  = summary?.expiringSoon      ?? scopedRests.filter(r => r.status === 'warning').length
   const criticalCount = scopedRests.filter(r => r.status === 'critical').length
-  const weekInsps     = scopedInsps.filter(i => isThisWeek(i.date)).length
+  const weekInsps     = summary?.openInspections   ?? scopedInsps.filter(i => isThisWeek(i.date)).length
+  const logsToday     = summary?.logsToday         ?? 0
 
   const stats = [
     { icon: '✓',  value: activeCount,   color: STATUS_COLORS.ok,       label: t.stats[0], sub: t.statsSub[0], to: '/restaurants?status=ok' },
@@ -144,8 +148,8 @@ export default function Dashboard() {
             <OverviewCard
               icon={<TroubleshootIcon fontSize="small" />}
               title={t.nav.logs}
-              value="24h"
-              sub={t.logs?.sub ?? 'Service health'}
+              value={String(logsToday)}
+              sub={t.logs?.sub ?? 'Events today'}
               color={STATUS_COLORS.critical}
               onClick={() => navigate('/logs')}
             />

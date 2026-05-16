@@ -1,6 +1,8 @@
 import { prisma } from '../lib/prisma'
 import type { Mashgiach } from '../models/types'
 
+export interface PageResult<T> { items: T[]; nextCursor: string | null }
+
 // Prisma row with included relations
 type MashgiachWithRels = {
   id: string; name: string; phone: string; email: string
@@ -39,6 +41,27 @@ export const mashgichimRepo = {
       orderBy: { name: 'asc' },
     })
     return rows.map(toMashgiach)
+  },
+
+  async findPage(filter: {
+    rabbanutId?: string
+    active?:     boolean
+    limit:       number
+    cursor?:     string
+  }): Promise<PageResult<Mashgiach>> {
+    const rows = await prisma.mashgiach.findMany({
+      where: {
+        ...(filter.rabbanutId !== undefined ? { rabbanutId: filter.rabbanutId } : {}),
+        ...(filter.active     !== undefined ? { active:     filter.active }     : {}),
+      },
+      include,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: filter.limit + 1,
+      ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
+    })
+    const hasMore = rows.length > filter.limit
+    const page    = hasMore ? rows.slice(0, filter.limit) : rows
+    return { items: page.map(toMashgiach), nextCursor: hasMore ? page[page.length - 1].id : null }
   },
 
   async findById(id: string): Promise<Mashgiach | null> {

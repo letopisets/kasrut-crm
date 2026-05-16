@@ -1,13 +1,20 @@
 import { usersRepo } from '../db/users.repo'
 import { serializeUser, serializeUsers } from '../serializers/user.serializer'
 import { validate } from '../lib/validate'
-import { createUserSchema, updateUserSchema } from '../schemas'
+import { createUserSchema, updateUserSchema, paginationSchema } from '../schemas'
 import type { Role } from '../models/types'
 import { asyncHandler } from '../lib/asyncHandler'
 
 export const userController = {
   list: asyncHandler(async (req, res) => {
-    const q = req.query as Record<string, string>
+    const q         = req.query as Record<string, string>
+    const pageInput = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
+
+    if (pageInput.limit) {
+      const page = await usersRepo.findPage({ role: q.role as Role | undefined, limit: pageInput.limit, cursor: pageInput.cursor })
+      res.json({ items: serializeUsers(page.items), nextCursor: page.nextCursor })
+      return
+    }
     res.json(serializeUsers(await usersRepo.findAll({ role: q.role as Role | undefined })))
   }),
 

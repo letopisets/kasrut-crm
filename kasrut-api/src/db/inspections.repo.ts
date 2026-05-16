@@ -6,7 +6,7 @@ function toInspection(i: PrismaInspection): Inspection {
   return {
     id:           i.id,
     restaurantId: i.restaurantId,
-    mashgiachId:  i.mashgiachId,
+    mashgiachId:  i.mashgiachId ?? undefined,
     date:         i.date.toISOString().slice(0, 10),
     type:         i.type   as InspectionType,
     result:       i.result as InspectionResult,
@@ -25,13 +25,22 @@ export interface PageResult<T> {
 const FIND_ALL_HARD_LIMIT = 500
 
 export const inspectionsRepo = {
-  async findAll(filter?: { restaurantId?: string; mashgiachId?: string; result?: string; type?: string }): Promise<Inspection[]> {
+  async findAll(filter?: {
+    restaurantId?: string
+    mashgiachId?:  string
+    result?:       string
+    type?:         string
+    rabbanutId?:   string
+  }): Promise<Inspection[]> {
     const rows = await prisma.inspection.findMany({
       where: {
         ...(filter?.restaurantId ? { restaurantId: filter.restaurantId } : {}),
         ...(filter?.mashgiachId  ? { mashgiachId:  filter.mashgiachId }  : {}),
         ...(filter?.result       ? { result: filter.result as InspectionResult } : {}),
         ...(filter?.type         ? { type:   filter.type   as InspectionType }   : {}),
+        // Scopes inspections to a specific rabbanut via the restaurant FK so
+        // the rabbanut role cannot read other organisations' inspection data.
+        ...(filter?.rabbanutId   ? { restaurant: { rabbanutId: filter.rabbanutId } } : {}),
       },
       orderBy: { date: 'desc' },
       take: FIND_ALL_HARD_LIMIT,
@@ -44,6 +53,7 @@ export const inspectionsRepo = {
     mashgiachId?:  string
     result?:       string
     type?:         string
+    rabbanutId?:   string
     limit:         number
     cursor?:       string
   }): Promise<PageResult<Inspection>> {
@@ -53,6 +63,7 @@ export const inspectionsRepo = {
         ...(filter.mashgiachId  ? { mashgiachId:  filter.mashgiachId  } : {}),
         ...(filter.result       ? { result: filter.result as InspectionResult } : {}),
         ...(filter.type         ? { type:   filter.type   as InspectionType   } : {}),
+        ...(filter.rabbanutId   ? { restaurant: { rabbanutId: filter.rabbanutId } } : {}),
       },
       orderBy: [{ date: 'desc' }, { id: 'asc' }],
       take: filter.limit + 1,
@@ -82,24 +93,27 @@ export const inspectionsRepo = {
   async validateOwnership(input: {
     rabbanutId:   string
     restaurantId: string
-    mashgiachId:  string
+    mashgiachId?: string
   }): Promise<boolean> {
     const restaurantOk = await prisma.restaurant.count({
       where: { id: input.restaurantId, rabbanutId: input.rabbanutId },
     })
     if (restaurantOk !== 1) return false
 
-    const mashgiachOk = await prisma.mashgiach.count({
-      where: { id: input.mashgiachId, rabbanutId: input.rabbanutId },
-    })
-    return mashgiachOk === 1
+    if (input.mashgiachId) {
+      const mashgiachOk = await prisma.mashgiach.count({
+        where: { id: input.mashgiachId, rabbanutId: input.rabbanutId },
+      })
+      return mashgiachOk === 1
+    }
+    return true
   },
 
   async create(input: Omit<Inspection, 'id'>): Promise<Inspection> {
     const i = await prisma.inspection.create({
       data: {
         restaurantId: input.restaurantId,
-        mashgiachId:  input.mashgiachId,
+        mashgiachId:  input.mashgiachId ?? null,
         date:         new Date(input.date),
         type:         input.type,
         result:       input.result,

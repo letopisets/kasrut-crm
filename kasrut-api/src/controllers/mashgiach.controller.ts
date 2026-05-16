@@ -1,7 +1,7 @@
 import { mashgichimRepo } from '../db/mashgichim.repo'
 import { serializeMashgiach, serializeMashgichim } from '../serializers/mashgiach.serializer'
 import { validate } from '../lib/validate'
-import { createMashgiachSchema, updateMashgiachSchema, assignMashgiachSchema } from '../schemas'
+import { createMashgiachSchema, updateMashgiachSchema, assignMashgiachSchema, paginationSchema } from '../schemas'
 import { resolveScopeRabbanutId } from '../lib/rabbanutScope'
 import { asyncHandler } from '../lib/asyncHandler'
 
@@ -10,6 +10,13 @@ export const mashgiachController = {
     const q          = req.query as Record<string, string>
     const rabbanutId = resolveScopeRabbanutId(req, q.rabbanutId)
     const active     = q.active !== undefined ? q.active === 'true' : undefined
+    const pageInput  = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
+
+    if (pageInput.limit) {
+      const page = await mashgichimRepo.findPage({ rabbanutId, active, limit: pageInput.limit, cursor: pageInput.cursor })
+      res.json({ items: serializeMashgichim(page.items), nextCursor: page.nextCursor })
+      return
+    }
     res.json(serializeMashgichim(await mashgichimRepo.findAll({ rabbanutId, active })))
   }),
 

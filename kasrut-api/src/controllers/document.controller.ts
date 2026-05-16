@@ -18,7 +18,7 @@ export const documentController = {
 
   create: asyncHandler(async (req, res) => {
     const body = validate(createDocumentSchema, req.body)
-    const d = await documentsRepo.create(body)
+    const d = await documentsRepo.create({ ...body, size: body.size ?? 0 })
     res.status(201).json(serializeDocument(d))
   }),
 

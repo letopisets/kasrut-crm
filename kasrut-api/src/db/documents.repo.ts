@@ -8,7 +8,7 @@ function toDocument(d: PrismaDoc): KashrutDocument {
     name:     d.name,
     category: d.category as DocumentCategory,
     date:     d.date.toISOString().slice(0, 10),
-    size:     d.size,
+    size:     Number(d.size),  // BigInt → number for JSON serialisation
     ext:      d.ext as DocExt,
     url:      d.url ?? undefined,
   }
@@ -29,8 +29,12 @@ export const documentsRepo = {
   },
 
   async create(input: Omit<KashrutDocument, 'id'>): Promise<KashrutDocument> {
+    const { size, date, ...rest } = input
+    // size stored as BigInt in DB; toString() is a compat shim until
+    // the Prisma client is regenerated after `prisma migrate dev`.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const d = await prisma.kashrutDocument.create({
-      data: { ...input, date: new Date(input.date) },
+      data: { ...rest, date: new Date(date), size: size as any },
     })
     return toDocument(d)
   },

@@ -35,7 +35,7 @@ const ownerToken = jwt.sign(
 const sample = (id: string, name: string): Restaurant => ({
   id, name, address: 'addr', city: 'TLV',
   level: 'Regular', hechsherId: 'h1', mashgiachId: undefined,
-  kitniyot: '', expires: '2030-01-01', status: 'ok',
+  kitniyot: false, expires: '2030-01-01', status: 'ok',
   rabbanutId: 'rb1', notes: undefined, lastInspection: undefined,
 })
 

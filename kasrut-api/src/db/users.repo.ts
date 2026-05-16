@@ -4,6 +4,8 @@ import { encrypt, decrypt } from '../lib/crypto'
 import type { User, Role } from '../models/types'
 import type { User as PrismaUser } from '../generated/prisma/client'
 
+export interface PageResult<T> { items: T[]; nextCursor: string | null }
+
 function toUser(u: PrismaUser): User {
   let twoFactorSecret: string | undefined
   if (u.twoFactorSecret) {
@@ -29,6 +31,18 @@ export const usersRepo = {
       where: filter?.role ? { role: filter.role } : undefined,
     })
     return rows.map(toUser)
+  },
+
+  async findPage(filter: { role?: Role; limit: number; cursor?: string }): Promise<PageResult<User>> {
+    const rows = await prisma.user.findMany({
+      where: filter.role ? { role: filter.role } : undefined,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: filter.limit + 1,
+      ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
+    })
+    const hasMore = rows.length > filter.limit
+    const page    = hasMore ? rows.slice(0, filter.limit) : rows
+    return { items: page.map(toUser), nextCursor: hasMore ? page[page.length - 1].id : null }
   },
 
   async findById(id: string): Promise<User | null> {
