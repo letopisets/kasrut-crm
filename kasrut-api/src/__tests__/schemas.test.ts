@@ -52,7 +52,7 @@ describe('createRestaurantSchema', () => {
   const valid = {
     name: 'A', address: 'addr', city: 'TLV',
     level: 'Regular', hechsherId: '11111111-1111-1111-1111-111111111111',
-    kitniyot: '', expires: '2030-01-01', status: 'ok',
+    kitniyot: false, expires: '2030-01-01', status: 'ok',
     rabbanutId: '22222222-2222-2222-2222-222222222222',
   }
 

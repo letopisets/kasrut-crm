@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
+import { SettlementAutocomplete } from '@/components/ui/SettlementAutocomplete'
+import type { SettlementOption } from '@/components/ui/SettlementAutocomplete'
 import type { Rabbanut } from '@/types'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -16,6 +18,8 @@ interface Props {
 
 export function RabbanutForm({ initial, onSave, onClose }: Props) {
   const t = useLang()
+
+  const [settlement, setSettlement] = useState<SettlementOption | null>(null)
 
   const [form, setForm] = useState({
     name:    initial?.name    ?? '',
@@ -34,11 +38,13 @@ export function RabbanutForm({ initial, onSave, onClose }: Props) {
 
   const handleSave = () => {
     setSubmitted(true)
-    if (!form.name || !form.city) return
-    onSave(form)
+    const city = settlement?.nameHe ?? form.city
+    if (!form.name || !city) return
+    onSave({ ...form, city })
   }
 
   const isEdit = !!initial
+  const cityValue = settlement?.nameHe ?? form.city
 
   return (
     <Modal
@@ -53,14 +59,19 @@ export function RabbanutForm({ initial, onSave, onClose }: Props) {
         error={submitted && !form.name}
         helperText={submitted && !form.name ? t.validation.required : undefined}
       />
-      <Input
+
+      <SettlementAutocomplete
+        value={settlement}
+        onChange={s => {
+          setSettlement(s)
+          if (s) set('city', s.nameHe)
+        }}
         label={t.rabbanuts?.city ?? 'City'}
-        value={form.city}
-        onChange={v => set('city', v)}
         required
-        error={submitted && !form.city}
-        helperText={submitted && !form.city ? t.validation.required : undefined}
+        error={submitted && !cityValue}
+        helperText={submitted && !cityValue ? t.validation.required : undefined}
       />
+
       <Input label={t.rabbanuts?.contact ?? 'Contact'} value={form.contact} onChange={v => set('contact', v)} />
       <Input label={t.rabbanuts?.phone   ?? 'Phone'}   value={form.phone}   onChange={v => set('phone', v)} />
       <Input label={t.rabbanuts?.email   ?? 'Email'}   value={form.email}   onChange={v => set('email', v)} />

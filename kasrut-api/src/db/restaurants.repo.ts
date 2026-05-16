@@ -1,7 +1,20 @@
 import { prisma } from '../lib/prisma'
 import type { Restaurant, CertStatus, FoodType } from '../models/types'
-import type { Restaurant as PrismaRestaurant, FoodType as PrismaFoodType } from '../generated/prisma/client'
+import type { FoodType as PrismaFoodType } from '../generated/prisma/client'
 import { Prisma } from '../generated/prisma/client'
+
+// Translates a status filter to an expires date-range predicate so that
+// filtering is always based on the live expires value rather than the stale
+// status column, which can only be refreshed by a cron job.
+function statusToExpiresFilter(status?: string): Prisma.RestaurantWhereInput {
+  if (!status) return {}
+  const now          = new Date()
+  const warnBoundary = new Date(now.getTime() + 30 * 86_400_000)
+  if (status === 'ok')       return { expires: { gt: warnBoundary } }
+  if (status === 'warning')  return { expires: { gt: now, lte: warnBoundary } }
+  if (status === 'critical') return { expires: { lte: now } }
+  return {}
+}
 
 function calcStatus(expires: Date): CertStatus {
   const days = Math.floor((expires.getTime() - Date.now()) / 86_400_000)
@@ -10,26 +23,45 @@ function calcStatus(expires: Date): CertStatus {
   return 'ok'
 }
 
+type RestaurantWithLatestInspection = {
+  id: string; name: string; address: string; city: string; level: string
+  hechsherId: string; mashgiachId: string | null; kitniyot: boolean
+  foodType: PrismaFoodType; expires: Date; status: string; rabbanutId: string
+  notes: string | null; lat: number | null; lng: number | null
+  phone: string | null; hours: string | null
+  settlementId: string | null; createdAt: Date; deletedAt: Date | null
+  inspections?: { date: Date }[]
+}
+
 // `status` lives in the DB but is also recomputed from `expires` on every read
 // because the DB value goes stale without a cron. Single source of truth: the
 // computed value. Callers don't need to override the field after this returns.
-function toRestaurant(r: PrismaRestaurant): Restaurant {
+// `lastInspection` is derived from the included inspections relation, never the
+// stale denormalized column, so deleting an inspection automatically corrects it.
+function toRestaurant(r: RestaurantWithLatestInspection): Restaurant {
+  const latestDate = r.inspections?.[0]?.date
   return {
-    id:             r.id,
-    name:           r.name,
-    address:        r.address,
-    city:           r.city,
-    level:          r.level as 'Regular' | 'Mehadrin',
-    hechsherId:     r.hechsherId,
-    mashgiachId:    r.mashgiachId ?? undefined,
-    kitniyot:       r.kitniyot,
-    foodType:       r.foodType as FoodType,
-    expires:        r.expires.toISOString().slice(0, 10),
-    status:         calcStatus(r.expires),
-    rabbanutId:     r.rabbanutId,
-    notes:          r.notes ?? undefined,
-    lastInspection: r.lastInspection?.toISOString().slice(0, 10),
+    id:              r.id,
+    name:            r.name,
+    address:         r.address,
+    city:            r.city,
+    level:           r.level as 'Regular' | 'Mehadrin',
+    hechsherId:      r.hechsherId,
+    mashgiachId:     r.mashgiachId ?? undefined,
+    kitniyot:        r.kitniyot,
+    foodType:        r.foodType as FoodType,
+    expires:         r.expires.toISOString().slice(0, 10),
+    status:          calcStatus(r.expires),
+    rabbanutId:      r.rabbanutId,
+    notes:           r.notes ?? undefined,
+    lastInspection:  latestDate?.toISOString().slice(0, 10),
+    settlementId:    r.settlementId ?? undefined,
+    createdAt:       r.createdAt.toISOString(),
   }
+}
+
+const includeLatestInspection = {
+  inspections: { orderBy: { date: 'desc' as const }, take: 1 },
 }
 
 export interface PageResult<T> {
@@ -41,10 +73,12 @@ export const restaurantsRepo = {
   async findAll(filter?: { rabbanutId?: string; status?: string }): Promise<Restaurant[]> {
     const rows = await prisma.restaurant.findMany({
       where: {
+        deletedAt: null,
         ...(filter?.rabbanutId ? { rabbanutId: filter.rabbanutId } : {}),
-        ...(filter?.status     ? { status:     filter.status as CertStatus } : {}),
+        ...statusToExpiresFilter(filter?.status),
       },
       orderBy: { name: 'asc' },
+      include: includeLatestInspection,
     })
     return rows.map(toRestaurant)
   },
@@ -57,12 +91,14 @@ export const restaurantsRepo = {
   }): Promise<PageResult<Restaurant>> {
     const rows = await prisma.restaurant.findMany({
       where: {
+        deletedAt: null,
         ...(filter.rabbanutId ? { rabbanutId: filter.rabbanutId } : {}),
-        ...(filter.status     ? { status: filter.status as CertStatus } : {}),
+        ...statusToExpiresFilter(filter.status),
       },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
       take: filter.limit + 1,
       ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
+      include: includeLatestInspection,
     })
 
     const hasMore   = rows.length > filter.limit
@@ -74,12 +110,12 @@ export const restaurantsRepo = {
   },
 
   async findById(id: string): Promise<Restaurant | null> {
-    const r = await prisma.restaurant.findUnique({ where: { id } })
+    const r = await prisma.restaurant.findUnique({ where: { id, deletedAt: null }, include: includeLatestInspection })
     return r ? toRestaurant(r) : null
   },
 
   async findByMashgiach(mashgiachId: string): Promise<Restaurant[]> {
-    const rows = await prisma.restaurant.findMany({ where: { mashgiachId } })
+    const rows = await prisma.restaurant.findMany({ where: { mashgiachId }, include: includeLatestInspection })
     return rows.map(toRestaurant)
   },
 
@@ -87,35 +123,36 @@ export const restaurantsRepo = {
     const expires = new Date(input.expires)
     const r = await prisma.restaurant.create({
       data: {
-        name:           input.name,
-        address:        input.address,
-        city:           input.city,
-        level:          input.level,
-        hechsherId:     input.hechsherId,
-        mashgiachId:    input.mashgiachId ?? null,
-        kitniyot:       input.kitniyot,
-        ...(input.foodType ? { foodType: input.foodType as PrismaFoodType } : {}),
+        name:         input.name,
+        address:      input.address,
+        city:         input.city,
+        level:        input.level,
+        hechsherId:   input.hechsherId,
+        mashgiachId:  input.mashgiachId ?? null,
+        kitniyot:     input.kitniyot,
+        ...(input.foodType    ? { foodType: input.foodType as PrismaFoodType } : {}),
+        ...(input.settlementId ? { settlementId: input.settlementId } : {}),
         expires,
-        status:         calcStatus(expires),
-        rabbanutId:     input.rabbanutId,
-        notes:          input.notes,
-        lastInspection: input.lastInspection ? new Date(input.lastInspection) : undefined,
+        status:       calcStatus(expires),
+        rabbanutId:   input.rabbanutId,
+        notes:        input.notes,
       },
+      include: includeLatestInspection,
     })
     return toRestaurant(r)
   },
 
   async update(id: string, patch: Partial<Omit<Restaurant, 'id'>>): Promise<Restaurant | null> {
     try {
-      const { expires, lastInspection, foodType, ...rest } = patch
+      const { expires, lastInspection: _ignored, foodType, ...rest } = patch
       const r = await prisma.restaurant.update({
         where: { id },
         data: {
           ...rest,
-          ...(foodType       ? { foodType: foodType as PrismaFoodType } : {}),
-          ...(expires        ? { expires: new Date(expires), status: calcStatus(new Date(expires)) } : {}),
-          ...(lastInspection ? { lastInspection: new Date(lastInspection) } : {}),
+          ...(foodType ? { foodType: foodType as PrismaFoodType } : {}),
+          ...(expires  ? { expires: new Date(expires), status: calcStatus(new Date(expires)) } : {}),
         },
+        include: includeLatestInspection,
       })
       return toRestaurant(r)
     } catch (e) {
@@ -147,16 +184,10 @@ export const restaurantsRepo = {
     return true
   },
 
-  async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
-    try {
-      await prisma.restaurant.delete({ where: { id } })
-      return 'deleted'
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError) {
-        if (e.code === 'P2025') return 'not_found'
-        if (e.code === 'P2003') return 'conflict'  // FK constraint
-      }
-      throw e
-    }
+  async remove(id: string): Promise<'deleted' | 'not_found'> {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true, deletedAt: true } })
+    if (!existing || existing.deletedAt !== null) return 'not_found'
+    await prisma.restaurant.update({ where: { id }, data: { deletedAt: new Date() } })
+    return 'deleted'
   },
 }

@@ -1,3 +1,5 @@
+
+
 # KashrutCRM — Project Context for Claude Code
 
 ## Project Overview

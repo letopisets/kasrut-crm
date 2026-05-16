@@ -467,7 +467,7 @@ export const mapCommunityRepo = {
             level: levelFromHechsher(hechsher.type),
             hechsherId: hechsher.id,
             mashgiachId: null,
-            kitniyot: '',
+            kitniyot: false,
             expires: expiresForStatus(certStatus),
             status: certStatus,
             rabbanutId: hechsher.rabbanutId,

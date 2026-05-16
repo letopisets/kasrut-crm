@@ -2,6 +2,7 @@ import { createApp } from './app'
 import { env } from './config/env'
 import { serviceLogsRepo } from './db/serviceLogs.repo'
 import { logger } from './lib/logger'
+import './jobs/expiryNotifier'
 
 const app = createApp()
 

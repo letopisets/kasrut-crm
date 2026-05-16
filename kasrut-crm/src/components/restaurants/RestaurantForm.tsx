@@ -8,13 +8,15 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
 import { HechsherForm } from '@/components/hechsherim/HechsherForm'
+import { SettlementAutocomplete } from '@/components/ui/SettlementAutocomplete'
+import type { SettlementOption } from '@/components/ui/SettlementAutocomplete'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
 import type { Restaurant, FoodType } from '@/types'
 import type { Hechsher } from '@/types'
-
-const CITIES = ['Jerusalem', 'Haifa', 'Tel Aviv', 'Tzfat', 'Tiberias', 'Bnei Brak', 'Other']
 
 function extractApiError(err: unknown, fallback: string): string {
   if (typeof err === 'object' && err !== null) {
@@ -58,6 +60,12 @@ export function RestaurantForm({ initial, onClose }: Props) {
 
   const FOOD_TYPES: FoodType[] = ['meat', 'dairy', 'pareve', 'takeaway']
 
+  const [settlement, setSettlement] = useState<SettlementOption | null>(
+    initial?.settlementId
+      ? { id: initial.settlementId, nameHe: initial.city, nameEn: initial.city, nameRu: null }
+      : null,
+  )
+
   const [form, setForm] = useState({
     name:        initial?.name        ?? '',
     address:     initial?.address     ?? '',
@@ -65,7 +73,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
     level:       (initial?.level      ?? '') as '' | 'Regular' | 'Mehadrin',
     hechsherId:  initial?.hechsherId  ?? '',
     mashgiachId: initial?.mashgiachId ?? '',
-    kitniyot:    (initial?.kitniyot   ?? '') as '' | 'ללא חשש קטניות' | 'מכיל קטניות',
+    kitniyot:    initial?.kitniyot    ?? false,
     foodType:    (initial?.foodType   ?? '') as '' | FoodType,
     expires:     initial?.expires     ?? '',
     notes:       initial?.notes       ?? '',
@@ -81,17 +89,18 @@ export function RestaurantForm({ initial, onClose }: Props) {
     setSubmitted(true)
     if (!canSave) return
     const payload = {
-      name:        form.name,
-      address:     form.address,
-      city:        form.city,
-      level:       form.level as 'Regular' | 'Mehadrin',
-      hechsherId:  form.hechsherId,
-      mashgiachId: form.mashgiachId || undefined,
-      kitniyot:    form.kitniyot || 'ללא חשש קטניות',
-      foodType:    (form.foodType || 'pareve') as FoodType,
-      expires:     form.expires,
-      notes:       form.notes,
-      rabbanutId:  form.rabbanutId,
+      name:         form.name,
+      address:      form.address,
+      city:         settlement?.nameHe ?? form.city,
+      level:        form.level as 'Regular' | 'Mehadrin',
+      hechsherId:   form.hechsherId,
+      mashgiachId:  form.mashgiachId || undefined,
+      kitniyot:     form.kitniyot,
+      foodType:     (form.foodType || 'pareve') as FoodType,
+      expires:      form.expires,
+      notes:        form.notes,
+      rabbanutId:   form.rabbanutId,
+      settlementId: settlement?.id,
     }
     if (isEdit) {
       await updateMutation({ id: initial!.id, patch: payload }).unwrap()
@@ -150,8 +159,17 @@ export function RestaurantForm({ initial, onClose }: Props) {
           error={submitted && !form.name}
           helperText={submitted && !form.name ? t.validation.required : undefined}
         />
-        <Input label={t.addRest.address}   value={form.address}     onChange={v => set('address', v)} />
-        <Input label={t.addRest.city}      value={form.city}        onChange={v => set('city', v)} options={CITIES} />
+        <Input label={t.addRest.address} value={form.address} onChange={v => set('address', v)} />
+
+        <SettlementAutocomplete
+          value={settlement}
+          onChange={s => {
+            setSettlement(s)
+            if (s) set('city', s.nameHe)
+          }}
+          label={t.addRest.city ?? 'City'}
+        />
+
         <Input
           label={t.addRest.level}
           value={form.level}
@@ -191,7 +209,19 @@ export function RestaurantForm({ initial, onClose }: Props) {
         </Box>
 
         <Input label={t.addRest.mashgiach} value={form.mashgiachId} onChange={v => set('mashgiachId', v)} options={mashgiachOptions} />
-        <Input label={t.addRest.kitniyot}  value={form.kitniyot}    onChange={v => set('kitniyot', v as typeof form['kitniyot'])} options={['ללא חשש קטניות', 'מכיל קטניות']} />
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={form.kitniyot}
+              onChange={e => set('kitniyot', e.target.checked)}
+              size="small"
+            />
+          }
+          label={t.addRest.kitniyot ?? 'Kitniyot'}
+          sx={{ ml: 0.5 }}
+        />
+
         <Input
           label={t.addRest.expires}
           value={form.expires}
@@ -201,7 +231,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
           error={submitted && !form.expires}
           helperText={submitted && !form.expires ? t.validation.required : undefined}
         />
-        <Input label={t.addRest.notes}     value={form.notes}       onChange={v => set('notes', v)} placeholder="..." />
+        <Input label={t.addRest.notes} value={form.notes} onChange={v => set('notes', v)} placeholder="..." />
 
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
           <Button

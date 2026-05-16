@@ -51,12 +51,12 @@ async function main() {
 
   // ── Restaurants ────────────────────────────────────────────────────────────
   await prisma.restaurant.createMany({ data: [
-    { id: 'r1', name: 'מסעדת הגורמה',     address: "רח' יפו 42",      city: 'Jerusalem', level: 'Mehadrin', hechsherId: 'h1', mashgiachId: m1.id, kitniyot: 'ללא חשש קטניות', expires: new Date('2026-03-15'), status: 'warning',  lastInspection: new Date('2026-01-20'), notes: '',                   rabbanutId: rb1.id, lat: 31.7834, lng: 35.2137, foodType: 'meat',     phone: '02-623-1111', hours: 'א׳–ה׳ 12:00–22:00' },
-    { id: 'r2', name: 'בית האוכל המרכזי', address: "רח' בן יהודה 18", city: 'Jerusalem', level: 'Regular',  hechsherId: 'h2', mashgiachId: m2.id, kitniyot: 'מכיל קטניות',     expires: new Date('2026-06-30'), status: 'ok',       lastInspection: new Date('2026-02-01'), notes: '',                   rabbanutId: rb1.id, lat: 31.7820, lng: 35.2145, foodType: 'pareve',   phone: '02-624-2222', hours: 'א׳–ה׳ 9:00–21:00, ו׳ 9:00–14:00' },
-    { id: 'r3', name: 'מסעדת צפון',       address: "שד' הרצל 55",     city: 'Haifa',     level: 'Mehadrin', hechsherId: 'h4', mashgiachId: m3.id, kitniyot: 'ללא חשש קטניות', expires: new Date('2026-02-28'), status: 'critical', lastInspection: new Date('2025-12-15'), notes: 'Requires attention', rabbanutId: rb2.id, lat: 32.8156, lng: 34.9893, foodType: 'meat',     phone: '04-855-3333', hours: 'א׳–ה׳ 12:00–23:00' },
-    { id: 'r4', name: 'פיצה שמש',         address: "רח' גאולה 31",    city: 'Haifa',     level: 'Regular',  hechsherId: 'h3', mashgiachId: m1.id, kitniyot: 'מכיל קטניות',     expires: new Date('2026-08-10'), status: 'ok',       lastInspection: new Date('2026-01-30'), notes: '',                   rabbanutId: rb2.id, lat: 32.8073, lng: 34.9942, foodType: 'dairy',    phone: '04-851-4444', hours: 'א׳–ה׳ 11:00–23:00' },
-    { id: 'r5', name: 'המאפייה העתיקה',   address: "רח' ירושלים 17",  city: 'Tzfat',     level: 'Mehadrin', hechsherId: 'h5', mashgiachId: m4.id, kitniyot: 'ללא חשש קטניות', expires: new Date('2026-04-01'), status: 'warning',  lastInspection: new Date('2026-01-10'), notes: '',                   rabbanutId: rb1.id, lat: 32.9641, lng: 35.4956, foodType: 'dairy',    phone: '04-697-5555', hours: 'א׳–ה׳ 8:00–21:00, ו׳ 8:00–14:00' },
-    { id: 'r6', name: 'מלון כנרות',       address: "רח' זיידל 9",     city: 'Tiberias',  level: 'Mehadrin', hechsherId: 'h1', mashgiachId: m2.id, kitniyot: 'ללא חשש קטניות', expires: new Date('2026-09-20'), status: 'ok',       lastInspection: new Date('2026-02-05'), notes: '',                   rabbanutId: rb1.id, lat: 32.7944, lng: 35.5271, foodType: 'takeaway', phone: '04-672-6666', hours: 'כל יום 7:00–22:00' },
+    { id: 'r1', name: 'מסעדת הגורמה',     address: "רח' יפו 42",      city: 'Jerusalem', level: 'Mehadrin', hechsherId: 'h1', mashgiachId: m1.id, kitniyot: false, expires: new Date('2026-03-15'), status: 'warning',  notes: '',                   rabbanutId: rb1.id, lat: 31.7834, lng: 35.2137, foodType: 'meat',     phone: '02-623-1111', hours: 'א׳–ה׳ 12:00–22:00' },
+    { id: 'r2', name: 'בית האוכל המרכזי', address: "רח' בן יהודה 18", city: 'Jerusalem', level: 'Regular',  hechsherId: 'h2', mashgiachId: m2.id, kitniyot: true,  expires: new Date('2026-06-30'), status: 'ok',       notes: '',                   rabbanutId: rb1.id, lat: 31.7820, lng: 35.2145, foodType: 'pareve',   phone: '02-624-2222', hours: 'א׳–ה׳ 9:00–21:00, ו׳ 9:00–14:00' },
+    { id: 'r3', name: 'מסעדת צפון',       address: "שד' הרצל 55",     city: 'Haifa',     level: 'Mehadrin', hechsherId: 'h4', mashgiachId: m3.id, kitniyot: false, expires: new Date('2026-02-28'), status: 'critical', notes: 'Requires attention', rabbanutId: rb2.id, lat: 32.8156, lng: 34.9893, foodType: 'meat',     phone: '04-855-3333', hours: 'א׳–ה׳ 12:00–23:00' },
+    { id: 'r4', name: 'פיצה שמש',         address: "רח' גאולה 31",    city: 'Haifa',     level: 'Regular',  hechsherId: 'h3', mashgiachId: m1.id, kitniyot: true,  expires: new Date('2026-08-10'), status: 'ok',       notes: '',                   rabbanutId: rb2.id, lat: 32.8073, lng: 34.9942, foodType: 'dairy',    phone: '04-851-4444', hours: 'א׳–ה׳ 11:00–23:00' },
+    { id: 'r5', name: 'המאפייה העתיקה',   address: "רח' ירושלים 17",  city: 'Tzfat',     level: 'Mehadrin', hechsherId: 'h5', mashgiachId: m4.id, kitniyot: false, expires: new Date('2026-04-01'), status: 'warning',  notes: '',                   rabbanutId: rb1.id, lat: 32.9641, lng: 35.4956, foodType: 'dairy',    phone: '04-697-5555', hours: 'א׳–ה׳ 8:00–21:00, ו׳ 8:00–14:00' },
+    { id: 'r6', name: 'מלון כנרות',       address: "רח' זיידל 9",     city: 'Tiberias',  level: 'Mehadrin', hechsherId: 'h1', mashgiachId: m2.id, kitniyot: false, expires: new Date('2026-09-20'), status: 'ok',       notes: '',                   rabbanutId: rb1.id, lat: 32.7944, lng: 35.5271, foodType: 'takeaway', phone: '04-672-6666', hours: 'כל יום 7:00–22:00' },
   ] })
 
   // ── Inspections ────────────────────────────────────────────────────────────
@@ -69,14 +69,14 @@ async function main() {
 
   // ── Documents ──────────────────────────────────────────────────────────────
   await prisma.kashrutDocument.createMany({ data: [
-    { id: 'd1', name: 'Kashrut Inspection Guidelines 5786', category: 'Instructions', date: new Date('2026-01-08'), size: '2.4 MB', ext: 'PDF' },
-    { id: 'd2', name: 'כתב התחייבות – פסח תשפ"ו',         category: 'Pesach',       date: new Date('2026-01-08'), size: '0.8 MB', ext: 'PDF' },
-    { id: 'd3', name: 'Mashgiach Daily Checklist',          category: 'Forms',        date: new Date('2026-01-15'), size: '0.3 MB', ext: 'PDF' },
-    { id: 'd4', name: 'Bishul Yisrael Regulations',         category: 'Regulations',  date: new Date('2025-12-01'), size: '1.1 MB', ext: 'PDF' },
-    { id: 'd5', name: 'טופס המתנה מעת לעת',                 category: 'Pesach',       date: new Date('2026-01-08'), size: '0.2 MB', ext: 'PDF' },
-    { id: 'd6', name: 'Hechsher Certificate Template',      category: 'Forms',        date: new Date('2026-02-01'), size: '0.5 MB', ext: 'DOCX' },
-    { id: 'd7', name: 'היערכות מסעדות לפסח תשפ"ו',         category: 'Pesach',       date: new Date('2026-01-08'), size: '1.8 MB', ext: 'PDF' },
-    { id: 'd8', name: 'Mehadrin Standards Reference',       category: 'Regulations',  date: new Date('2025-11-20'), size: '3.2 MB', ext: 'PDF' },
+    { id: 'd1', name: 'Kashrut Inspection Guidelines 5786', category: 'Instructions', date: new Date('2026-01-08'), size: BigInt(2_516_582),  ext: 'PDF' },
+    { id: 'd2', name: 'כתב התחייבות – פסח תשפ"ו',         category: 'Pesach',       date: new Date('2026-01-08'), size: BigInt(838_860),    ext: 'PDF' },
+    { id: 'd3', name: 'Mashgiach Daily Checklist',          category: 'Forms',        date: new Date('2026-01-15'), size: BigInt(314_572),    ext: 'PDF' },
+    { id: 'd4', name: 'Bishul Yisrael Regulations',         category: 'Regulations',  date: new Date('2025-12-01'), size: BigInt(1_153_433),  ext: 'PDF' },
+    { id: 'd5', name: 'טופס המתנה מעת לעת',                 category: 'Pesach',       date: new Date('2026-01-08'), size: BigInt(209_715),    ext: 'PDF' },
+    { id: 'd6', name: 'Hechsher Certificate Template',      category: 'Forms',        date: new Date('2026-02-01'), size: BigInt(524_288),    ext: 'DOCX' },
+    { id: 'd7', name: 'היערכות מסעדות לפסח תשפ"ו',         category: 'Pesach',       date: new Date('2026-01-08'), size: BigInt(1_887_436),  ext: 'PDF' },
+    { id: 'd8', name: 'Mehadrin Standards Reference',       category: 'Regulations',  date: new Date('2025-11-20'), size: BigInt(3_355_443),  ext: 'PDF' },
   ] })
 
   console.log('✅  Seed complete')

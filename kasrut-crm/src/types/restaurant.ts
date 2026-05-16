@@ -9,11 +9,13 @@ export interface Restaurant {
   level: RestaurantLevel
   hechsherId: string
   mashgiachId?: string
-  kitniyot: 'ללא חשש קטניות' | 'מכיל קטניות'
+  kitniyot: boolean
   foodType?: FoodType
   expires: string
   status: CertStatus
   rabbanutId: string
   notes?: string
   lastInspection?: string
+  settlementId?: string
+  createdAt?: string
 }

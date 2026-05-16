@@ -25,8 +25,9 @@ async function resolveInspectionScope(
 
 export const inspectionController = {
   list: asyncHandler(async (req, res) => {
-    const q = req.query as Record<string, string>
+    const q           = req.query as Record<string, string>
     const mashgiachId = req.user?.role === 'mashgiach' ? req.user.sub : q.mashgiachId
+    const rabbanutId  = req.user?.role === 'rabbanut'  ? req.user.rabbanutId : undefined
     const pageInput   = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
 
     if (pageInput.limit) {
@@ -35,6 +36,7 @@ export const inspectionController = {
         mashgiachId,
         result:       q.result,
         type:         q.type,
+        rabbanutId,
         limit:        pageInput.limit,
         cursor:       pageInput.cursor,
       })
@@ -47,6 +49,7 @@ export const inspectionController = {
       result:       q.result,
       type:         q.type,
       mashgiachId,
+      rabbanutId,
     })
     res.json(serializeInspections(inspections))
   }),

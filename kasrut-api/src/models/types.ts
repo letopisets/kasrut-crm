@@ -37,6 +37,8 @@ export interface User {
   twoFactorSecret?:     string
   twoFactorEnabled:     boolean
   twoFactorBackupCodes: string[]
+  passwordChangedAt?:   string
+  createdAt?:           string
 }
 
 export interface Rabbanut {
@@ -51,16 +53,19 @@ export interface Rabbanut {
 }
 
 export interface Hechsher {
-  id:         string
-  name:       string
-  shortName:  string
-  city?:      string
-  contact?:   string
-  phone?:     string
-  email?:     string
-  type:       HechsherType
-  color:      string
-  rabbanutId: string
+  id:           string
+  name:         string
+  shortName:    string
+  city?:        string
+  contact?:     string
+  phone?:       string
+  email?:       string
+  type:         HechsherType
+  color:        string
+  rabbanutId:   string
+  active:       boolean
+  settlementId?: string
+  createdAt?:   string
 }
 
 export interface Mashgiach {
@@ -83,23 +88,25 @@ export interface Restaurant {
   level:           'Regular' | 'Mehadrin'
   hechsherId:      string
   mashgiachId?:    string
-  kitniyot:        string
+  kitniyot:        boolean
   foodType?:       FoodType
   expires:         string
   status:          CertStatus
   rabbanutId:      string
   notes?:          string
   lastInspection?: string
+  settlementId?:   string
+  createdAt?:      string
 }
 
 export interface Inspection {
-  id:           string
-  restaurantId: string
-  mashgiachId:  string
-  date:         string
-  type:         InspectionType
-  result:       InspectionResult
-  notes?:       string
+  id:            string
+  restaurantId:  string
+  mashgiachId?:  string
+  date:          string
+  type:          InspectionType
+  result:        InspectionResult
+  notes?:        string
 }
 
 export interface KashrutDocument {
@@ -107,7 +114,7 @@ export interface KashrutDocument {
   name:     string
   category: DocumentCategory
   date:     string
-  size:     string
+  size:     number   // bytes stored as BigInt in DB, serialised as number
   ext:      DocExt
   url?:     string
 }

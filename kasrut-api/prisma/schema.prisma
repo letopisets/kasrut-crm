@@ -84,52 +84,65 @@ enum MapPasswordResetChannel {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id                String   @id @default(cuid())
-  name              String
-  email             String   @unique
-  passwordHash      String
-  role              Role
-  rabbanutId        String?
+  id                   String    @id @default(cuid())
+  name                 String
+  email                String    @unique
+  passwordHash         String
+  role                 Role
+  rabbanutId           String?
   twoFactorSecret      String?
-  twoFactorEnabled     Boolean  @default(false)
-  twoFactorBackupCodes String[] @default([])
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorBackupCodes String[]  @default([])
+  passwordChangedAt    DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  rabbanut          Rabbanut? @relation(fields: [rabbanutId], references: [id], onDelete: SetNull)
+  rabbanut Rabbanut? @relation(fields: [rabbanutId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
 
 model Rabbanut {
-  id      String  @id @default(cuid())
-  name    String
-  city    String
-  contact String
-  phone   String
-  email   String
-  active  Boolean @default(true)
-  color   String
+  id           String    @id @default(cuid())
+  name         String
+  city         String
+  contact      String
+  phone        String
+  email        String
+  active       Boolean   @default(true)
+  color        String
+  settlementId String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   users        User[]
   hechsherim   Hechsher[]
   mashgichim   Mashgiach[]
   restaurants  Restaurant[]
+  settlement   Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
 
   @@map("rabbanuts")
 }
 
 model Hechsher {
-  id         String       @id @default(cuid())
-  name       String
-  shortName  String
-  city       String
-  contact    String
-  phone      String
-  email      String
-  type       HechsherType
-  color      String
-  rabbanutId String
+  id           String       @id @default(cuid())
+  name         String
+  shortName    String
+  city         String
+  contact      String
+  phone        String
+  email        String
+  type         HechsherType
+  color        String
+  rabbanutId   String
+  active       Boolean      @default(true)
+  settlementId String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   rabbanut    Rabbanut    @relation(fields: [rabbanutId], references: [id], onDelete: Cascade)
+  settlement  Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
   restaurants Restaurant[]
   mashgichim  MashgiachHechsher[]
 
@@ -137,13 +150,15 @@ model Hechsher {
 }
 
 model Mashgiach {
-  id         String  @id @default(cuid())
+  id         String   @id @default(cuid())
   name       String
   phone      String
   email      String
   area       String
-  active     Boolean @default(true)
+  active     Boolean  @default(true)
   rabbanutId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   rabbanut    Rabbanut  @relation(fields: [rabbanutId], references: [id], onDelete: Cascade)
   hechsherim  MashgiachHechsher[]
@@ -173,12 +188,16 @@ model Restaurant {
   level          String     // 'Regular' | 'Mehadrin'
   hechsherId     String
   mashgiachId    String?
-  kitniyot       String
+  kitniyot       Boolean    @default(false)
   expires        DateTime
   status         CertStatus @default(ok)
   rabbanutId     String
   notes          String?
   lastInspection DateTime?
+  settlementId   String?
+  deletedAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
   // Map fields
   lat            Float?
   lng            Float?
@@ -189,7 +208,8 @@ model Restaurant {
   hechsher    Hechsher    @relation(fields: [hechsherId],  references: [id])
   mashgiach   Mashgiach?  @relation(fields: [mashgiachId], references: [id], onDelete: SetNull)
   rabbanut    Rabbanut    @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
-  inspections Inspection[]
+  settlement  Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  inspections    Inspection[]
   mapSuggestions MapRestaurantSuggestion[]
   mapReviews     MapRestaurantReview[]
 
@@ -199,37 +219,73 @@ model Restaurant {
   @@index([hechsherId])
   @@index([mashgiachId])
   @@index([rabbanutId])
+  @@index([expires])
+  @@index([deletedAt])
   @@map("restaurants")
 }
 
 model Inspection {
   id           String           @id @default(cuid())
   restaurantId String
-  mashgiachId  String
+  mashgiachId  String?
   date         DateTime
   type         InspectionType
   result       InspectionResult @default(pending)
   notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  mashgiach  Mashgiach  @relation(fields: [mashgiachId],  references: [id])
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  mashgiach  Mashgiach?  @relation(fields: [mashgiachId],  references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
   @@index([mashgiachId])
+  @@index([date])
   @@index([restaurantId, date])
   @@map("inspections")
 }
 
 model KashrutDocument {
-  id       String           @id @default(cuid())
-  name     String
-  category DocumentCategory
-  date     DateTime
-  size     String
-  ext      DocExt
-  url      String?
+  id        String           @id @default(cuid())
+  name      String
+  category  DocumentCategory
+  date      DateTime
+  size      BigInt           @default(0)
+  ext       DocExt
+  url       String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   @@map("documents")
+}
+
+model Country {
+  code        String       @id @db.Char(2)
+  nameEn      String
+  settlements Settlement[]
+
+  @@map("countries")
+}
+
+model Settlement {
+  id          String  @id @default(uuid())
+  nameHe      String
+  nameEn      String?
+  nameRu      String?
+  lat         Float?
+  lng         Float?
+  type        String  @default("city")
+  countryCode String  @db.Char(2)
+
+  country     Country      @relation(fields: [countryCode], references: [code])
+  restaurants Restaurant[]
+  hechsherim  Hechsher[]
+  rabbanuts   Rabbanut[]
+
+  @@index([nameHe])
+  @@index([nameEn])
+  @@index([nameRu])
+  @@map("settlements")
 }
 
 model ServiceLog {

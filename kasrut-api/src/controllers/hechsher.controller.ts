@@ -1,7 +1,7 @@
 import { hechsherimRepo } from '../db/hechsherim.repo'
 import { serializeHechsher, serializeHechsherim } from '../serializers/hechsher.serializer'
 import { validate } from '../lib/validate'
-import { createHechsherSchema, updateHechsherSchema } from '../schemas'
+import { createHechsherSchema, updateHechsherSchema, paginationSchema } from '../schemas'
 import { invalidatePattern, withCache } from '../lib/cache'
 import { invalidateMapCache as invalidateMapNamespace } from '../lib/mapCache'
 import {
@@ -20,8 +20,17 @@ export const hechsherController = {
   list: asyncHandler(async (req, res) => {
     const q          = req.query as Record<string, string>
     const rabbanutId = resolveScopeRabbanutId(req, q.rabbanutId)
-    const cacheKey   = `hechsherim:list:${rabbanutId ?? 'all'}`
-    const data = await withCache(cacheKey, 300, () => hechsherimRepo.findAll({ rabbanutId }))
+    const active     = q.active === 'true' ? true : q.active === 'false' ? false : undefined
+    const pageInput  = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
+
+    if (pageInput.limit) {
+      const page = await hechsherimRepo.findPage({ rabbanutId, active, limit: pageInput.limit, cursor: pageInput.cursor })
+      res.json({ items: serializeHechsherim(page.items), nextCursor: page.nextCursor })
+      return
+    }
+
+    const cacheKey = `hechsherim:list:${rabbanutId ?? 'all'}:${active ?? 'all'}`
+    const data = await withCache(cacheKey, 300, () => hechsherimRepo.findAll({ rabbanutId, active }))
     res.json(serializeHechsherim(data))
   }),
 
@@ -35,7 +44,7 @@ export const hechsherController = {
   create: asyncHandler(async (req, res) => {
     const body = validate(createHechsherSchema, req.body)
     const payload = applyWriteScope(req, body)
-    const h = await hechsherimRepo.create(payload)
+    const h = await hechsherimRepo.create({ ...payload, active: payload.active ?? true })
     await invalidateAll()
     res.status(201).json(serializeHechsher(h))
   }),
