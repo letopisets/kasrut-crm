@@ -80,12 +80,20 @@ export interface Mashgiach {
   rabbanutId:            string
 }
 
+export interface KashrutLevel {
+  id:           string
+  name:         string
+  description?: string
+  sortOrder:    number
+}
+
 export interface Restaurant {
   id:              string
   name:            string
   address:         string
   city:            string
-  level:           'Regular' | 'Mehadrin'
+  levelId:         string
+  level:           string   // KashrutLevel.name — serialised for display
   hechsherId:      string
   mashgiachId?:    string
   kitniyot:        boolean

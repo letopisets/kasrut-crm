@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useGetHechsherimQuery, useCreateHechsherMutation } from '@/store/api/hechsherimApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
+import { useGetKashrutLevelsQuery } from '@/store/api/kashrutLevelsApi'
 import { useCreateRestaurantMutation, useUpdateRestaurantMutation } from '@/store/api/restaurantsApi'
 import { useAppSelector } from '@/store'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -44,9 +45,10 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const user = useAppSelector(s => s.auth.user)
   const perm = usePermissions()
 
-  const { data: hechsherim = [] } = useGetHechsherimQuery()
-  const { data: mashgichim = [] } = useGetMashgichimQuery()
-  const { data: rabbanuts  = [] } = useGetRabbanutsQuery()
+  const { data: hechsherim    = [] } = useGetHechsherimQuery()
+  const { data: mashgichim    = [] } = useGetMashgichimQuery()
+  const { data: rabbanuts     = [] } = useGetRabbanutsQuery()
+  const { data: kashrutLevels = [] } = useGetKashrutLevelsQuery()
   const [createMutation, { isLoading: creating }] = useCreateRestaurantMutation()
   const [updateMutation, { isLoading: updating }] = useUpdateRestaurantMutation()
   const [createHechsher, { isLoading: creatingHechsher }] = useCreateHechsherMutation()
@@ -70,7 +72,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
     name:        initial?.name        ?? '',
     address:     initial?.address     ?? '',
     city:        initial?.city        ?? '',
-    level:       (initial?.level      ?? '') as '' | 'Regular' | 'Mehadrin',
+    levelId:     initial?.levelId     ?? '',
     hechsherId:  initial?.hechsherId  ?? '',
     mashgiachId: initial?.mashgiachId ?? '',
     kitniyot:    initial?.kitniyot    ?? false,
@@ -83,7 +85,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
-  const canSave = !!(form.name && form.expires && form.level && form.hechsherId && form.rabbanutId)
+  const canSave = !!(form.name && form.expires && form.levelId && form.hechsherId && form.rabbanutId)
 
   const handleSave = async () => {
     setSubmitted(true)
@@ -92,7 +94,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
       name:         form.name,
       address:      form.address,
       city:         settlement?.nameHe ?? form.city,
-      level:        form.level as 'Regular' | 'Mehadrin',
+      levelId:      form.levelId,
       hechsherId:   form.hechsherId,
       mashgiachId:  form.mashgiachId || undefined,
       kitniyot:     form.kitniyot,
@@ -131,6 +133,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
     ? mashgichim.filter(m => !form.rabbanutId || m.rabbanutId === form.rabbanutId)
     : mashgichim.filter(m => m.active)
 
+  const levelOptions     = kashrutLevels.map(l => ({ value: l.id, label: l.name }))
   const hechsherOptions  = filteredHechsherim.map(h => ({ value: h.id, label: h.name }))
   const mashgiachOptions = filteredMashgichim.map(m => ({ value: m.id, label: m.name }))
   const rabbanutOptions  = rabbanuts.map(r => ({ value: r.id, label: r.name }))
@@ -172,12 +175,12 @@ export function RestaurantForm({ initial, onClose }: Props) {
 
         <Input
           label={t.addRest.level}
-          value={form.level}
-          onChange={v => set('level', v as typeof form['level'])}
-          options={['Regular', 'Mehadrin']}
+          value={form.levelId}
+          onChange={v => set('levelId', v)}
+          options={levelOptions}
           required
-          error={submitted && !form.level}
-          helperText={submitted && !form.level ? t.validation.required : undefined}
+          error={submitted && !form.levelId}
+          helperText={submitted && !form.levelId ? t.validation.required : undefined}
         />
         <Input
           label={t.addRest.foodType ?? 'Тип кухни'}

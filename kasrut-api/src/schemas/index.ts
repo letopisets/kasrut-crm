@@ -44,11 +44,18 @@ export const updateUserSchema = createUserSchema.omit({ password: true }).partia
 // backwards compatibility but ignored by the repository (see calcStatus in
 // restaurants.repo.ts). All filtering goes through expires, not the stored
 // status column, which would otherwise go stale without a refresh cron.
+export const createKashrutLevelSchema = z.object({
+  name:        z.string().min(1).max(100).trim(),
+  description: z.string().max(500).trim().optional(),
+  sortOrder:   z.coerce.number().int().min(0).default(0),
+})
+export const updateKashrutLevelSchema = createKashrutLevelSchema.partial()
+
 export const createRestaurantSchema = z.object({
   name:         z.string().min(1).max(200).trim(),
   address:      z.string().min(1).max(500).trim(),
   city:         z.string().min(1).max(100).trim(),
-  level:        z.enum(['Regular', 'Mehadrin']),
+  levelId:      id,
   hechsherId:   id,
   mashgiachId:  id.optional(),
   kitniyot:     z.boolean().default(false),

@@ -24,7 +24,8 @@ function calcStatus(expires: Date): CertStatus {
 }
 
 type RestaurantWithLatestInspection = {
-  id: string; name: string; address: string; city: string; level: string
+  id: string; name: string; address: string; city: string
+  levelId: string; level: { id: string; name: string }
   hechsherId: string; mashgiachId: string | null; kitniyot: boolean
   foodType: PrismaFoodType; expires: Date; status: string; rabbanutId: string
   notes: string | null; lat: number | null; lng: number | null
@@ -45,7 +46,8 @@ function toRestaurant(r: RestaurantWithLatestInspection): Restaurant {
     name:            r.name,
     address:         r.address,
     city:            r.city,
-    level:           r.level as 'Regular' | 'Mehadrin',
+    levelId:         r.level.id,
+    level:           r.level.name,
     hechsherId:      r.hechsherId,
     mashgiachId:     r.mashgiachId ?? undefined,
     kitniyot:        r.kitniyot,
@@ -62,6 +64,7 @@ function toRestaurant(r: RestaurantWithLatestInspection): Restaurant {
 
 const includeLatestInspection = {
   inspections: { orderBy: { date: 'desc' as const }, take: 1 },
+  level: true as const,
 }
 
 export interface PageResult<T> {
@@ -119,14 +122,14 @@ export const restaurantsRepo = {
     return rows.map(toRestaurant)
   },
 
-  async create(input: Omit<Restaurant, 'id' | 'status'>): Promise<Restaurant> {
+  async create(input: Omit<Restaurant, 'id' | 'status' | 'level'>): Promise<Restaurant> {
     const expires = new Date(input.expires)
     const r = await prisma.restaurant.create({
       data: {
         name:         input.name,
         address:      input.address,
         city:         input.city,
-        level:        input.level,
+        levelId:      input.levelId,
         hechsherId:   input.hechsherId,
         mashgiachId:  input.mashgiachId ?? null,
         kitniyot:     input.kitniyot,
@@ -144,7 +147,7 @@ export const restaurantsRepo = {
 
   async update(id: string, patch: Partial<Omit<Restaurant, 'id'>>): Promise<Restaurant | null> {
     try {
-      const { expires, lastInspection: _ignored, foodType, ...rest } = patch
+      const { expires, lastInspection: _ignored, foodType, level: _levelName, ...rest } = patch
       const r = await prisma.restaurant.update({
         where: { id },
         data: {

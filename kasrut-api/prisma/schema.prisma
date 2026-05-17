@@ -180,12 +180,23 @@ model MashgiachHechsher {
   @@map("mashgiach_hechsher")
 }
 
+model KashrutLevel {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  sortOrder   Int     @default(0)
+
+  restaurants Restaurant[]
+
+  @@map("kashrut_levels")
+}
+
 model Restaurant {
   id             String     @id @default(cuid())
   name           String
   address        String
   city           String
-  level          String     // 'Regular' | 'Mehadrin'
+  levelId        String
   hechsherId     String
   mashgiachId    String?
   kitniyot       Boolean    @default(false)
@@ -205,10 +216,11 @@ model Restaurant {
   phone          String?
   hours          String?
 
-  hechsher    Hechsher    @relation(fields: [hechsherId],  references: [id])
-  mashgiach   Mashgiach?  @relation(fields: [mashgiachId], references: [id], onDelete: SetNull)
-  rabbanut    Rabbanut    @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
-  settlement  Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  level       KashrutLevel @relation(fields: [levelId],     references: [id])
+  hechsher    Hechsher     @relation(fields: [hechsherId],  references: [id])
+  mashgiach   Mashgiach?   @relation(fields: [mashgiachId], references: [id], onDelete: SetNull)
+  rabbanut    Rabbanut     @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
+  settlement  Settlement?  @relation(fields: [settlementId], references: [id], onDelete: SetNull)
   inspections    Inspection[]
   mapSuggestions MapRestaurantSuggestion[]
   mapReviews     MapRestaurantReview[]
@@ -216,6 +228,7 @@ model Restaurant {
   @@index([lat, lng])
   @@index([city])
   @@index([foodType])
+  @@index([levelId])
   @@index([hechsherId])
   @@index([mashgiachId])
   @@index([rabbanutId])

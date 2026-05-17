@@ -51,7 +51,8 @@ describe('loginSchema', () => {
 describe('createRestaurantSchema', () => {
   const valid = {
     name: 'A', address: 'addr', city: 'TLV',
-    level: 'Regular', hechsherId: '11111111-1111-1111-1111-111111111111',
+    levelId: '33333333-3333-3333-3333-333333333333',
+    hechsherId: '11111111-1111-1111-1111-111111111111',
     kitniyot: false, expires: '2030-01-01', status: 'ok',
     rabbanutId: '22222222-2222-2222-2222-222222222222',
   }
@@ -68,8 +69,8 @@ describe('createRestaurantSchema', () => {
     expect(createRestaurantSchema.safeParse({ ...valid, hechsherId: 'not-uuid' }).success).toBe(false)
   })
 
-  it('rejects unknown level value', () => {
-    expect(createRestaurantSchema.safeParse({ ...valid, level: 'Unknown' }).success).toBe(false)
+  it('rejects non-UUID levelId', () => {
+    expect(createRestaurantSchema.safeParse({ ...valid, levelId: 'not-a-uuid' }).success).toBe(false)
   })
 
   it('rejects unknown status', () => {
