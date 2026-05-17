@@ -10,8 +10,9 @@ import userRoutes        from './user.routes'
 import mapRoutes         from './map.routes'
 import mapAuthRoutes     from './mapAuth.routes'
 import logRoutes         from './log.routes'
-import settlementRoutes  from './settlement.routes'
-import dashboardRoutes   from './dashboard.routes'
+import settlementRoutes   from './settlement.routes'
+import dashboardRoutes    from './dashboard.routes'
+import kashrutLevelRoutes from './kashrutLevel.routes'
 
 const router = Router()
 router.use('/auth',        authRoutes)
@@ -25,6 +26,7 @@ router.use('/users',       userRoutes)
 router.use('/map-auth',    mapAuthRoutes)
 router.use('/map',         mapRoutes)
 router.use('/logs',        logRoutes)
-router.use('/settlements', settlementRoutes)
-router.use('/dashboard',   dashboardRoutes)
+router.use('/settlements',    settlementRoutes)
+router.use('/dashboard',      dashboardRoutes)
+router.use('/kashrut-levels', kashrutLevelRoutes)
 export default router

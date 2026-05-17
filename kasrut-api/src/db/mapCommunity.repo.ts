@@ -212,8 +212,8 @@ async function resolveHechsher(
   })
 }
 
-function levelFromHechsher(type: string): 'Regular' | 'Mehadrin' {
-  return type === 'Badatz' || type === 'Mehadrin' ? 'Mehadrin' : 'Regular'
+function levelIdFromHechsher(type: string): string {
+  return type === 'Badatz' || type === 'Mehadrin' ? 'kl_mehadrin' : 'kl_regular'
 }
 
 function communityNotes(notes: string | null): string {
@@ -432,7 +432,7 @@ export const mapCommunityRepo = {
           })
           patch.hechsher = { connect: { id: hechsher.id } }
           patch.rabbanut = { connect: { id: hechsher.rabbanutId } }
-          patch.level = levelFromHechsher(hechsher.type)
+          patch.level = { connect: { id: levelIdFromHechsher(hechsher.type) } }
         }
         if (suggestion.proposedKashrutStatus) {
           const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
@@ -464,7 +464,7 @@ export const mapCommunityRepo = {
             name: suggestion.proposedName,
             address: suggestion.proposedAddress,
             city: suggestion.proposedCity,
-            level: levelFromHechsher(hechsher.type),
+            levelId: levelIdFromHechsher(hechsher.type),
             hechsherId: hechsher.id,
             mashgiachId: null,
             kitniyot: false,

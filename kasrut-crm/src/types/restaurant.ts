@@ -1,12 +1,13 @@
-export type { CertStatus, FoodType, RestaurantLevel } from '../../../packages/shared/types'
-import type { CertStatus, FoodType, RestaurantLevel } from '../../../packages/shared/types'
+export type { CertStatus, FoodType, KashrutLevel } from '../../../packages/shared/types'
+import type { CertStatus, FoodType } from '../../../packages/shared/types'
 
 export interface Restaurant {
   id: string
   name: string
   address: string
   city: string
-  level: RestaurantLevel
+  levelId: string
+  level: string       // KashrutLevel.name — for display
   hechsherId: string
   mashgiachId?: string
   kitniyot: boolean
