@@ -118,7 +118,10 @@ export const restaurantsRepo = {
   },
 
   async findByMashgiach(mashgiachId: string): Promise<Restaurant[]> {
-    const rows = await prisma.restaurant.findMany({ where: { mashgiachId }, include: includeLatestInspection })
+    const rows = await prisma.restaurant.findMany({
+      where: { mashgiachId, deletedAt: null },
+      include: includeLatestInspection,
+    })
     return rows.map(toRestaurant)
   },
 
