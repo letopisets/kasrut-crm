@@ -710,7 +710,6 @@ async function loadIntoDatabase(builder: ImportBuilder) {
           status: r.status,
           rabbanutId: r.rabbanutId,
           notes: r.notes,
-          lastInspection: r.lastInspection,
           lat: r.lat,
           lng: r.lng,
           foodType: r.foodType,

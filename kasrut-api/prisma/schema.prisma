@@ -204,7 +204,6 @@ model Restaurant {
   status         CertStatus @default(ok)
   rabbanutId     String
   notes          String?
-  lastInspection DateTime?
   settlementId   String?
   deletedAt      DateTime?
   createdAt      DateTime   @default(now())
