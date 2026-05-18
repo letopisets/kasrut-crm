@@ -212,8 +212,30 @@ async function resolveHechsher(
   })
 }
 
-function levelIdFromHechsher(type: string): string {
-  return type === 'Badatz' || type === 'Mehadrin' ? 'kl_mehadrin' : 'kl_regular'
+// Map hechsher type → canonical KashrutLevel.name. Decoupled from primary-key
+// values so renaming or re-seeding kashrut_levels rows does not break this
+// resolver.
+const LEVEL_NAME_FOR_HECHSHER = {
+  Badatz:   'Mehadrin',
+  Mehadrin: 'Mehadrin',
+  Rabbanut: 'Regular',
+  Private:  'Regular',
+} as const
+
+const FALLBACK_LEVEL_NAME = 'Regular'
+
+async function levelIdFromHechsher(tx: Prisma.TransactionClient, type: string): Promise<string> {
+  const name =
+    type in LEVEL_NAME_FOR_HECHSHER
+      ? LEVEL_NAME_FOR_HECHSHER[type as keyof typeof LEVEL_NAME_FOR_HECHSHER]
+      : FALLBACK_LEVEL_NAME
+  const row = await tx.kashrutLevel.findUnique({ where: { name }, select: { id: true } })
+  if (row) return row.id
+  // Fallback: first level by sortOrder. Guarantees a working FK even if the
+  // expected named row has been removed.
+  const fallback = await tx.kashrutLevel.findFirst({ orderBy: { sortOrder: 'asc' }, select: { id: true } })
+  if (!fallback) throw new Error('No KashrutLevel rows exist; cannot resolve levelId')
+  return fallback.id
 }
 
 function communityNotes(notes: string | null): string {
@@ -432,7 +454,7 @@ export const mapCommunityRepo = {
           })
           patch.hechsher = { connect: { id: hechsher.id } }
           patch.rabbanut = { connect: { id: hechsher.rabbanutId } }
-          patch.level = { connect: { id: levelIdFromHechsher(hechsher.type) } }
+          patch.level = { connect: { id: await levelIdFromHechsher(tx, hechsher.type) } }
         }
         if (suggestion.proposedKashrutStatus) {
           const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
@@ -464,7 +486,7 @@ export const mapCommunityRepo = {
             name: suggestion.proposedName,
             address: suggestion.proposedAddress,
             city: suggestion.proposedCity,
-            levelId: levelIdFromHechsher(hechsher.type),
+            levelId: await levelIdFromHechsher(tx, hechsher.type),
             hechsherId: hechsher.id,
             mashgiachId: null,
             kitniyot: false,
