@@ -36,7 +36,10 @@ async function runExpiryCheck(): Promise<void> {
         },
       },
       include: {
-        rabbanut:  { include: { users: { where: { role: 'owner' } } } },
+        // Notify users responsible for the rabbanut (role: 'rabbanut'), not
+        // platform super-admins (role: 'owner') — the latter are not
+        // operational stakeholders for individual restaurants.
+        rabbanut:  { include: { users: { where: { role: 'rabbanut' } } } },
         mashgiach: true,
       },
     })
@@ -47,7 +50,7 @@ async function runExpiryCheck(): Promise<void> {
       const expiresStr = r.expires.toISOString().slice(0, 10)
       const recipients: { email: string; name: string }[] = []
 
-      // Rabbanut owner(s)
+      // Rabbanut user(s)
       for (const u of r.rabbanut.users) {
         recipients.push({ email: u.email, name: u.name })
       }
