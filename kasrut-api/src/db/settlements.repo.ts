@@ -1,7 +1,14 @@
 import { prisma }            from '../lib/prisma'
 import { geocodeSettlement } from '../lib/nominatim'
+import type { SettlementType } from '../generated/prisma/client'
 
 export type LangHint = 'he' | 'ru' | 'en'
+
+const KNOWN_TYPES = new Set<string>(['city', 'town', 'village', 'suburb', 'neighbourhood', 'quarter'])
+
+function toSettlementType(raw: string): SettlementType {
+  return KNOWN_TYPES.has(raw) ? (raw as SettlementType) : 'other'
+}
 
 export interface SettlementRow {
   id:     string
@@ -89,7 +96,7 @@ export const settlementsRepo = {
       nameRu: n.nameRu ?? null,
       lat:    n.lat,
       lng:    n.lng,
-      type:   n.type,
+      type:   toSettlementType(n.type),
     }))
   },
 
