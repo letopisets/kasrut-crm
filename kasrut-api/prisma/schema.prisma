@@ -208,8 +208,8 @@ model Restaurant {
   phone          String?
   hours          String?
 
-  level       KashrutLevel @relation(fields: [levelId],     references: [id])
-  hechsher    Hechsher     @relation(fields: [hechsherId],  references: [id])
+  level       KashrutLevel @relation(fields: [levelId],     references: [id], onDelete: Restrict)
+  hechsher    Hechsher     @relation(fields: [hechsherId],  references: [id], onDelete: Restrict)
   mashgiach   Mashgiach?   @relation(fields: [mashgiachId], references: [id], onDelete: SetNull)
   rabbanut    Rabbanut     @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
   settlement  Settlement?  @relation(fields: [settlementId], references: [id], onDelete: SetNull)
