@@ -75,6 +75,16 @@ enum MapPasswordResetChannel {
   phone
 }
 
+enum SettlementType {
+  city
+  town
+  village
+  suburb
+  neighbourhood
+  quarter
+  other
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -280,7 +290,7 @@ model Settlement {
   nameRu      String?
   lat         Float?
   lng         Float?
-  type        String  @default("city")
+  type        SettlementType  @default(city)
   countryCode String  @db.Char(2)
 
   country     Country      @relation(fields: [countryCode], references: [code])
