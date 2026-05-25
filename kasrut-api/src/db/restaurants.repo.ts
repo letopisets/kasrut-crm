@@ -27,7 +27,7 @@ type RestaurantWithLatestInspection = {
   id: string; name: string; address: string; city: string
   levelId: string; level: { id: string; name: string }
   hechsherId: string; mashgiachId: string | null; kitniyot: boolean
-  foodType: PrismaFoodType; expires: Date; status: string; rabbanutId: string
+  foodType: PrismaFoodType; expires: Date; rabbanutId: string
   notes: string | null; lat: number | null; lng: number | null
   phone: string | null; hours: string | null
   settlementId: string | null; createdAt: Date; deletedAt: Date | null
@@ -139,7 +139,6 @@ export const restaurantsRepo = {
         ...(input.foodType    ? { foodType: input.foodType as PrismaFoodType } : {}),
         ...(input.settlementId ? { settlementId: input.settlementId } : {}),
         expires,
-        status:       calcStatus(expires),
         rabbanutId:   input.rabbanutId,
         notes:        input.notes,
       },
@@ -156,7 +155,7 @@ export const restaurantsRepo = {
         data: {
           ...rest,
           ...(foodType ? { foodType: foodType as PrismaFoodType } : {}),
-          ...(expires  ? { expires: new Date(expires), status: calcStatus(new Date(expires)) } : {}),
+          ...(expires  ? { expires: new Date(expires) } : {}),
         },
         include: includeLatestInspection,
       })

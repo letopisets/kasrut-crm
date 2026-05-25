@@ -7,7 +7,6 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
 type FoodType = 'meat' | 'dairy' | 'pareve' | 'takeaway'
-type CertStatus = 'ok' | 'warning' | 'critical'
 type HechsherType = 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private'
 type DocumentCategory = 'Instructions' | 'Forms' | 'Regulations' | 'Pesach'
 
@@ -63,10 +62,8 @@ interface RestaurantDraft {
   mashgiachId: string
   kitniyot: string
   expires: Date
-  status: CertStatus
   rabbanutId: string
   notes: string
-  lastInspection: Date
   lat: number | null
   lng: number | null
   foodType: FoodType
@@ -350,10 +347,8 @@ class ImportBuilder {
       mashgiachId: mashgiach.id,
       kitniyot: 'לא צוין',
       expires,
-      status: calcStatus(expires),
       rabbanutId: hechsher.rabbanutId,
       notes,
-      lastInspection: DEFAULT_LAST_INSPECTION,
       lat: coords?.[0] ?? null,
       lng: coords?.[1] ?? null,
       foodType: inferFoodType(raw.foodHint ?? `${name} ${raw.notes ?? ''}`),
@@ -707,7 +702,6 @@ async function loadIntoDatabase(builder: ImportBuilder) {
           mashgiachId: r.mashgiachId,
           kitniyot: r.kitniyot,
           expires: r.expires,
-          status: r.status,
           rabbanutId: r.rabbanutId,
           notes: r.notes,
           lat: r.lat,
@@ -775,10 +769,8 @@ function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: str
     mashgiachId: row.mashgiachId,
     kitniyot: row.kitniyot,
     expires: row.expires.toISOString(),
-    status: row.status,
     rabbanutId: row.rabbanutId,
     notes: row.notes,
-    lastInspection: row.lastInspection.toISOString(),
     lat: row.lat,
     lng: row.lng,
     foodType: row.foodType,
@@ -899,10 +891,8 @@ function buildImportSql(data: {
       'mashgiachId',
       'kitniyot',
       'expires',
-      'status',
       'rabbanutId',
       'notes',
-      'lastInspection',
       'lat',
       'lng',
       'foodType',
@@ -1067,12 +1057,6 @@ function shortName(name: string) {
   return clean.length > 24 ? clean.slice(0, 24) : clean
 }
 
-function calcStatus(expires: Date): CertStatus {
-  const days = Math.floor((expires.getTime() - IMPORT_DATE.getTime()) / 86_400_000)
-  if (days < 0) return 'critical'
-  if (days <= 30) return 'warning'
-  return 'ok'
-}
 
 function isUsefulRestaurant(name: string, address: string, city: string) {
   if (name.length < 2 || city.length < 2) return false

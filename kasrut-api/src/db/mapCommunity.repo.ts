@@ -458,7 +458,6 @@ export const mapCommunityRepo = {
         }
         if (suggestion.proposedKashrutStatus) {
           const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
-          patch.status = certStatus
           patch.expires = expiresForStatus(certStatus)
         }
         if (Object.keys(patch).length > 0) {
@@ -491,7 +490,6 @@ export const mapCommunityRepo = {
             mashgiachId: null,
             kitniyot: false,
             expires: expiresForStatus(certStatus),
-            status: certStatus,
             rabbanutId: hechsher.rabbanutId,
             notes: communityNotes(suggestion.notes),
             lat: suggestion.proposedLat,
