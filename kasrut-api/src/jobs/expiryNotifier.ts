@@ -17,22 +17,20 @@ function addDays(d: Date, n: number): Date {
   return new Date(d.getTime() + n * 86_400_000)
 }
 
-function isSameDay(a: Date, b: Date): boolean {
-  return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10)
-}
 
 async function runExpiryCheck(): Promise<void> {
   const today = new Date()
 
   for (const days of WARN_DAYS) {
     const target = addDays(today, days)
+    const dateStr = target.toISOString().slice(0, 10)
 
     const restaurants = await prisma.restaurant.findMany({
       where: {
         deletedAt: null,
         expires: {
-          gte: new Date(target.toISOString().slice(0, 10) + 'T00:00:00.000Z'),
-          lt:  new Date(target.toISOString().slice(0, 10) + 'T23:59:59.999Z'),
+          gte: new Date(dateStr + 'T00:00:00.000Z'),
+          lt:  new Date(dateStr + 'T23:59:59.999Z'),
         },
       },
       include: {
@@ -44,37 +42,32 @@ async function runExpiryCheck(): Promise<void> {
       },
     })
 
+    const sends: Promise<void>[] = []
+
     for (const r of restaurants) {
-      if (!isSameDay(r.expires, target)) continue
-
       const expiresStr = r.expires.toISOString().slice(0, 10)
-      const recipients: { email: string; name: string }[] = []
-
-      // Rabbanut user(s)
-      for (const u of r.rabbanut.users) {
-        recipients.push({ email: u.email, name: u.name })
-      }
-
-      // Assigned mashgiach
-      if (r.mashgiach) {
-        recipients.push({ email: r.mashgiach.email, name: r.mashgiach.name })
-      }
+      const recipients: { email: string; name: string }[] = [
+        ...r.rabbanut.users.map(u => ({ email: u.email, name: u.name })),
+        ...(r.mashgiach ? [{ email: r.mashgiach.email, name: r.mashgiach.name }] : []),
+      ]
 
       for (const recipient of recipients) {
-        try {
-          await sendExpiryWarning({
+        sends.push(
+          sendExpiryWarning({
             restaurantName: r.name,
             expires:        expiresStr,
             daysLeft:       days,
             recipientEmail: recipient.email,
             recipientName:  recipient.name,
-          })
-        } catch (err) {
-          logger.error({ err, restaurantId: r.id, recipientEmail: recipient.email },
-            'Failed to send expiry warning email')
-        }
+          }).catch(err => {
+            logger.error({ err, restaurantId: r.id, recipientEmail: recipient.email },
+              'Failed to send expiry warning email')
+          }),
+        )
       }
     }
+
+    await Promise.allSettled(sends)
   }
 }
 
