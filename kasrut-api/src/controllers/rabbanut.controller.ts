@@ -37,8 +37,8 @@ export const rabbanutController = {
   }),
 
   remove: asyncHandler(async (req, res) => {
-    const ok = await rabbanutRepo.remove(req.params.id)
-    if (!ok) { res.status(404).json({ error: 'Not found' }); return }
+    const result = await rabbanutRepo.remove(req.params.id)
+    if (result === 'not_found') { res.status(404).json({ error: 'Not found' }); return }
     res.status(204).send()
   }),
 }

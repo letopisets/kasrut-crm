@@ -116,6 +116,7 @@ model Rabbanut {
   restaurants  Restaurant[]
   settlement   Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
 
+  @@index([deletedAt])
   @@map("rabbanuts")
 }
 
