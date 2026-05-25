@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
 import type { Hechsher, HechsherType } from '../models/types'
 import type { Hechsher as PrismaHechsher } from '../generated/prisma/client'
+import { Prisma } from '../generated/prisma/client'
 
 export interface PageResult<T> { items: T[]; nextCursor: string | null }
 
@@ -82,7 +83,10 @@ export const hechsherimRepo = {
     try {
       const h = await prisma.hechsher.update({ where: { id }, data: patch })
       return toHechsher(h)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
@@ -91,6 +95,9 @@ export const hechsherimRepo = {
     try {
       await prisma.hechsher.delete({ where: { id } })
       return 'deleted'
-    } catch { return 'conflict' }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') return 'conflict'
+      throw e
+    }
   },
 }

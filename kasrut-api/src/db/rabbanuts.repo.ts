@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { Prisma } from '../generated/prisma/client'
 import type { Rabbanut } from '../models/types'
 import type { Rabbanut as PrismaRabbanut } from '../generated/prisma/client'
 
@@ -41,7 +42,10 @@ export const rabbanutRepo = {
     try {
       const r = await prisma.rabbanut.update({ where: { id, deletedAt: null }, data: patch })
       return toRabbanut(r)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async toggle(id: string): Promise<Rabbanut | null> {

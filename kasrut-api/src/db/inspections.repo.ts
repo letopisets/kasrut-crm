@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
 import type { Inspection, InspectionResult, InspectionType } from '../models/types'
 import type { Inspection as PrismaInspection } from '../generated/prisma/client'
+import { Prisma } from '../generated/prisma/client'
 
 function toInspection(i: PrismaInspection): Inspection {
   return {
@@ -127,7 +128,10 @@ export const inspectionsRepo = {
     try {
       const i = await prisma.inspection.update({ where: { id }, data: { result } })
       return toInspection(i)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async update(id: string, patch: Partial<Omit<Inspection, 'id'>>): Promise<Inspection | null> {
@@ -138,13 +142,19 @@ export const inspectionsRepo = {
         data:  { ...rest, ...(date ? { date: new Date(date) } : {}) },
       })
       return toInspection(i)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async remove(id: string): Promise<boolean> {
     try {
       await prisma.inspection.delete({ where: { id } })
       return true
-    } catch { return false }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return false
+      throw e
+    }
   },
 }

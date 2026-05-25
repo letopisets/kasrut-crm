@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { Prisma } from '../generated/prisma/client'
 import type { KashrutDocument, DocumentCategory, DocExt } from '../models/types'
 import type { KashrutDocument as PrismaDoc } from '../generated/prisma/client'
 
@@ -43,6 +44,9 @@ export const documentsRepo = {
     try {
       await prisma.kashrutDocument.delete({ where: { id } })
       return true
-    } catch { return false }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return false
+      throw e
+    }
   },
 }
