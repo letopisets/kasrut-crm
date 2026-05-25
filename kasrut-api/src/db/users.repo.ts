@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
+import { Prisma } from '../generated/prisma/client'
 import { encrypt, decrypt } from '../lib/crypto'
 import type { User, Role } from '../models/types'
 import type { User as PrismaUser } from '../generated/prisma/client'
@@ -76,14 +77,20 @@ export const usersRepo = {
     try {
       const u = await prisma.user.update({ where: { id }, data: patch })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async remove(id: string): Promise<boolean> {
     try {
       await prisma.user.delete({ where: { id } })
       return true
-    } catch { return false }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return false
+      throw e
+    }
   },
 
   async setTwoFactorSecret(id: string, secret: string): Promise<User | null> {
@@ -93,14 +100,20 @@ export const usersRepo = {
         data: { twoFactorSecret: encrypt(secret), twoFactorEnabled: false },
       })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async enableTwoFactor(id: string): Promise<User | null> {
     try {
       const u = await prisma.user.update({ where: { id }, data: { twoFactorEnabled: true } })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async disableTwoFactor(id: string): Promise<User | null> {
@@ -110,7 +123,10 @@ export const usersRepo = {
         data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [] },
       })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async setBackupCodes(id: string, hashedCodes: string[]): Promise<void> {

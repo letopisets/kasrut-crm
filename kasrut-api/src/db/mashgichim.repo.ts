@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { Prisma } from '../generated/prisma/client'
 import type { Mashgiach } from '../models/types'
 
 export interface PageResult<T> { items: T[]; nextCursor: string | null }
@@ -95,7 +96,10 @@ export const mashgichimRepo = {
         include,
       })
       return toMashgiach(m)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async toggle(id: string): Promise<Mashgiach | null> {
@@ -110,7 +114,10 @@ export const mashgichimRepo = {
     try {
       await prisma.restaurant.update({ where: { id: restaurantId }, data: { mashgiachId: id } })
       return this.findById(id)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
@@ -119,6 +126,9 @@ export const mashgichimRepo = {
     try {
       await prisma.mashgiach.delete({ where: { id } })
       return 'deleted'
-    } catch { return 'conflict' }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') return 'conflict'
+      throw e
+    }
   },
 }
