@@ -1,0 +1,84 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: false
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL || 'https://mykoshermap.com' }}
+    env:
+      DEPLOY_HOST: ${{ secrets.HETZNER_HOST }}
+      DEPLOY_USER: ${{ secrets.HETZNER_USER }}
+      DEPLOY_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+      DEPLOY_PORT: ${{ vars.HETZNER_SSH_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.HETZNER_DEPLOY_PATH || '/opt/kasrut' }}
+      DEPLOY_ENV_FILE: ${{ vars.HETZNER_ENV_FILE || '.env.hetzner' }}
+      DEPLOY_BRANCH: ${{ github.event.workflow_run.head_branch || inputs.branch || github.ref_name }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+      PRODUCTION_HEALTH_URL: ${{ vars.PRODUCTION_HEALTH_URL || 'https://mykoshermap.com/health' }}
+      PRODUCTION_API_HEALTH_URL: ${{ vars.PRODUCTION_API_HEALTH_URL || 'https://api.mykoshermap.com/health' }}
+
+    steps:
+      - name: Validate deploy configuration
+        run: |
+          missing=0
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not configured"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Configure SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          fi
+
+      - name: Deploy over SSH
+        run: |
+          shell_quote() {
+            printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+          }
+
+          remote_path="$(shell_quote "$DEPLOY_PATH")"
+          remote_branch="$(shell_quote "$DEPLOY_BRANCH")"
+          remote_sha="$(shell_quote "$DEPLOY_SHA")"
+          remote_env_file="$(shell_quote "$DEPLOY_ENV_FILE")"
+
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd $remote_path && DEPLOY_BRANCH=$remote_branch DEPLOY_SHA=$remote_sha ENV_FILE=$remote_env_file sh scripts/hetzner-deploy.sh"
+
+      - name: Check public health endpoints
+        run: |
+          curl --fail --silent --show-error --location --retry 12 --retry-delay 5 --retry-connrefused "$PRODUCTION_HEALTH_URL"
+          curl --fail --silent --show-error --location --retry 12 --retry-delay 5 --retry-connrefused "$PRODUCTION_API_HEALTH_URL"

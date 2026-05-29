@@ -8,17 +8,19 @@ export const redis = new Redis(env.REDIS_URL, {
   enableOfflineQueue:  false,
   connectTimeout:      2000,
   maxRetriesPerRequest: 0,
+  retryStrategy:        isTest ? () => null : undefined,
+})
+
+redis.on('error', (e: Error) => {
+  if (isTest) return
+  // Only log once to avoid flooding logs
+  if ((redis as unknown as { _redisWarned?: boolean })._redisWarned) return
+  ;(redis as unknown as { _redisWarned?: boolean })._redisWarned = true
+  console.warn('[Redis] unavailable — running without cache:', e.message)
 })
 
 if (!isTest) {
   redis.on('connect', () => console.log('[Redis] connected'))
-  redis.on('error',   (e: Error) => {
-    // Only log once to avoid flooding logs
-    if ((redis as unknown as { _redisWarned?: boolean })._redisWarned) return
-    ;(redis as unknown as { _redisWarned?: boolean })._redisWarned = true
-    console.warn('[Redis] unavailable — running without cache:', e.message)
-  })
-
   /** Attempt connection in background; failures are swallowed */
   redis.connect().catch(() => { /* will be logged by the error handler above */ })
 }

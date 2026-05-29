@@ -150,12 +150,13 @@ export function SettlementAutocomplete({
           error={error}
           helperText={helperText}
           slotProps={{
+            ...params.slotProps,
             input: {
-              ...params.InputProps,
+              ...params.slotProps.input,
               endAdornment: (
                 <>
                   {loading && <CircularProgress size={14} sx={{ mr: 0.5 }} />}
-                  {params.InputProps.endAdornment}
+                  {params.slotProps.input.endAdornment}
                 </>
               ),
             },

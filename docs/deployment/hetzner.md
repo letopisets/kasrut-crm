@@ -1,4 +1,4 @@
-x# Hetzner Deployment
+# Hetzner Deployment
 
 This project is prepared for a single-server Hetzner CX32 deployment with Docker Compose.
 
@@ -61,6 +61,40 @@ git pull --ff-only
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml build
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+## Production Kashrut Data Import
+
+The export in `docs/kashrut-export/import.sql` resets and reloads the kashrut
+domain tables from `docs-kashrut`. It deletes restaurants, documents,
+rabbanuts, hechsherim, mashgichim, mashgiach joins, inspections, map reviews,
+and map suggestions. It preserves users, map users, service logs, and lookup
+tables.
+
+```sh
+sh scripts/import-kashrut-export.sh
+```
+
+## GitHub Actions CD
+
+The `.github/workflows/cd.yml` workflow deploys production after the `CI`
+workflow succeeds on `main` or `master`. It can also be started manually from
+GitHub Actions.
+
+Configure these repository secrets:
+
+- `HETZNER_HOST` - server hostname or IP.
+- `HETZNER_USER` - SSH user with access to the project directory and Docker.
+- `HETZNER_SSH_KEY` - private deploy key.
+- `HETZNER_KNOWN_HOSTS` - optional pinned SSH known_hosts entry.
+
+Optional repository variables:
+
+- `HETZNER_SSH_PORT` - defaults to `22`.
+- `HETZNER_DEPLOY_PATH` - defaults to `/opt/kasrut`.
+- `HETZNER_ENV_FILE` - defaults to `.env.hetzner`.
+- `PRODUCTION_URL` - defaults to `https://mykoshermap.com`.
+- `PRODUCTION_HEALTH_URL` - defaults to `https://mykoshermap.com/health`.
+- `PRODUCTION_API_HEALTH_URL` - defaults to `https://api.mykoshermap.com/health`.
 
 Check the stack:
 

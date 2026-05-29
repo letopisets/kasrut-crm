@@ -108,6 +108,7 @@ const ru: Translations = {
     cancel:        'Отмена',
     remove:        'Удалить',
     confirmRemove: 'Удалить кашрут?',
+    active:        'Активен',
     establishments:'Завед.',
     mashgichim:    'Машг.',
     count:         'гекшерим',
