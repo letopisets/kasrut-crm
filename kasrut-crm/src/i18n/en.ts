@@ -108,6 +108,7 @@ const en: Translations = {
     cancel:        'Cancel',
     remove:        'Remove',
     confirmRemove: 'Remove hechsher?',
+    active:        'Active',
     establishments:'Est.',
     mashgichim:    'Mashg.',
     count:         'hechsherim',

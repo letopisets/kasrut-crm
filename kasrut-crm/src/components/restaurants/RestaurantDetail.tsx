@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { Restaurant } from '@/types'
 import { useGetHechsherimQuery } from '@/store/api/hechsherimApi'
 import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
@@ -32,10 +32,10 @@ export function RestaurantDetailContent({ restaurant: r }: Props) {
     [mashgichim]
   )
 
-  const infoRows = [
+  const infoRows: Array<[string, ReactNode]> = [
     [t.restaurants.cols.level,     r.level],
     [t.restaurants.cols.mashgiach, mashgiach?.name ?? '—'],
-    ['Kitniyot',                   r.kitniyot],
+    [t.addRest.kitniyot ?? 'Kitniyot', r.kitniyot ? '+' : '—'],
     [t.restaurants.cols.expires,   r.expires],
   ]
 
@@ -84,7 +84,7 @@ export function RestaurantDetailContent({ restaurant: r }: Props) {
               <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>—</Typography>
             )}
             {inspections.map(ins => {
-              const m = mashgiachById.get(ins.mashgiachId)
+              const m = ins.mashgiachId ? mashgiachById.get(ins.mashgiachId) : undefined
               return (
                 <Box key={ins.id} sx={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',

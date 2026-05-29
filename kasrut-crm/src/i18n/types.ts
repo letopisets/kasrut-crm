@@ -106,6 +106,7 @@ export interface Translations {
     cancel: string
     remove: string
     confirmRemove: string
+    active: string
     establishments: string
     restaurants?: string
     abbrev?: string

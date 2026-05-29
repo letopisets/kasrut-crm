@@ -108,6 +108,7 @@ const he: Translations = {
     cancel:        'בטל',
     remove:        'הסר',
     confirmRemove: 'להסיר הכשר?',
+    active:        'פעיל',
     establishments:'עסקים',
     mashgichim:    'משגיחים',
     count:         'הכשרים',
