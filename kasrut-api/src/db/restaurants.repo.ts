@@ -30,7 +30,8 @@ type RestaurantWithLatestInspection = {
   foodType: PrismaFoodType; expires: Date; rabbanutId: string
   notes: string | null; lat: number | null; lng: number | null
   phone: string | null; hours: string | null
-  settlementId: string | null; createdAt: Date; deletedAt: Date | null
+  settlementId: string | null; categoryId: string | null
+  createdAt: Date; deletedAt: Date | null
   inspections?: { date: Date }[]
 }
 
@@ -56,6 +57,7 @@ function toRestaurant(r: RestaurantWithLatestInspection): Restaurant {
     status:          calcStatus(r.expires),
     rabbanutId:      r.rabbanutId,
     notes:           r.notes ?? undefined,
+    categoryId:      r.categoryId ?? undefined,
     lastInspection:  latestDate?.toISOString().slice(0, 10),
     settlementId:    r.settlementId ?? undefined,
     createdAt:       r.createdAt.toISOString(),
@@ -138,6 +140,7 @@ export const restaurantsRepo = {
         kitniyot:     input.kitniyot,
         ...(input.foodType    ? { foodType: input.foodType as PrismaFoodType } : {}),
         ...(input.settlementId ? { settlementId: input.settlementId } : {}),
+        ...(input.categoryId   ? { categoryId:   input.categoryId   } : {}),
         expires,
         rabbanutId:   input.rabbanutId,
         notes:        input.notes,

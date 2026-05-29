@@ -65,6 +65,7 @@ export const createRestaurantSchema = z.object({
   rabbanutId:   id,
   notes:        z.string().max(2000).trim().optional(),
   settlementId: id.optional(),
+  categoryId:   id.optional(),
 })
 export const updateRestaurantSchema = createRestaurantSchema.partial()
 

@@ -13,6 +13,7 @@ import logRoutes         from './log.routes'
 import settlementRoutes   from './settlement.routes'
 import dashboardRoutes    from './dashboard.routes'
 import kashrutLevelRoutes from './kashrutLevel.routes'
+import establishmentCategoryRoutes from './establishmentCategory.routes'
 
 const router = Router()
 router.use('/auth',        authRoutes)
@@ -29,4 +30,5 @@ router.use('/logs',        logRoutes)
 router.use('/settlements',    settlementRoutes)
 router.use('/dashboard',      dashboardRoutes)
 router.use('/kashrut-levels', kashrutLevelRoutes)
+router.use('/establishment-categories', establishmentCategoryRoutes)
 export default router

@@ -46,6 +46,7 @@ export interface Translations {
     kitniyot: string
     foodType?: string
     foodTypeLabels?: { meat: string; dairy: string; pareve: string; takeaway: string }
+    category?: string
     expires: string
     notes: string
     save: string

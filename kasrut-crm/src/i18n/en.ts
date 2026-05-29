@@ -48,6 +48,7 @@ const en: Translations = {
     kitniyot: 'Kitniyot',
     foodType: 'Cuisine Type',
     foodTypeLabels: { meat: '🥩 Meat', dairy: '🧀 Dairy', pareve: '🐟 Pareve', takeaway: '🥡 Takeaway' },
+    category: 'Establishment Type',
     expires:  'Expiry Date',
     notes:    'Notes',
     save:     'Save',

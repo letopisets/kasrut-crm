@@ -1,4 +1,4 @@
-export type { CertStatus, FoodType, KashrutLevel } from '../../../packages/shared/types'
+export type { CertStatus, FoodType, KashrutLevel, EstablishmentCategory } from '../../../packages/shared/types'
 import type { CertStatus, FoodType } from '../../../packages/shared/types'
 
 export interface Restaurant {
@@ -16,6 +16,7 @@ export interface Restaurant {
   status: CertStatus
   rabbanutId: string
   notes?: string
+  categoryId?: string
   lastInspection?: string
   settlementId?: string
   createdAt?: string

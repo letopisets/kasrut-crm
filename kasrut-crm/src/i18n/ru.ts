@@ -47,6 +47,7 @@ const ru: Translations = {
     mashgiach:'Машгиах',
     foodType: 'Тип кухни',
     foodTypeLabels: { meat: '🥩 Мясной', dairy: '🧀 Молочный', pareve: '🐟 Паревэ', takeaway: '🥡 На вынос' },
+    category: 'Тип заведения',
     kitniyot: 'Китниёт',
     expires:  'Срок действия',
     notes:    'Примечания',
