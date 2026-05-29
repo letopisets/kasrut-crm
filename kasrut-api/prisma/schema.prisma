@@ -196,6 +196,18 @@ model KashrutLevel {
   @@map("kashrut_levels")
 }
 
+model EstablishmentCategory {
+  id     String  @id @default(cuid())
+  slug   String  @unique
+  nameHe String
+  nameEn String?
+  nameRu String?
+
+  restaurants Restaurant[]
+
+  @@map("establishment_categories")
+}
+
 model Restaurant {
   id             String     @id @default(cuid())
   name           String
@@ -208,6 +220,7 @@ model Restaurant {
   expires        DateTime
   rabbanutId     String
   notes          String?
+  categoryId     String?
   settlementId   String?
   deletedAt      DateTime?
   createdAt      DateTime   @default(now())
@@ -219,11 +232,12 @@ model Restaurant {
   phone          String?
   hours          String?
 
-  level       KashrutLevel @relation(fields: [levelId],     references: [id], onDelete: Restrict)
-  hechsher    Hechsher     @relation(fields: [hechsherId],  references: [id], onDelete: Restrict)
-  mashgiach   Mashgiach?   @relation(fields: [mashgiachId], references: [id], onDelete: SetNull)
-  rabbanut    Rabbanut     @relation(fields: [rabbanutId],  references: [id], onDelete: Cascade)
-  settlement  Settlement?  @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  level       KashrutLevel          @relation(fields: [levelId],      references: [id], onDelete: Restrict)
+  hechsher    Hechsher              @relation(fields: [hechsherId],   references: [id], onDelete: Restrict)
+  mashgiach   Mashgiach?            @relation(fields: [mashgiachId],  references: [id], onDelete: SetNull)
+  rabbanut    Rabbanut              @relation(fields: [rabbanutId],   references: [id], onDelete: Cascade)
+  settlement  Settlement?           @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  category    EstablishmentCategory? @relation(fields: [categoryId],  references: [id], onDelete: SetNull)
   inspections    Inspection[]
   mapSuggestions MapRestaurantSuggestion[]
   mapReviews     MapRestaurantReview[]
@@ -237,6 +251,7 @@ model Restaurant {
   @@index([rabbanutId])
   @@index([expires])
   @@index([deletedAt])
+  @@index([categoryId])
   @@map("restaurants")
 }
 

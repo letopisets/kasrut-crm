@@ -3,6 +3,7 @@ import { useGetHechsherimQuery, useCreateHechsherMutation } from '@/store/api/he
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
 import { useGetKashrutLevelsQuery } from '@/store/api/kashrutLevelsApi'
+import { useGetEstablishmentCategoriesQuery } from '@/store/api/establishmentCategoriesApi'
 import { useCreateRestaurantMutation, useUpdateRestaurantMutation } from '@/store/api/restaurantsApi'
 import { useAppSelector } from '@/store'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -49,6 +50,8 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const { data: mashgichim    = [] } = useGetMashgichimQuery()
   const { data: rabbanuts     = [] } = useGetRabbanutsQuery()
   const { data: kashrutLevels = [] } = useGetKashrutLevelsQuery()
+  const { data: categories    = [] } = useGetEstablishmentCategoriesQuery()
+  const { lang } = useAppSelector(s => s.lang)
   const [createMutation, { isLoading: creating }] = useCreateRestaurantMutation()
   const [updateMutation, { isLoading: updating }] = useUpdateRestaurantMutation()
   const [createHechsher, { isLoading: creatingHechsher }] = useCreateHechsherMutation()
@@ -77,6 +80,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
     mashgiachId: initial?.mashgiachId ?? '',
     kitniyot:    initial?.kitniyot    ?? false,
     foodType:    (initial?.foodType   ?? '') as '' | FoodType,
+    categoryId:  initial?.categoryId  ?? '',
     expires:     initial?.expires     ?? '',
     notes:       initial?.notes       ?? '',
     rabbanutId:  initial?.rabbanutId  ?? user?.rabbanutId ?? '',
@@ -99,6 +103,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
       mashgiachId:  form.mashgiachId || undefined,
       kitniyot:     form.kitniyot,
       foodType:     (form.foodType || 'pareve') as FoodType,
+      categoryId:   form.categoryId || undefined,
       expires:      form.expires,
       notes:        form.notes,
       rabbanutId:   form.rabbanutId,
@@ -133,10 +138,16 @@ export function RestaurantForm({ initial, onClose }: Props) {
     ? mashgichim.filter(m => !form.rabbanutId || m.rabbanutId === form.rabbanutId)
     : mashgichim.filter(m => m.active)
 
+  const categoryLabel = (c: typeof categories[number]): string => {
+    if (lang === 'he') return c.nameHe
+    if (lang === 'ru') return c.nameRu ?? c.nameHe
+    return c.nameEn ?? c.nameHe
+  }
   const levelOptions     = kashrutLevels.map(l => ({ value: l.id, label: l.name }))
   const hechsherOptions  = filteredHechsherim.map(h => ({ value: h.id, label: h.name }))
   const mashgiachOptions = filteredMashgichim.map(m => ({ value: m.id, label: m.name }))
   const rabbanutOptions  = rabbanuts.map(r => ({ value: r.id, label: r.name }))
+  const categoryOptions  = categories.map(c => ({ value: c.id, label: categoryLabel(c) }))
 
   const title = isEdit ? 'Edit Restaurant' : t.addRest.title
 
@@ -187,6 +198,12 @@ export function RestaurantForm({ initial, onClose }: Props) {
           value={form.foodType}
           onChange={v => set('foodType', v as typeof form['foodType'])}
           options={FOOD_TYPES.map(ft => ({ value: ft, label: t.addRest.foodTypeLabels?.[ft] ?? ft }))}
+        />
+        <Input
+          label={t.addRest.category ?? 'Тип заведения'}
+          value={form.categoryId}
+          onChange={v => set('categoryId', v)}
+          options={categoryOptions}
         />
 
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>

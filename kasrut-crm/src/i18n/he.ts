@@ -48,6 +48,7 @@ const he: Translations = {
     kitniyot: 'קטניות',
     foodType: 'סוג מטבח',
     foodTypeLabels: { meat: '🥩 בשרי', dairy: '🧀 חלבי', pareve: '🐟 פרווה', takeaway: '🥡 משלוח' },
+    category: 'סוג עסק',
     expires:  'תוקף תעודה',
     notes:    'הערות',
     save:     'שמור',

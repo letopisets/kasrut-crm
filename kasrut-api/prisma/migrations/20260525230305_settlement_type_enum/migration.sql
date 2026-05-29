@@ -6,7 +6,7 @@ UPDATE "settlements"
   SET "type" = 'other'
   WHERE "type" NOT IN ('city', 'town', 'village', 'suburb', 'neighbourhood', 'quarter');
 
--- AlterTable: cast in-place to preserve all rows
-ALTER TABLE "settlements"
-  ALTER COLUMN "type" TYPE "SettlementType" USING "type"::"SettlementType",
-  ALTER COLUMN "type" SET DEFAULT 'city'::"SettlementType";
+-- Drop the text default first, cast, then restore the typed default.
+ALTER TABLE "settlements" ALTER COLUMN "type" DROP DEFAULT;
+ALTER TABLE "settlements" ALTER COLUMN "type" TYPE "SettlementType" USING "type"::"SettlementType";
+ALTER TABLE "settlements" ALTER COLUMN "type" SET DEFAULT 'city'::"SettlementType";

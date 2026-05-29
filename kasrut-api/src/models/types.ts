@@ -14,6 +14,7 @@ export type {
   MapPasswordResetChannel,
   Page,
   PaginationParams,
+  EstablishmentCategory,
 } from '../../../packages/shared/types'
 
 import type {
@@ -102,6 +103,7 @@ export interface Restaurant {
   status:          CertStatus
   rabbanutId:      string
   notes?:          string
+  categoryId?:     string
   lastInspection?: string
   settlementId?:   string
   createdAt?:      string

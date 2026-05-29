@@ -28,6 +28,14 @@ export interface KashrutLevel {
   sortOrder:    number
 }
 
+export interface EstablishmentCategory {
+  id:      string
+  slug:    string
+  nameHe:  string
+  nameEn?: string
+  nameRu?: string
+}
+
 // ── Map / community module ─────────────────────────────────────────────────
 export type MapAuthProvider         = 'google' | 'apple'
 export type MapSuggestionType       = 'add' | 'update'
