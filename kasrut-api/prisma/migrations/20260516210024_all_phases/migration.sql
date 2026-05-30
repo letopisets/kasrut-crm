@@ -13,7 +13,7 @@
 
 */
 -- DropForeignKey
-ALTER TABLE "inspections" DROP CONSTRAINT "inspections_mashgiachId_fkey";
+ALTER TABLE "inspections" DROP CONSTRAINT IF EXISTS "inspections_mashgiachId_fkey";
 
 -- AlterTable
 ALTER TABLE "documents" ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
