@@ -18,6 +18,7 @@ const ru: MapTranslations = {
   filterTitle: 'Фильтры',
   resetAll: 'Сбросить всё',
   foodTypeSection: 'Тип кухни',
+  categorySection: 'Вид заведения',
   hechsherSection: 'Хекшер',
   citySection: 'Город',
   radiusSection: 'Радиус поиска',

@@ -18,6 +18,7 @@ const he: MapTranslations = {
   filterTitle: 'סינון',
   resetAll: 'אפס הכל',
   foodTypeSection: 'סוג מזון',
+  categorySection: 'סוג עסק',
   hechsherSection: 'הכשר',
   citySection: 'עיר',
   radiusSection: 'רדיוס חיפוש',

@@ -16,6 +16,13 @@ export const FOOD_TYPE_EMOJI: Record<FoodType, string> = {
   takeaway: '🥡',
 }
 
+// Establishment kind (вид) — keyed by EstablishmentCategory.slug.
+export const CATEGORY_EMOJI: Record<string, string> = {
+  restaurant: '🍽️',
+  bakery:     '🥐',
+  cafe:       '☕',
+}
+
 export const KASHRUT_COLOR: Record<KashrutLevel, string> = {
   mehadrin: '#9B59B6',
   badatz:   '#E74C3C',

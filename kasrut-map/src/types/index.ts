@@ -17,6 +17,7 @@ export interface MapRestaurant {
   lat:          number
   lng:          number
   foodType:     FoodType
+  category:     string | null   // EstablishmentCategory.slug — вид заведения
   kashrutLevel: KashrutLevel
   hechsher:     string
   phone?:       string
@@ -49,9 +50,18 @@ export interface MapRestaurantsResponse {
   limited:     boolean
 }
 
+export interface MapCategoryOption {
+  id:     string
+  slug:   string
+  nameHe: string
+  nameEn: string | null
+  nameRu: string | null
+}
+
 export interface MapOptions {
-  cities:    string[]
-  hechshers: string[]
+  cities:     string[]
+  hechshers:  string[]
+  categories: MapCategoryOption[]
 }
 
 export interface MapUser {
@@ -129,6 +139,7 @@ export interface MapReviewsPayload {
 export interface MapFilters {
   hechsher: string[]
   foodType: FoodType[]
+  category: string[]     // EstablishmentCategory.slug values; [] = all kinds
   city:     string       // '' = all cities (no filter)
   radius:   number | null  // metres; null = viewport only
 }

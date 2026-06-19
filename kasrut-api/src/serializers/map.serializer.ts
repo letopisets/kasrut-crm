@@ -8,6 +8,7 @@ export const serializeMapRestaurant = (r: MapRestaurantRow) => ({
   lat:          r.lat,
   lng:          r.lng,
   foodType:     r.foodType,
+  category:     r.category ?? null,
   kashrutLevel: r.kashrutLevel,
   hechsher:     r.hechsher,
   phone:        r.phone ?? null,
