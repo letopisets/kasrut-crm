@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma'
 import { randomUUID } from 'crypto'
 import { Prisma } from '../generated/prisma/client'
 import { logger } from '../lib/logger'
+import { isTest } from '../lib/runtime'
 
 export type ServiceLogLevel = 'info' | 'warn' | 'error'
 
@@ -11,7 +12,6 @@ export type ServiceLogLevel = 'info' | 'warn' | 'error'
 // dial it down (chatty, low-latency) or up (steady, fewer writes).
 const BATCH_MAX_SIZE = Number(process.env.SERVICE_LOG_BATCH_SIZE ?? 100)
 const BATCH_FLUSH_MS = Number(process.env.SERVICE_LOG_FLUSH_MS ?? 1_000)
-const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
 
 export interface ServiceLog {
   id: string
@@ -189,6 +189,15 @@ export const serviceLogsRepo = {
       ...values,
     )
     return rows.map(toLog)
+  },
+
+  /** Delete rows older than retainDays (default 90). Safe to call repeatedly — no-op when nothing to delete. */
+  async rotate(retainDays = 90): Promise<number> {
+    const result = await prisma.$executeRaw`
+      DELETE FROM "service_logs"
+      WHERE "createdAt" < NOW() - (${retainDays} || ' days')::interval
+    `
+    return result
   },
 
   async summary24h(): Promise<{ errors24h: number; warnings24h: number; authIssues: number; api5xx: number }> {

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { Mashgiach, Hechsher } from '@/types'
 import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
@@ -20,7 +21,7 @@ interface Props {
   onEdit:     (m: Mashgiach) => void
 }
 
-export function MashgiachCard({ mashgiach: m, hechsherim, canEdit, onToggle, onDelete, onEdit }: Props) {
+export const MashgiachCard = memo(function MashgiachCard({ mashgiach: m, hechsherim, canEdit, onToggle, onDelete, onEdit }: Props) {
   const t  = useLang()
   const tc = m.active ? '#2ECC71' : '#50526A'
 
@@ -90,4 +91,4 @@ export function MashgiachCard({ mashgiach: m, hechsherim, canEdit, onToggle, onD
       )}
     </Box>
   )
-}
+})

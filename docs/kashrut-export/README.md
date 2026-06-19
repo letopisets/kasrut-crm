@@ -1,7 +1,7 @@
 # Kashrut PDF Export
 
 Source directory: `C:\MyProject\docs-kashrut`
-Generated at: `2026-04-29T12:34:24.972Z`
+Generated at: `2026-05-30T18:22:52.070Z`
 
 ## Tables
 

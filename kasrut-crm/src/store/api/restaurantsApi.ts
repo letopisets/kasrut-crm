@@ -1,7 +1,7 @@
 import { baseApi } from './baseApi'
 import type { Restaurant } from '@/types'
 
-type CreateInput = Omit<Restaurant, 'id' | 'status'>
+type CreateInput = Omit<Restaurant, 'id' | 'status' | 'level'>
 
 export interface RestaurantsPage {
   items:      Restaurant[]

@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import type { Inspection, InspectionResult } from '@/types'
-import { useRestaurantStore } from '@/store/useRestaurantStore'
-import { useMashgiachStore } from '@/store/useMashgiachStore'
-import { useInspectionStore } from '@/store/useInspectionStore'
+import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
+import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
+import { useSetInspectionResultMutation } from '@/store/api/inspectionsApi'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge, Select } from '@/components/ui'
@@ -14,12 +14,14 @@ export { RESULT_COLOR } from '@/lib/statusColor'
 
 interface Props { inspection: Inspection }
 
-export function InspectionRow({ inspection: ins }: Props) {
-  const t          = useLang()
-  const perm       = usePermissions()
-  const setResult  = useInspectionStore(s => s.setResult)
-  const restaurant = useRestaurantStore(s => s.restaurants.find(r => r.id === ins.restaurantId))
-  const mashgiach  = useMashgiachStore(s => s.mashgichim.find(m => m.id === ins.mashgiachId))
+export const InspectionRow = memo(function InspectionRow({ inspection: ins }: Props) {
+  const t    = useLang()
+  const perm = usePermissions()
+  const [setResultMutation] = useSetInspectionResultMutation()
+  const { data: restaurants = [] } = useGetRestaurantsQuery()
+  const { data: mashgichim  = [] } = useGetMashgichimQuery()
+  const restaurant = restaurants.find(r => r.id === ins.restaurantId)
+  const mashgiach  = mashgichim.find(m => m.id === ins.mashgiachId)
 
   const resultOptions = useMemo(() =>
     (['pending', 'open', 'pass', 'fail'] as InspectionResult[]).map(r => ({
@@ -79,7 +81,7 @@ export function InspectionRow({ inspection: ins }: Props) {
       {perm.canEdit ? (
         <Select
           value={ins.result}
-          onChange={v => setResult(ins.id, v as InspectionResult)}
+          onChange={v => { void setResultMutation({ id: ins.id, result: v as InspectionResult }) }}
           options={resultOptions}
           color={RESULT_COLOR[ins.result]}
         />
@@ -88,4 +90,4 @@ export function InspectionRow({ inspection: ins }: Props) {
       )}
     </Box>
   )
-}
+})

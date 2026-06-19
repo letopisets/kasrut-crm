@@ -1,8 +1,11 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
+import { Prisma } from '../generated/prisma/client'
 import { encrypt, decrypt } from '../lib/crypto'
 import type { User, Role } from '../models/types'
 import type { User as PrismaUser } from '../generated/prisma/client'
+
+export interface PageResult<T> { items: T[]; nextCursor: string | null }
 
 function toUser(u: PrismaUser): User {
   let twoFactorSecret: string | undefined
@@ -29,6 +32,18 @@ export const usersRepo = {
       where: filter?.role ? { role: filter.role } : undefined,
     })
     return rows.map(toUser)
+  },
+
+  async findPage(filter: { role?: Role; limit: number; cursor?: string }): Promise<PageResult<User>> {
+    const rows = await prisma.user.findMany({
+      where: filter.role ? { role: filter.role } : undefined,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: filter.limit + 1,
+      ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
+    })
+    const hasMore = rows.length > filter.limit
+    const page    = hasMore ? rows.slice(0, filter.limit) : rows
+    return { items: page.map(toUser), nextCursor: hasMore ? page[page.length - 1].id : null }
   },
 
   async findById(id: string): Promise<User | null> {
@@ -62,14 +77,20 @@ export const usersRepo = {
     try {
       const u = await prisma.user.update({ where: { id }, data: patch })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async remove(id: string): Promise<boolean> {
     try {
       await prisma.user.delete({ where: { id } })
       return true
-    } catch { return false }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return false
+      throw e
+    }
   },
 
   async setTwoFactorSecret(id: string, secret: string): Promise<User | null> {
@@ -79,14 +100,20 @@ export const usersRepo = {
         data: { twoFactorSecret: encrypt(secret), twoFactorEnabled: false },
       })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async enableTwoFactor(id: string): Promise<User | null> {
     try {
       const u = await prisma.user.update({ where: { id }, data: { twoFactorEnabled: true } })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async disableTwoFactor(id: string): Promise<User | null> {
@@ -96,7 +123,10 @@ export const usersRepo = {
         data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [] },
       })
       return toUser(u)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async setBackupCodes(id: string, hashedCodes: string[]): Promise<void> {

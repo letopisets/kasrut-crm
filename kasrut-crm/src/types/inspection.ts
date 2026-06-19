@@ -4,7 +4,7 @@ import type { InspectionResult, InspectionType } from '../../../packages/shared/
 export interface Inspection {
   id: string
   restaurantId: string
-  mashgiachId: string
+  mashgiachId?: string
   date: string
   type: InspectionType
   result: InspectionResult

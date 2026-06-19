@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Card, CardContent, Box, Typography, Chip, Stack, IconButton } from '@mui/material'
 import DirectionsIcon from '@mui/icons-material/Directions'
 import PlaceIcon from '@mui/icons-material/Place'
@@ -12,7 +13,7 @@ interface Props {
   formatDist:   (m: number) => string
 }
 
-export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, formatDist }: Props) {
+export const RestaurantListItem = memo(function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, formatDist }: Props) {
   const t = useMapLang()
 
   return (
@@ -92,4 +93,4 @@ export function RestaurantListItem({ restaurant: r, onSelect, onStartRoute, form
       </CardContent>
     </Card>
   )
-}
+})

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useRestaurants } from '@/hooks/useRestaurants'
-import { useHechsherStore } from '@/store/useHechsherStore'
-import { useRabbanutStore } from '@/store/useRabbanutStore'
+import { useGetHechsherimQuery } from '@/store/api/hechsherimApi'
+import { useGetRabbanutsQuery } from '@/store/api/rabbanutApi'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Badge, HechsherTag } from '@/components/ui'
@@ -16,8 +16,8 @@ export function ExpiringList() {
   const t           = useLang()
   const perm        = usePermissions()
   const restaurants = useRestaurants()
-  const hechsherim  = useHechsherStore(s => s.hechsherim)
-  const rabbanuts   = useRabbanutStore(s => s.rabbanuts)
+  const { data: hechsherim = [] } = useGetHechsherimQuery()
+  const { data: rabbanuts  = [] } = useGetRabbanutsQuery()
 
   const expiring = restaurants.filter(r => r.status !== 'ok')
 

@@ -7,8 +7,8 @@ describe('serializers', () => {
   describe('serializeRestaurant', () => {
     const r: Restaurant = {
       id: 'r1', name: 'A', address: 'addr', city: 'TLV',
-      level: 'Regular', hechsherId: 'h1', mashgiachId: undefined,
-      kitniyot: '', expires: '2030-01-01', status: 'ok',
+      levelId: 'kl_regular', level: 'Regular', hechsherId: 'h1', mashgiachId: undefined,
+      kitniyot: false, expires: '2030-01-01', status: 'ok',
       rabbanutId: 'rb1', notes: undefined, lastInspection: undefined,
     }
 
@@ -20,7 +20,7 @@ describe('serializers', () => {
     })
 
     it('preserves all required fields', () => {
-      const out = serializeRestaurant({ ...r, mashgiachId: 'm1', notes: 'n', lastInspection: '2026-01-01' })
+      const out = serializeRestaurant({ ...r, mashgiachId: 'm1', notes: 'n', lastInspection: '2026-01-01', levelId: 'kl_mehadrin', level: 'Mehadrin' })
       expect(out).toMatchObject({
         id: 'r1', name: 'A', mashgiachId: 'm1', notes: 'n', lastInspection: '2026-01-01',
       })

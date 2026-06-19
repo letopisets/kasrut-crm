@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+# Lint kasrut-crm when any of its TypeScript source files are staged.
+# This catches rules-of-hooks, unused vars, and other ESLint errors before push.
+if git diff --cached --name-only | grep -qE '^kasrut-crm/src/.*\.(ts|tsx)$'; then
+  echo "[pre-commit] Linting kasrut-crm..."
+  npm --prefix kasrut-crm run lint
+fi

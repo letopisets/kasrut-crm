@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useRestaurantStore } from '@/store/useRestaurantStore'
+import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useLang } from '@/i18n/useLang'
 import { RestaurantDetailContent } from '@/components/restaurants/RestaurantDetail'
 import Box from '@mui/material/Box'
@@ -7,10 +7,11 @@ import Button from '@mui/material/Button'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
 export default function RestaurantDetail() {
-  const { id }     = useParams()
-  const navigate   = useNavigate()
-  const t          = useLang()
-  const restaurant = useRestaurantStore(s => s.restaurants.find(r => r.id === id))
+  const { id }   = useParams()
+  const navigate = useNavigate()
+  const t        = useLang()
+  const { data: restaurants = [] } = useGetRestaurantsQuery()
+  const restaurant = restaurants.find(r => r.id === id)
 
   if (!restaurant) {
     return (

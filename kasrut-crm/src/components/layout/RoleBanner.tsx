@@ -1,7 +1,9 @@
-import { useAuthStore } from '@/store/useAuthStore'
-import { useRabbanutStore } from '@/store/useRabbanutStore'
-import { useMashgiachStore } from '@/store/useMashgiachStore'
-import { useRestaurantStore } from '@/store/useRestaurantStore'
+import { useAppDispatch, useAppSelector } from '@/store'
+import { setRabbanutFilter as setRabbanutFilterAction } from '@/store/authSlice'
+import { useGetRabbanutsQuery } from '@/store/api/rabbanutApi'
+import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
+import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { ROLE_COLORS } from '@/theme'
 import { alpha } from '@mui/material/styles'
@@ -10,16 +12,18 @@ import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 
 export function RoleBanner() {
-  const role              = useAuthStore(s => s.role)
-  const user              = useAuthStore(s => s.user)
-  const rabbanutFilter    = useAuthStore(s => s.rabbanutFilter)
-  const setRabbanutFilter = useAuthStore(s => s.setRabbanutFilter)
+  const dispatch          = useAppDispatch()
+  const perm              = usePermissions()
+  const role              = useAppSelector(s => s.auth.role)
+  const user              = useAppSelector(s => s.auth.user)
+  const rabbanutFilter    = useAppSelector(s => s.auth.rabbanutFilter)
+  const setRabbanutFilter = (id: string) => dispatch(setRabbanutFilterAction(id))
 
-  const rabbanuts   = useRabbanutStore(s => s.rabbanuts)
-  const mashgichim  = useMashgiachStore(s => s.mashgichim)
-  const restaurants = useRestaurantStore(s => s.restaurants)
-  const t           = useLang()
-  const rc          = ROLE_COLORS[role]
+  const { data: rabbanuts   = [] } = useGetRabbanutsQuery()
+  const { data: mashgichim  = [] } = useGetMashgichimQuery()
+  const { data: restaurants = [] } = useGetRestaurantsQuery()
+  const t  = useLang()
+  const rc = ROLE_COLORS[role]
 
   const myRabbanut  = rabbanuts.find(rb => rb.id === user?.rabbanutId)
   const myMashgiach = mashgichim.find(m => m.id === user?.id)
@@ -65,7 +69,7 @@ export function RoleBanner() {
         )}
       </Box>
 
-      {role === 'owner' && (
+      {perm.isOwner && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography sx={{ fontSize: 10, color: 'text.secondary', mr: 0.5 }}>{t.allRabbanuts}:</Typography>
           <FilterTab

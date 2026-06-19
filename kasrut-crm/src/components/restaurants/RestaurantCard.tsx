@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Restaurant, Hechsher, Mashgiach, Rabbanut } from '@/types'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -22,7 +23,7 @@ interface Props {
   onDelete:   (id: string) => void
 }
 
-export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanuts, canEdit, onEdit, onDelete }: Props) {
+export const RestaurantCard = memo(function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanuts, canEdit, onEdit, onDelete }: Props) {
   const navigate  = useNavigate()
   const t         = useLang()
   const perm      = usePermissions()
@@ -126,4 +127,4 @@ export function RestaurantCard({ restaurant: r, hechsherim, mashgichim, rabbanut
       </Box>
     </Box>
   )
-}
+})

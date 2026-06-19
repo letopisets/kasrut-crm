@@ -1,4 +1,24 @@
 import * as Sentry from '@sentry/react'
+import type { ErrorEvent } from '@sentry/react'
+
+function scrubPii(event: ErrorEvent): ErrorEvent {
+  // Public app — no account required for map view. Replace any captured user
+  // context with an opaque anonymous marker so emails/phones never leave the
+  // browser via Sentry.
+  event.user = { id: 'anonymous' }
+
+  // Strip query-strings from breadcrumb URLs — they may contain search terms,
+  // city filters, or hechsher names the user hasn't consented to share.
+  if (Array.isArray(event.breadcrumbs)) {
+    event.breadcrumbs = event.breadcrumbs.map(crumb => {
+      if (typeof crumb.data?.url === 'string') {
+        crumb.data.url = crumb.data.url.split('?')[0]
+      }
+      return crumb
+    })
+  }
+  return event
+}
 
 /**
  * Initialise Sentry once at startup.
@@ -30,6 +50,7 @@ export function initSentry(): void {
       /^safari-extension:\/\//,
       /^webkit-masked-url:\/\//,
     ],
+    beforeSend: scrubPii,
   })
 }
 

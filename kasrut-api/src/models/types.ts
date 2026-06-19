@@ -14,6 +14,7 @@ export type {
   MapPasswordResetChannel,
   Page,
   PaginationParams,
+  EstablishmentCategory,
 } from '../../../packages/shared/types'
 
 import type {
@@ -37,6 +38,8 @@ export interface User {
   twoFactorSecret?:     string
   twoFactorEnabled:     boolean
   twoFactorBackupCodes: string[]
+  passwordChangedAt?:   string
+  createdAt?:           string
 }
 
 export interface Rabbanut {
@@ -51,16 +54,19 @@ export interface Rabbanut {
 }
 
 export interface Hechsher {
-  id:         string
-  name:       string
-  shortName:  string
-  city?:      string
-  contact?:   string
-  phone?:     string
-  email?:     string
-  type:       HechsherType
-  color:      string
-  rabbanutId: string
+  id:           string
+  name:         string
+  shortName:    string
+  city?:        string
+  contact?:     string
+  phone?:       string
+  email?:       string
+  type:         HechsherType
+  color:        string
+  rabbanutId:   string
+  active:       boolean
+  settlementId?: string
+  createdAt?:   string
 }
 
 export interface Mashgiach {
@@ -75,31 +81,42 @@ export interface Mashgiach {
   rabbanutId:            string
 }
 
+export interface KashrutLevel {
+  id:           string
+  name:         string
+  description?: string
+  sortOrder:    number
+}
+
 export interface Restaurant {
   id:              string
   name:            string
   address:         string
   city:            string
-  level:           'Regular' | 'Mehadrin'
+  levelId:         string
+  level:           string   // KashrutLevel.name — serialised for display
   hechsherId:      string
   mashgiachId?:    string
-  kitniyot:        string
+  kitniyot:        boolean
   foodType?:       FoodType
   expires:         string
   status:          CertStatus
   rabbanutId:      string
   notes?:          string
+  categoryId?:     string
   lastInspection?: string
+  settlementId?:   string
+  createdAt?:      string
 }
 
 export interface Inspection {
-  id:           string
-  restaurantId: string
-  mashgiachId:  string
-  date:         string
-  type:         InspectionType
-  result:       InspectionResult
-  notes?:       string
+  id:            string
+  restaurantId:  string
+  mashgiachId?:  string
+  date:          string
+  type:          InspectionType
+  result:        InspectionResult
+  notes?:        string
 }
 
 export interface KashrutDocument {
@@ -107,7 +124,7 @@ export interface KashrutDocument {
   name:     string
   category: DocumentCategory
   date:     string
-  size:     string
+  size:     number   // bytes stored as BigInt in DB, serialised as number
   ext:      DocExt
   url?:     string
 }

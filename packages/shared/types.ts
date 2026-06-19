@@ -20,7 +20,21 @@ export type InspectionType     = 'planned' | 'urgent'
 export type DocumentCategory   = 'Instructions' | 'Forms' | 'Regulations' | 'Pesach'
 export type DocExt             = 'PDF' | 'DOCX' | 'XLSX'
 export type FoodType           = 'meat' | 'dairy' | 'pareve' | 'takeaway'
-export type RestaurantLevel    = 'Regular' | 'Mehadrin'
+
+export interface KashrutLevel {
+  id:           string
+  name:         string
+  description?: string
+  sortOrder:    number
+}
+
+export interface EstablishmentCategory {
+  id:      string
+  slug:    string
+  nameHe:  string
+  nameEn?: string
+  nameRu?: string
+}
 
 // ── Map / community module ─────────────────────────────────────────────────
 export type MapAuthProvider         = 'google' | 'apple'

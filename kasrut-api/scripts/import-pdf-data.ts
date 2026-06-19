@@ -7,9 +7,10 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
 type FoodType = 'meat' | 'dairy' | 'pareve' | 'takeaway'
-type CertStatus = 'ok' | 'warning' | 'critical'
 type HechsherType = 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private'
 type DocumentCategory = 'Instructions' | 'Forms' | 'Regulations' | 'Pesach'
+type ParsedLevel = 'Regular' | 'Mehadrin'
+type KashrutLevelId = 'kl_regular' | 'kl_mehadrin' | 'kl_lo_mehadrin'
 
 interface PdfText {
   name: string
@@ -58,15 +59,14 @@ interface RestaurantDraft {
   name: string
   address: string
   city: string
-  level: 'Regular' | 'Mehadrin'
+  levelId: KashrutLevelId
   hechsherId: string
   mashgiachId: string
-  kitniyot: string
+  kitniyot: boolean
   expires: Date
-  status: CertStatus
   rabbanutId: string
   notes: string
-  lastInspection: Date
+  categoryId: string | null
   lat: number | null
   lng: number | null
   foodType: FoodType
@@ -83,7 +83,7 @@ interface RawRestaurant {
   hechsherName: string
   hechsherType?: HechsherType
   foodHint?: string
-  level?: 'Regular' | 'Mehadrin'
+  level?: ParsedLevel
   phone?: string
   mashgiachName?: string
   mashgiachPhone?: string
@@ -96,7 +96,7 @@ interface DocumentDraft {
   name: string
   category: DocumentCategory
   date: Date
-  size: string
+  size: bigint
   ext: 'PDF'
   url: string
 }
@@ -106,6 +106,22 @@ const IMPORT_DATE = new Date()
 const DEFAULT_EXPIRES = new Date('2026-12-31T00:00:00.000Z')
 const DEFAULT_LAST_INSPECTION = new Date('2026-04-17T00:00:00.000Z')
 const JERUSALEM_RABBANUT_ID = 'rb_jerusalem'
+
+const KASHRUT_LEVELS = [
+  { id: 'kl_regular',     name: 'Regular',     sortOrder: 1 },
+  { id: 'kl_mehadrin',    name: 'Mehadrin',    sortOrder: 2 },
+  { id: 'kl_lo_mehadrin', name: 'Lo Mehadrin', sortOrder: 3 },
+] as const
+
+const ESTABLISHMENT_CATEGORIES = [
+  { id: 'cat_restaurant', slug: 'restaurant', nameHe: 'מסעדה',  nameEn: 'Restaurant', nameRu: 'Ресторан' },
+  { id: 'cat_bakery',     slug: 'bakery',     nameHe: 'מאפייה', nameEn: 'Bakery',     nameRu: 'Пекарня' },
+  { id: 'cat_cafe',       slug: 'cafe',       nameHe: 'קפה',    nameEn: 'Cafe',       nameRu: 'Кафе' },
+] as const
+
+const SUPERSEDED_PDFS: Record<string, string> = {
+  'העדה החרדית מסעדות צפון קיץ פה.pdf': 'העדה החרדית מסעדות צפון קיץ פו.pdf',
+}
 
 const COLORS = [
   '#3498DB',
@@ -297,7 +313,7 @@ class ImportBuilder {
       name: file.name.replace(/\.pdf$/i, ''),
       category: documentCategory(file.name),
       date: documentDate(file.name),
-      size: formatSize(file.size),
+      size: BigInt(file.size),
       ext: 'PDF',
       url: file.fullPath,
     })
@@ -311,6 +327,8 @@ class ImportBuilder {
 
     const authorityName = canonicalAuthority(raw.authorityName || raw.hechsherName)
     const hechsherName = canonicalHechsher(raw.hechsherName || authorityName)
+    const foodText = `${raw.foodHint ?? ''} ${name} ${raw.notes ?? ''}`
+    const parsedLevel = raw.level ?? inferLevel(hechsherName, raw.foodHint)
     const hechsher = this.ensureHechsher({
       name: hechsherName,
       authorityName,
@@ -345,15 +363,14 @@ class ImportBuilder {
       name,
       address,
       city,
-      level: raw.level ?? inferLevel(hechsherName, raw.foodHint),
+      levelId: levelIdFor(parsedLevel),
       hechsherId: hechsher.id,
       mashgiachId: mashgiach.id,
-      kitniyot: 'לא צוין',
+      kitniyot: false,
       expires,
-      status: calcStatus(expires),
       rabbanutId: hechsher.rabbanutId,
       notes,
-      lastInspection: DEFAULT_LAST_INSPECTION,
+      categoryId: inferCategoryId(foodText),
       lat: coords?.[0] ?? null,
       lng: coords?.[1] ?? null,
       foodType: inferFoodType(raw.foodHint ?? `${name} ${raw.notes ?? ''}`),
@@ -377,9 +394,9 @@ function parseArgs() {
 }
 
 async function extractPdfs(sourceDir: string): Promise<PdfText[]> {
-  const entries = fs.readdirSync(sourceDir)
+  const entries = selectEffectivePdfNames(fs.readdirSync(sourceDir)
     .filter(name => name.toLowerCase().endsWith('.pdf'))
-    .sort((a, b) => a.localeCompare(b, 'he'))
+  )
 
   const pdfs: PdfText[] = []
   for (const name of entries) {
@@ -400,6 +417,17 @@ async function extractPdfs(sourceDir: string): Promise<PdfText[]> {
   }
 
   return pdfs
+}
+
+function selectEffectivePdfNames(names: string[]) {
+  const selected = new Set(names)
+  for (const [oldName, newName] of Object.entries(SUPERSEDED_PDFS)) {
+    if (selected.has(oldName) && selected.has(newName)) {
+      selected.delete(oldName)
+      if (process.env.DEBUG_IMPORT) console.log(`Using ${newName} instead of superseded ${oldName}`)
+    }
+  }
+  return [...selected].sort((a, b) => a.localeCompare(b, 'he'))
 }
 
 function parsePdfs(pdfs: PdfText[], builder: ImportBuilder) {
@@ -654,12 +682,17 @@ async function loadIntoDatabase(builder: ImportBuilder) {
 
     await prisma.$transaction(async tx => {
       await tx.inspection.deleteMany()
+      await tx.mapRestaurantReview.deleteMany()
+      await tx.mapRestaurantSuggestion.deleteMany()
       await tx.mashgiachHechsher.deleteMany()
       await tx.restaurant.deleteMany()
       await tx.mashgiach.deleteMany()
       await tx.hechsher.deleteMany()
       await tx.kashrutDocument.deleteMany()
       await tx.rabbanut.deleteMany()
+
+      await tx.kashrutLevel.createMany({ data: [...KASHRUT_LEVELS], skipDuplicates: true })
+      await tx.establishmentCategory.createMany({ data: [...ESTABLISHMENT_CATEGORIES], skipDuplicates: true })
 
       await tx.rabbanut.createMany({ data: [...builder.authorities.values()] })
       await tx.user.updateMany({
@@ -698,19 +731,19 @@ async function loadIntoDatabase(builder: ImportBuilder) {
       if (joins.length) await tx.mashgiachHechsher.createMany({ data: joins, skipDuplicates: true })
 
       await tx.restaurant.createMany({
-        data: [...builder.restaurants.values()].map(r => ({
+        data: [...builder.restaurants.entries()].map(([key, r]) => ({
+          id: idFor('r', key),
           name: r.name,
           address: r.address,
           city: r.city,
-          level: r.level,
+          levelId: r.levelId,
           hechsherId: r.hechsherId,
           mashgiachId: r.mashgiachId,
           kitniyot: r.kitniyot,
           expires: r.expires,
-          status: r.status,
           rabbanutId: r.rabbanutId,
           notes: r.notes,
-          lastInspection: r.lastInspection,
+          categoryId: r.categoryId,
           lat: r.lat,
           lng: r.lng,
           foodType: r.foodType,
@@ -771,15 +804,14 @@ function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: str
     name: row.name,
     address: row.address,
     city: row.city,
-    level: row.level,
+    levelId: row.levelId,
     hechsherId: row.hechsherId,
     mashgiachId: row.mashgiachId,
     kitniyot: row.kitniyot,
     expires: row.expires.toISOString(),
-    status: row.status,
     rabbanutId: row.rabbanutId,
     notes: row.notes,
-    lastInspection: row.lastInspection.toISOString(),
+    categoryId: row.categoryId,
     lat: row.lat,
     lng: row.lng,
     foodType: row.foodType,
@@ -791,7 +823,7 @@ function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: str
     name: row.name,
     category: row.category,
     date: row.date.toISOString(),
-    size: row.size,
+    size: Number(row.size),
     ext: row.ext,
     url: row.url,
   }))
@@ -873,47 +905,56 @@ function buildImportSql(data: {
   restaurants: Array<Record<string, unknown>>
   documents: Array<Record<string, unknown>>
 }) {
+  const updatedAt = new Date().toISOString()
   return [
     '-- Generated by kasrut-api/scripts/import-pdf-data.ts',
     `-- Generated at ${new Date().toISOString()}`,
     'BEGIN;',
     'SET CONSTRAINTS ALL DEFERRED;',
     'DELETE FROM "inspections";',
+    'DELETE FROM "map_restaurant_reviews";',
+    'DELETE FROM "map_restaurant_suggestions";',
     'DELETE FROM "mashgiach_hechsher";',
     'DELETE FROM "restaurants";',
     'DELETE FROM "mashgichim";',
     'DELETE FROM "hechsherim";',
     'DELETE FROM "documents";',
     'DELETE FROM "rabbanuts";',
-    insertSql('rabbanuts', ['id', 'name', 'city', 'contact', 'phone', 'email', 'active', 'color'], data.authorities),
+    upsertSql('kashrut_levels', ['id', 'name', 'sortOrder'], ['id'], [...KASHRUT_LEVELS]),
+    upsertSql('establishment_categories', ['id', 'slug', 'nameHe', 'nameEn', 'nameRu'], ['id'], [...ESTABLISHMENT_CATEGORIES]),
+    insertSql('rabbanuts', ['id', 'name', 'city', 'contact', 'phone', 'email', 'active', 'color', 'updatedAt'], withUpdatedAt(data.authorities, updatedAt)),
     `UPDATE "users" SET "rabbanutId" = ${sqlValue(JERUSALEM_RABBANUT_ID)} WHERE "email" IN ('admin@jer.il', 'cohen@jer.il');`,
-    insertSql('hechsherim', ['id', 'name', 'shortName', 'city', 'contact', 'phone', 'email', 'type', 'color', 'rabbanutId'], data.hechsherim),
-    insertSql('mashgichim', ['id', 'name', 'phone', 'email', 'area', 'active', 'rabbanutId'], data.mashgichim),
+    insertSql('hechsherim', ['id', 'name', 'shortName', 'city', 'contact', 'phone', 'email', 'type', 'color', 'rabbanutId', 'updatedAt'], withUpdatedAt(data.hechsherim, updatedAt)),
+    insertSql('mashgichim', ['id', 'name', 'phone', 'email', 'area', 'active', 'rabbanutId', 'updatedAt'], withUpdatedAt(data.mashgichim, updatedAt)),
     insertSql('mashgiach_hechsher', ['mashgiachId', 'hechsherId'], data.mashgiachHechsher),
     insertSql('restaurants', [
       'id',
       'name',
       'address',
       'city',
-      'level',
+      'levelId',
       'hechsherId',
       'mashgiachId',
       'kitniyot',
       'expires',
-      'status',
       'rabbanutId',
       'notes',
-      'lastInspection',
+      'categoryId',
       'lat',
       'lng',
       'foodType',
       'phone',
       'hours',
-    ], data.restaurants),
-    insertSql('documents', ['id', 'name', 'category', 'date', 'size', 'ext', 'url'], data.documents),
+      'updatedAt',
+    ], withUpdatedAt(data.restaurants, updatedAt)),
+    insertSql('documents', ['id', 'name', 'category', 'date', 'size', 'ext', 'url', 'updatedAt'], withUpdatedAt(data.documents, updatedAt)),
     'COMMIT;',
     '',
   ].filter(Boolean).join('\n')
+}
+
+function withUpdatedAt(rows: Array<Record<string, unknown>>, updatedAt: string) {
+  return rows.map(row => ({ ...row, updatedAt }))
 }
 
 function insertSql(table: string, columns: string[], rows: Array<Record<string, unknown>>) {
@@ -925,19 +966,41 @@ function insertSql(table: string, columns: string[], rows: Array<Record<string, 
   ].join('\n')
 }
 
+function upsertSql(
+  table: string,
+  columns: string[],
+  conflictColumns: string[],
+  rows: Array<Record<string, unknown>>,
+) {
+  if (!rows.length) return ''
+  const values = rows.map(row => `(${columns.map(column => sqlValue(row[column])).join(', ')})`)
+  const updates = columns
+    .filter(column => !conflictColumns.includes(column))
+    .map(column => `"${column}" = EXCLUDED."${column}"`)
+  return [
+    `INSERT INTO "${table}" (${columns.map(column => `"${column}"`).join(', ')}) VALUES`,
+    `${values.join(',\n')}`,
+    `ON CONFLICT (${conflictColumns.map(column => `"${column}"`).join(', ')}) DO UPDATE SET ${updates.join(', ')};`,
+  ].join('\n')
+}
+
 function sqlValue(value: unknown) {
   if (value == null) return 'NULL'
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL'
+  if (typeof value === 'bigint') return value.toString()
   const text = String(value)
   if (text === 'true' || text === 'false') return text.toUpperCase()
   return `'${text.replace(/'/g, "''")}'`
 }
 
-function csv<T extends Record<string, unknown>>(rows: T[]) {
+function csv(rows: readonly object[]) {
   if (!rows.length) return ''
   const headers = Object.keys(rows[0])
-  const body = rows.map(row => headers.map(header => csvCell(row[header])).join(','))
+  const body = rows.map(row => {
+    const record = row as Record<string, unknown>
+    return headers.map(header => csvCell(record[header])).join(',')
+  })
   return `\ufeff${headers.join(',')}\n${body.join('\n')}\n`
 }
 
@@ -1068,12 +1131,6 @@ function shortName(name: string) {
   return clean.length > 24 ? clean.slice(0, 24) : clean
 }
 
-function calcStatus(expires: Date): CertStatus {
-  const days = Math.floor((expires.getTime() - IMPORT_DATE.getTime()) / 86_400_000)
-  if (days < 0) return 'critical'
-  if (days <= 30) return 'warning'
-  return 'ok'
-}
 
 function isUsefulRestaurant(name: string, address: string, city: string) {
   if (name.length < 2 || city.length < 2) return false
@@ -1111,9 +1168,19 @@ function inferFoodType(hint: string): FoodType {
   return 'pareve'
 }
 
-function inferLevel(hechsher: string, hint?: string): 'Regular' | 'Mehadrin' {
+function levelIdFor(level: ParsedLevel): KashrutLevelId {
+  return level === 'Mehadrin' ? 'kl_mehadrin' : 'kl_regular'
+}
+
+function inferLevel(hechsher: string, hint?: string): ParsedLevel {
   const text = `${hechsher} ${hint ?? ''}`
   return /מהדרין|בד"?ץ|העדה|לנדא|חב"ד|חב״ד/.test(text) ? 'Mehadrin' : 'Regular'
+}
+
+function inferCategoryId(text: string) {
+  if (/מאפי|מאפייה|מאפיה|לחם|חלה|חלות|בייקרי|קונדיטור|Bakery/i.test(text)) return 'cat_bakery'
+  if (/קפה|בית קפה|גליד|בייגל|Cafe/i.test(text)) return 'cat_cafe'
+  return 'cat_restaurant'
 }
 
 function inferHechsherType(name: string): HechsherType {

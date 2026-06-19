@@ -17,6 +17,7 @@ export interface MapRestaurantRow {
   lat:          number
   lng:          number
   foodType:     string
+  category:     string | null   // EstablishmentCategory.slug — вид заведения (restaurant/bakery/cafe)
   kashrutLevel: KashrutLevel
   hechsher:     string
   phone:        string | undefined
@@ -42,9 +43,18 @@ export interface MapRestaurantPage {
   limited: boolean
 }
 
+export interface MapCategoryOption {
+  id:     string
+  slug:   string
+  nameHe: string
+  nameEn: string | null
+  nameRu: string | null
+}
+
 export interface MapOptionsRow {
   cities: string[]
   hechshers: string[]
+  categories: MapCategoryOption[]
 }
 
 /** Maps Prisma HechsherType → public kashrutLevel string */
@@ -124,6 +134,9 @@ function buildMapWhere(filter: MapFilter): Prisma.RestaurantWhereInput {
     ...(filter.foodType?.length
       ? { foodType: { in: filter.foodType as FoodType[] } }
       : {}),
+    ...(filter.category?.length
+      ? { category: { slug: { in: filter.category } } }
+      : {}),
   }
 
   const hechsherWhere: Prisma.HechsherWhereInput = {}
@@ -152,6 +165,7 @@ export interface MapFilter {
   kashrutLevel?: KashrutLevel[]
   hechsher?:     string[]
   foodType?:     string[]
+  category?:     string[]   // EstablishmentCategory.slug values
   bounds?:        MapBounds
   center?:        MapPoint
   radius?:        number
@@ -167,7 +181,7 @@ export const mapRepo = {
   },
 
   async findMapOptions(): Promise<MapOptionsRow> {
-    const [cityRows, hechsherRows] = await Promise.all([
+    const [cityRows, hechsherRows, categoryRows] = await Promise.all([
       prisma.restaurant.findMany({
         where: { lat: { not: null }, lng: { not: null } },
         distinct: ['city'],
@@ -183,11 +197,23 @@ export const mapRepo = {
         select: { name: true },
         orderBy: { name: 'asc' },
       }),
+      // Only categories that actually have mappable establishments, so the
+      // filter never offers a вид with zero results.
+      prisma.establishmentCategory.findMany({
+        where: {
+          restaurants: {
+            some: { lat: { not: null }, lng: { not: null } },
+          },
+        },
+        select: { id: true, slug: true, nameHe: true, nameEn: true, nameRu: true },
+        orderBy: { nameHe: 'asc' },
+      }),
     ])
 
     return {
       cities: cityRows.map(r => r.city).filter(Boolean),
       hechshers: hechsherRows.map(r => r.name).filter(Boolean),
+      categories: categoryRows,
     }
   },
 
@@ -209,6 +235,7 @@ export const mapRepo = {
         foodType: true,
         phone:    true,
         hours:    true,
+        category: { select: { slug: true } },
         hechsher: { select: { name: true, type: true } },
       },
       orderBy: { name: 'asc' },
@@ -226,6 +253,7 @@ export const mapRepo = {
       lat:          r.lat!,
       lng:          r.lng!,
       foodType:     r.foodType,
+      category:     r.category?.slug ?? null,
       kashrutLevel: toKashrutLevel(r.hechsher.type),
       hechsher:     r.hechsher.name,
       phone:        r.phone ?? undefined,

@@ -14,6 +14,7 @@ function toQueryString(f: MapRestaurantQuery): string {
   if (f.city)                        params.set('city', f.city)
   if (f.hechsher.length)             params.set('hechsher',     f.hechsher.join(','))
   if (f.foodType.length)             params.set('foodType',     f.foodType.join(','))
+  if (f.category.length)             params.set('category',     f.category.join(','))
   if (f.limit)                       params.set('limit',        String(f.limit))
   if (f.radius && f.userPosition) {
     params.set('lat',                formatCoord(f.userPosition[0]))

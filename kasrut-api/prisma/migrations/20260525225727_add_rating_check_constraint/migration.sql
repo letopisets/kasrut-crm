@@ -1,0 +1,2 @@
+-- No-op: map_restaurant_reviews_rating_check already exists in
+-- 20260422090000_add_map_community. See that migration for the constraint.
