@@ -46,6 +46,7 @@ export interface Translations {
     kitniyot: string
     foodType?: string
     foodTypeLabels?: { meat: string; dairy: string; pareve: string; takeaway: string }
+    category?: string
     expires: string
     notes: string
     save: string
@@ -105,6 +106,7 @@ export interface Translations {
     cancel: string
     remove: string
     confirmRemove: string
+    active: string
     establishments: string
     restaurants?: string
     abbrev?: string
@@ -196,6 +198,12 @@ export interface Translations {
     cols: { time: string; level: string; service: string; user: string; action: string; entity: string; message: string; status: string }
     cards: { errors24h: string; warnings24h: string; authIssues: string; api5xx: string }
     viewDetails: string
+  }
+  validation: {
+    required:         string
+    invalidEmail:     string
+    passwordTooShort: string
+    passwordWeak:     string
   }
   noAccess: string
   myEstablishments: string

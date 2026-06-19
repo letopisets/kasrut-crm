@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthController } from '@/controllers/useAuthController'
-import { useLangStore } from '@/store/useLangStore'
+import { useAppDispatch, useAppSelector } from '@/store'
+import { setLang as setLangAction, type Lang } from '@/store/langSlice'
 import { useLang } from '@/i18n/useLang'
 import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
@@ -11,7 +12,6 @@ import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
-import type { Lang } from '@/store/useLangStore'
 
 const LANGS: Lang[] = ['en', 'ru', 'he']
 const PRIMARY = '#E8C96D'
@@ -97,9 +97,10 @@ export default function Login() {
     user, login, isLoading,
     twoFactorPending, verify2fa, cancelTwoFactor, error,
   } = useAuthController()
-  const lang    = useLangStore(s => s.lang)
-  const setLang = useLangStore(s => s.setLang)
-  const t       = useLang()
+  const dispatch = useAppDispatch()
+  const lang     = useAppSelector(s => s.lang.lang)
+  const setLang  = (l: Lang) => dispatch(setLangAction(l))
+  const t        = useLang()
   const tf      = t.twoFactor
 
   const [email,    setEmail]    = useState('')

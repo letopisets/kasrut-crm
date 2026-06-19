@@ -5,6 +5,8 @@ import type { Role } from '@/types'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 const ROLES: Role[] = ['owner', 'rabbanut', 'mashgiach']
 
 interface SelectOption { value: string; label: string }
@@ -39,8 +41,20 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
 
   const needsRabbanut = form.role === 'rabbanut' || form.role === 'mashgiach'
 
+  const [submitted, setSubmitted] = useState(false)
+
+  const emailError    = !form.email ? t.validation.required
+    : !EMAIL_RE.test(form.email)    ? t.validation.invalidEmail
+    : undefined
+  const passwordError = !form.password               ? t.validation.required
+    : form.password.length < 8                       ? t.validation.passwordTooShort
+    : !/[a-zA-Zа-яА-ЯёЁ]/.test(form.password) || !/\d/.test(form.password) ? t.validation.passwordWeak
+    : undefined
+  const canSave = !form.name || !!emailError || !!passwordError
+
   const handleSave = () => {
-    if (!form.name || !form.email || !form.password) return
+    setSubmitted(true)
+    if (canSave) return
     onSave({
       name:      form.name,
       email:     form.email,
@@ -54,9 +68,32 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
 
   return (
     <Modal title={t.users?.add ?? 'Add User'} onClose={onClose}>
-      <Input label={t.mashgichim?.name  ?? 'Full Name'} value={form.name}     onChange={v => set('name', v)} />
-      <Input label={t.mashgichim?.email ?? 'Email'}     value={form.email}    onChange={v => set('email', v)} type="email" />
-      <Input label="Password"                           value={form.password} onChange={v => set('password', v)} type="password" />
+      <Input
+        label={t.mashgichim?.name ?? 'Full Name'}
+        value={form.name}
+        onChange={v => set('name', v)}
+        required
+        error={submitted && !form.name}
+        helperText={submitted && !form.name ? t.validation.required : undefined}
+      />
+      <Input
+        label={t.mashgichim?.email ?? 'Email'}
+        value={form.email}
+        onChange={v => set('email', v)}
+        type="email"
+        required
+        error={submitted && !!emailError}
+        helperText={submitted ? emailError : undefined}
+      />
+      <Input
+        label="Password"
+        value={form.password}
+        onChange={v => set('password', v)}
+        type="password"
+        required
+        error={submitted && !!passwordError}
+        helperText={submitted ? passwordError : undefined}
+      />
       <Input
         label={t.users?.role ?? 'Role'}
         value={form.role}
@@ -72,7 +109,7 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
         />
       )}
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
-        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.email || !form.password} disableElevation>
+        <Button variant="contained" onClick={handleSave} disableElevation>
           {t.addRest?.save ?? 'Save'}
         </Button>
         <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>

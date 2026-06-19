@@ -18,6 +18,7 @@ const en: MapTranslations = {
   filterTitle: 'Filters',
   resetAll: 'Reset all',
   foodTypeSection: 'Food type',
+  categorySection: 'Establishment kind',
   hechsherSection: 'Hechsher',
   citySection: 'City',
   radiusSection: 'Search radius',
@@ -161,6 +162,8 @@ const en: MapTranslations = {
   donateCopied: 'Copied',
   donateBack: 'Back to map',
   donateThanks: 'Thank you for your support!',
+
+  sessionExpired: 'Your session expired. Please log in again.',
 }
 
 export default en

@@ -1,24 +1,25 @@
-import { useAuthStore } from '@/store/useAuthStore'
-import { useInspectionStore } from '@/store/useInspectionStore'
-import { useRestaurantStore } from '@/store/useRestaurantStore'
+import { useMemo } from 'react'
+import { skipToken } from '@reduxjs/toolkit/query'
+import { useAppSelector } from '@/store'
+import { useGetInspectionsQuery } from '@/store/api/inspectionsApi'
+import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import type { Inspection } from '@/types'
 
 /** Returns inspections scoped to the current role. Owner sees all. */
 export const useInspections = (): Inspection[] => {
-  const role        = useAuthStore(s => s.role)
-  const user        = useAuthStore(s => s.user)
-  const inspections = useInspectionStore(s => s.inspections)
-  const restaurants = useRestaurantStore(s => s.restaurants)
+  const role = useAppSelector(s => s.auth.role)
+  const user = useAppSelector(s => s.auth.user)
 
-  if (role === 'owner') return inspections
+  // Rabbanut role only: fetch their restaurants to filter inspections by restaurant ID.
+  // RTK Query deduplicates this with useRestaurants when both hooks are active on the same page.
+  const { data: restaurants = [] } = useGetRestaurantsQuery(
+    role === 'rabbanut' ? { rabbanutId: user?.rabbanutId } : skipToken,
+  )
+  const { data: inspections = [] } = useGetInspectionsQuery()
 
-  if (role === 'rabbanut') {
-    const restIds = new Set(
-      restaurants.filter(r => r.rabbanutId === user?.rabbanutId).map(r => r.id)
-    )
+  return useMemo(() => {
+    if (role !== 'rabbanut') return inspections   // owner: all; mashgiach: server-scoped via JWT
+    const restIds = new Set(restaurants.map(r => r.id))
     return inspections.filter(i => restIds.has(i.restaurantId))
-  }
-
-  // mashgiach
-  return inspections.filter(i => i.mashgiachId === user?.id)
+  }, [role, inspections, restaurants])
 }

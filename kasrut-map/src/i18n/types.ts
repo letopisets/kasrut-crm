@@ -16,6 +16,7 @@ export interface MapTranslations {
   filterTitle: string
   resetAll: string
   foodTypeSection: string
+  categorySection: string
   hechsherSection: string
   citySection: string
   radiusSection: string
@@ -154,4 +155,6 @@ export interface MapTranslations {
   donateCopied: string
   donateBack: string
   donateThanks: string
+
+  sessionExpired: string
 }

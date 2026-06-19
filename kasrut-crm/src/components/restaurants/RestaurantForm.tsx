@@ -2,19 +2,23 @@ import { useState } from 'react'
 import { useGetHechsherimQuery, useCreateHechsherMutation } from '@/store/api/hechsherimApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
+import { useGetKashrutLevelsQuery } from '@/store/api/kashrutLevelsApi'
+import { useGetEstablishmentCategoriesQuery } from '@/store/api/establishmentCategoriesApi'
 import { useCreateRestaurantMutation, useUpdateRestaurantMutation } from '@/store/api/restaurantsApi'
-import { useAuthStore }  from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
 import { HechsherForm } from '@/components/hechsherim/HechsherForm'
+import { SettlementAutocomplete } from '@/components/ui/SettlementAutocomplete'
+import type { SettlementOption } from '@/components/ui/SettlementAutocomplete'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
 import type { Restaurant, FoodType } from '@/types'
 import type { Hechsher } from '@/types'
-
-const CITIES = ['Jerusalem', 'Haifa', 'Tel Aviv', 'Tzfat', 'Tiberias', 'Bnei Brak', 'Other']
 
 function extractApiError(err: unknown, fallback: string): string {
   if (typeof err === 'object' && err !== null) {
@@ -39,12 +43,15 @@ interface Props {
 
 export function RestaurantForm({ initial, onClose }: Props) {
   const t    = useLang()
-  const user = useAuthStore(s => s.user)
+  const user = useAppSelector(s => s.auth.user)
   const perm = usePermissions()
 
-  const { data: hechsherim = [] } = useGetHechsherimQuery()
-  const { data: mashgichim = [] } = useGetMashgichimQuery()
-  const { data: rabbanuts  = [] } = useGetRabbanutsQuery()
+  const { data: hechsherim    = [] } = useGetHechsherimQuery()
+  const { data: mashgichim    = [] } = useGetMashgichimQuery()
+  const { data: rabbanuts     = [] } = useGetRabbanutsQuery()
+  const { data: kashrutLevels = [] } = useGetKashrutLevelsQuery()
+  const { data: categories    = [] } = useGetEstablishmentCategoriesQuery()
+  const { lang } = useAppSelector(s => s.lang)
   const [createMutation, { isLoading: creating }] = useCreateRestaurantMutation()
   const [updateMutation, { isLoading: updating }] = useUpdateRestaurantMutation()
   const [createHechsher, { isLoading: creatingHechsher }] = useCreateHechsherMutation()
@@ -52,20 +59,28 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const isEdit    = !!initial
   const isLoading = creating || updating
 
+  const [submitted, setSubmitted] = useState(false)
   const [showAddHechsher, setShowAddHechsher] = useState(false)
   const [addHechsherError, setAddHechsherError] = useState<string | null>(null)
 
   const FOOD_TYPES: FoodType[] = ['meat', 'dairy', 'pareve', 'takeaway']
 
+  const [settlement, setSettlement] = useState<SettlementOption | null>(
+    initial?.settlementId
+      ? { id: initial.settlementId, nameHe: initial.city, nameEn: initial.city, nameRu: null }
+      : null,
+  )
+
   const [form, setForm] = useState({
     name:        initial?.name        ?? '',
     address:     initial?.address     ?? '',
     city:        initial?.city        ?? '',
-    level:       (initial?.level      ?? '') as '' | 'Regular' | 'Mehadrin',
+    levelId:     initial?.levelId     ?? '',
     hechsherId:  initial?.hechsherId  ?? '',
     mashgiachId: initial?.mashgiachId ?? '',
-    kitniyot:    (initial?.kitniyot   ?? '') as '' | 'ללא חשש קטניות' | 'מכיל קטניות',
+    kitniyot:    initial?.kitniyot    ?? false,
     foodType:    (initial?.foodType   ?? '') as '' | FoodType,
+    categoryId:  initial?.categoryId  ?? '',
     expires:     initial?.expires     ?? '',
     notes:       initial?.notes       ?? '',
     rabbanutId:  initial?.rabbanutId  ?? user?.rabbanutId ?? '',
@@ -74,22 +89,25 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
-  const canSave = !!(form.name && form.expires && form.level && form.hechsherId && form.rabbanutId)
+  const canSave = !!(form.name && form.expires && form.levelId && form.hechsherId && form.rabbanutId)
 
   const handleSave = async () => {
+    setSubmitted(true)
     if (!canSave) return
     const payload = {
-      name:        form.name,
-      address:     form.address,
-      city:        form.city,
-      level:       form.level as 'Regular' | 'Mehadrin',
-      hechsherId:  form.hechsherId,
-      mashgiachId: form.mashgiachId || undefined,
-      kitniyot:    form.kitniyot || 'ללא חשש קטניות',
-      foodType:    (form.foodType || 'pareve') as FoodType,
-      expires:     form.expires,
-      notes:       form.notes,
-      rabbanutId:  form.rabbanutId,
+      name:         form.name,
+      address:      form.address,
+      city:         settlement?.nameHe ?? form.city,
+      levelId:      form.levelId,
+      hechsherId:   form.hechsherId,
+      mashgiachId:  form.mashgiachId || undefined,
+      kitniyot:     form.kitniyot,
+      foodType:     (form.foodType || 'pareve') as FoodType,
+      categoryId:   form.categoryId || undefined,
+      expires:      form.expires,
+      notes:        form.notes,
+      rabbanutId:   form.rabbanutId,
+      settlementId: settlement?.id,
     }
     if (isEdit) {
       await updateMutation({ id: initial!.id, patch: payload }).unwrap()
@@ -120,9 +138,16 @@ export function RestaurantForm({ initial, onClose }: Props) {
     ? mashgichim.filter(m => !form.rabbanutId || m.rabbanutId === form.rabbanutId)
     : mashgichim.filter(m => m.active)
 
+  const categoryLabel = (c: typeof categories[number]): string => {
+    if (lang === 'he') return c.nameHe
+    if (lang === 'ru') return c.nameRu ?? c.nameHe
+    return c.nameEn ?? c.nameHe
+  }
+  const levelOptions     = kashrutLevels.map(l => ({ value: l.id, label: l.name }))
   const hechsherOptions  = filteredHechsherim.map(h => ({ value: h.id, label: h.name }))
   const mashgiachOptions = filteredMashgichim.map(m => ({ value: m.id, label: m.name }))
   const rabbanutOptions  = rabbanuts.map(r => ({ value: r.id, label: r.name }))
+  const categoryOptions  = categories.map(c => ({ value: c.id, label: categoryLabel(c) }))
 
   const title = isEdit ? 'Edit Restaurant' : t.addRest.title
 
@@ -135,17 +160,50 @@ export function RestaurantForm({ initial, onClose }: Props) {
             value={form.rabbanutId}
             onChange={v => { set('rabbanutId', v); set('hechsherId', ''); set('mashgiachId', '') }}
             options={rabbanutOptions}
+            required
+            error={submitted && !form.rabbanutId}
+            helperText={submitted && !form.rabbanutId ? t.validation.required : undefined}
           />
         )}
-        <Input label={t.addRest.name}      value={form.name}        onChange={v => set('name', v)} />
-        <Input label={t.addRest.address}   value={form.address}     onChange={v => set('address', v)} />
-        <Input label={t.addRest.city}      value={form.city}        onChange={v => set('city', v)} options={CITIES} />
-        <Input label={t.addRest.level}     value={form.level}       onChange={v => set('level', v as typeof form['level'])} options={['Regular', 'Mehadrin']} />
+        <Input
+          label={t.addRest.name}
+          value={form.name}
+          onChange={v => set('name', v)}
+          required
+          error={submitted && !form.name}
+          helperText={submitted && !form.name ? t.validation.required : undefined}
+        />
+        <Input label={t.addRest.address} value={form.address} onChange={v => set('address', v)} />
+
+        <SettlementAutocomplete
+          value={settlement}
+          onChange={s => {
+            setSettlement(s)
+            if (s) set('city', s.nameHe)
+          }}
+          label={t.addRest.city ?? 'City'}
+        />
+
+        <Input
+          label={t.addRest.level}
+          value={form.levelId}
+          onChange={v => set('levelId', v)}
+          options={levelOptions}
+          required
+          error={submitted && !form.levelId}
+          helperText={submitted && !form.levelId ? t.validation.required : undefined}
+        />
         <Input
           label={t.addRest.foodType ?? 'Тип кухни'}
           value={form.foodType}
           onChange={v => set('foodType', v as typeof form['foodType'])}
           options={FOOD_TYPES.map(ft => ({ value: ft, label: t.addRest.foodTypeLabels?.[ft] ?? ft }))}
+        />
+        <Input
+          label={t.addRest.category ?? 'Тип заведения'}
+          value={form.categoryId}
+          onChange={v => set('categoryId', v)}
+          options={categoryOptions}
         />
 
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -155,6 +213,9 @@ export function RestaurantForm({ initial, onClose }: Props) {
               value={form.hechsherId}
               onChange={v => set('hechsherId', v)}
               options={hechsherOptions}
+              required
+              error={submitted && !form.hechsherId}
+              helperText={submitted && !form.hechsherId ? t.validation.required : undefined}
             />
           </Box>
           <Button
@@ -168,15 +229,35 @@ export function RestaurantForm({ initial, onClose }: Props) {
         </Box>
 
         <Input label={t.addRest.mashgiach} value={form.mashgiachId} onChange={v => set('mashgiachId', v)} options={mashgiachOptions} />
-        <Input label={t.addRest.kitniyot}  value={form.kitniyot}    onChange={v => set('kitniyot', v as typeof form['kitniyot'])} options={['ללא חשש קטניות', 'מכיל קטניות']} />
-        <Input label={t.addRest.expires}   value={form.expires}     onChange={v => set('expires', v)} type="date" />
-        <Input label={t.addRest.notes}     value={form.notes}       onChange={v => set('notes', v)} placeholder="..." />
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={form.kitniyot}
+              onChange={e => set('kitniyot', e.target.checked)}
+              size="small"
+            />
+          }
+          label={t.addRest.kitniyot ?? 'Kitniyot'}
+          sx={{ ml: 0.5 }}
+        />
+
+        <Input
+          label={t.addRest.expires}
+          value={form.expires}
+          onChange={v => set('expires', v)}
+          type="date"
+          required
+          error={submitted && !form.expires}
+          helperText={submitted && !form.expires ? t.validation.required : undefined}
+        />
+        <Input label={t.addRest.notes} value={form.notes} onChange={v => set('notes', v)} placeholder="..." />
 
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
           <Button
             variant="contained"
             onClick={() => void handleSave()}
-            disabled={!canSave || isLoading}
+            disabled={isLoading}
             disableElevation
           >
             {isLoading ? <CircularProgress size={16} color="inherit" /> : t.addRest.save}

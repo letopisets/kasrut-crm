@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { Hechsher, Mashgiach } from '@/types'
 import { useLang } from '@/i18n/useLang'
 import { Badge } from '@/components/ui'
@@ -19,7 +20,7 @@ interface Props {
   onDelete:   (id: string) => void
 }
 
-export function HechsherCard({ hechsher: h, stats, mashgichim, expanded, canEdit, onToggle, onDelete }: Props) {
+export const HechsherCard = memo(function HechsherCard({ hechsher: h, stats, mashgichim, expanded, canEdit, onToggle, onDelete }: Props) {
   const t = useLang()
 
   return (
@@ -102,4 +103,4 @@ export function HechsherCard({ hechsher: h, stats, mashgichim, expanded, canEdit
       </Collapse>
     </Box>
   )
-}
+})

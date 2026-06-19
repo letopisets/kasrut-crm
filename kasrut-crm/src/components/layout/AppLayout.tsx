@@ -1,6 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom'
-import { useAuthStore } from '@/store/useAuthStore'
-import { useLangStore } from '@/store/useLangStore'
+import { useAppSelector } from '@/store'
 import { useGetMeQuery } from '@/store/api/authApi'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
@@ -8,9 +7,9 @@ import Box from '@mui/material/Box'
 import CircularProgress from '@mui/material/CircularProgress'
 
 export default function AppLayout() {
-  const user = useAuthStore(s => s.user)
-  const token = useAuthStore(s => s.token)
-  const lang = useLangStore(s => s.lang)
+  const user  = useAppSelector(s => s.auth.user)
+  const token = useAppSelector(s => s.auth.token)
+  const lang  = useAppSelector(s => s.lang.lang)
   const { isLoading: isCheckingSession } = useGetMeQuery(undefined, { skip: !token })
 
   if (!user || !token) return <Navigate to="/login" replace />

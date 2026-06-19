@@ -1,5 +1,8 @@
 import { prisma } from '../lib/prisma'
+import { Prisma } from '../generated/prisma/client'
 import type { Mashgiach } from '../models/types'
+
+export interface PageResult<T> { items: T[]; nextCursor: string | null }
 
 // Prisma row with included relations
 type MashgiachWithRels = {
@@ -41,6 +44,27 @@ export const mashgichimRepo = {
     return rows.map(toMashgiach)
   },
 
+  async findPage(filter: {
+    rabbanutId?: string
+    active?:     boolean
+    limit:       number
+    cursor?:     string
+  }): Promise<PageResult<Mashgiach>> {
+    const rows = await prisma.mashgiach.findMany({
+      where: {
+        ...(filter.rabbanutId !== undefined ? { rabbanutId: filter.rabbanutId } : {}),
+        ...(filter.active     !== undefined ? { active:     filter.active }     : {}),
+      },
+      include,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: filter.limit + 1,
+      ...(filter.cursor ? { cursor: { id: filter.cursor }, skip: 1 } : {}),
+    })
+    const hasMore = rows.length > filter.limit
+    const page    = hasMore ? rows.slice(0, filter.limit) : rows
+    return { items: page.map(toMashgiach), nextCursor: hasMore ? page[page.length - 1].id : null }
+  },
+
   async findById(id: string): Promise<Mashgiach | null> {
     const m = await prisma.mashgiach.findUnique({ where: { id }, include })
     return m ? toMashgiach(m) : null
@@ -72,7 +96,10 @@ export const mashgichimRepo = {
         include,
       })
       return toMashgiach(m)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async toggle(id: string): Promise<Mashgiach | null> {
@@ -87,7 +114,10 @@ export const mashgichimRepo = {
     try {
       await prisma.restaurant.update({ where: { id: restaurantId }, data: { mashgiachId: id } })
       return this.findById(id)
-    } catch { return null }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      throw e
+    }
   },
 
   async remove(id: string): Promise<'deleted' | 'not_found' | 'conflict'> {
@@ -96,6 +126,9 @@ export const mashgichimRepo = {
     try {
       await prisma.mashgiach.delete({ where: { id } })
       return 'deleted'
-    } catch { return 'conflict' }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') return 'conflict'
+      throw e
+    }
   },
 }

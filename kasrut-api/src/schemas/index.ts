@@ -44,19 +44,32 @@ export const createUserSchema = z.object({
 export const updateUserSchema = createUserSchema.omit({ password: true }).partial()
 
 // Restaurant
+// `status` is computed from `expires` server-side; it is accepted in input for
+// backwards compatibility but ignored by the repository (see calcStatus in
+// restaurants.repo.ts). All filtering goes through expires, not the stored
+// status column, which would otherwise go stale without a refresh cron.
+export const createKashrutLevelSchema = z.object({
+  name:        z.string().min(1).max(100).trim(),
+  description: z.string().max(500).trim().optional(),
+  sortOrder:   z.coerce.number().int().min(0).default(0),
+})
+export const updateKashrutLevelSchema = createKashrutLevelSchema.partial()
+
 export const createRestaurantSchema = z.object({
-  name:        z.string().min(1).max(200).trim(),
-  address:     z.string().min(1).max(500).trim(),
-  city:        z.string().min(1).max(100).trim(),
-  level:       z.enum(['Regular', 'Mehadrin']),
-  hechsherId:  id,
-  mashgiachId: id.optional(),
-  kitniyot:    z.string().max(100).trim(),
-  foodType:    z.enum(['meat', 'dairy', 'pareve', 'takeaway']).optional(),
-  expires:     dateStr,
-  status:      certStatus,
-  rabbanutId:  id,
-  notes:       z.string().max(2000).trim().optional(),
+  name:         z.string().min(1).max(200).trim(),
+  address:      z.string().min(1).max(500).trim(),
+  city:         z.string().min(1).max(100).trim(),
+  levelId:      id,
+  hechsherId:   id,
+  mashgiachId:  id.optional(),
+  kitniyot:     z.boolean().default(false),
+  foodType:     z.enum(['meat', 'dairy', 'pareve', 'takeaway']).optional(),
+  expires:      dateStr,
+  status:       certStatus.optional(),
+  rabbanutId:   id,
+  notes:        z.string().max(2000).trim().optional(),
+  settlementId: id.optional(),
+  categoryId:   id.optional(),
 })
 export const updateRestaurantSchema = createRestaurantSchema.partial()
 
@@ -73,15 +86,17 @@ export const updateInspectionSchema = createInspectionSchema.partial()
 
 // Hechsher
 export const createHechsherSchema = z.object({
-  name:       z.string().min(1).max(200).trim(),
-  shortName:  z.string().min(1).max(20).trim(),
-  city:       z.string().max(100).trim().default(''),
-  contact:    z.string().max(100).trim().default(''),
-  phone:      z.string().max(32).trim().default(''),
-  email:      z.string().max(254).trim().default(''),
-  type:       hechsherType,
+  name:         z.string().min(1).max(200).trim(),
+  shortName:    z.string().min(1).max(20).trim(),
+  city:         z.string().max(100).trim().default(''),
+  contact:      z.string().max(100).trim().default(''),
+  phone:        z.string().max(32).trim().default(''),
+  email:        z.string().max(254).trim().default(''),
+  type:         hechsherType,
   color,
-  rabbanutId: id,
+  rabbanutId:   id,
+  active:       z.boolean().default(true),
+  settlementId: id.optional(),
 })
 export const updateHechsherSchema = createHechsherSchema.partial()
 
@@ -103,9 +118,17 @@ export const createDocumentSchema = z.object({
   name:     z.string().min(1).max(500).trim(),
   category: documentCategory,
   date:     dateStr,
-  size:     z.string().max(20).trim(),
+  size:     z.coerce.number().int().nonnegative().default(0),
   ext:      docExt,
   url:      z.string().url().max(2000).optional(),
+})
+
+// Restaurant list query
+export const listRestaurantQuerySchema = z.object({
+  rabbanutId: z.string().uuid().optional(),
+  status:     certStatus.optional(),
+  limit:      z.coerce.number().int().min(1).max(200).optional(),
+  cursor:     z.string().min(1).max(100).optional(),
 })
 
 // Rabbanut

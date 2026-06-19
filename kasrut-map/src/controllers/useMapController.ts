@@ -18,6 +18,7 @@ import type {
 const DEFAULT_FILTERS: MapFilters = {
   hechsher: [],
   foodType: [],
+  category: [],
   city:     '',
   radius:   25_000,
 }
@@ -173,7 +174,7 @@ export function useMapController({
     skip: shouldSkipRestaurants || skipUntilPositionReady,
   })
 
-  const { data: options = { cities: [], hechshers: [] } } = useGetMapOptionsQuery(
+  const { data: options = { cities: [], hechshers: [], categories: [] } } = useGetMapOptionsQuery(
     undefined,
     { skip: !filterEverOpened },
   )
@@ -182,6 +183,12 @@ export function useMapController({
     [...new Set(options.hechshers.filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, lang))
   ), [options.hechshers, lang])
+
+  const availableCategories = useMemo(() => (
+    [...options.categories].sort((a, b) =>
+      (lang === 'he' ? a.nameHe : lang === 'ru' ? (a.nameRu ?? a.nameHe) : (a.nameEn ?? a.nameHe))
+        .localeCompare(lang === 'he' ? b.nameHe : lang === 'ru' ? (b.nameRu ?? b.nameHe) : (b.nameEn ?? b.nameHe), lang))
+  ), [options.categories, lang])
 
   const availableCities = useMemo(() => (
     [...new Set(options.cities.filter(Boolean))]
@@ -265,6 +272,14 @@ export function useMapController({
         : [...f.foodType, type],
     }))
 
+  const toggleCategory = (slug: string) =>
+    setFilters(f => ({
+      ...f,
+      category: f.category.includes(slug)
+        ? f.category.filter(c => c !== slug)
+        : [...f.category, slug],
+    }))
+
   const setCity   = (city: string)         => setFilters(f => ({ ...f, city }))
   const setRadius = (radius: number | null) => setFilters(f => ({ ...f, radius }))
   const resetFilters = ()                  => setFilters(DEFAULT_FILTERS)
@@ -272,6 +287,7 @@ export function useMapController({
   const activeFilterCount =
     filters.hechsher.length +
     filters.foodType.length +
+    filters.category.length +
     (filters.city !== '' ? 1 : 0) +
     (filters.radius !== null ? 1 : 0)
 
@@ -285,8 +301,8 @@ export function useMapController({
     view, setView,
     // filters
     filters, filterOpen, setFilterOpen: openFilters,
-    activeFilterCount, toggleHechsher, toggleFoodType, setCity, setRadius, resetFilters,
-    availableHechshers, availableCities,
+    activeFilterCount, toggleHechsher, toggleFoodType, toggleCategory, setCity, setRadius, resetFilters,
+    availableHechshers, availableCities, availableCategories,
     // data
     restaurants,
     isLoading,

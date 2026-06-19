@@ -9,9 +9,14 @@ import { errorHandler } from './middleware/errorHandler'
 import { serviceLogger } from './middleware/serviceLogger'
 import { swaggerSpec } from './lib/swagger'
 import { logger } from './lib/logger'
+import { prisma } from './lib/prisma'
+import { redis } from './lib/redis'
 
 export function createApp() {
   const app = express()
+
+  // Required for accurate req.ip behind nginx / any reverse-proxy
+  app.set('trust proxy', 1)
 
   // Security headers
   app.use(helmet())
@@ -41,8 +46,24 @@ export function createApp() {
 
   app.use(serviceLogger)
 
-  // Health check
-  app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
+  // Liveness probe — checks DB + Redis so orchestrators get a real signal
+  app.get('/health', async (_req, res) => {
+    const checks: Record<string, 'ok' | 'error'> = {}
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      checks.db = 'ok'
+    } catch {
+      checks.db = 'error'
+    }
+    try {
+      await redis.ping()
+      checks.redis = 'ok'
+    } catch {
+      checks.redis = 'error'
+    }
+    const healthy = checks.db === 'ok' && checks.redis === 'ok'
+    res.status(healthy ? 200 : 503).json({ status: healthy ? 'ok' : 'degraded', checks })
+  })
 
   // OpenAPI / Swagger UI — exposed in non-production only
   if (process.env.NODE_ENV !== 'production') {

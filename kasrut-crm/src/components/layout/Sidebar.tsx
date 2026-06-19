@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { useLang } from '@/i18n/useLang'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ROLE_COLORS } from '@/theme'
@@ -39,8 +39,8 @@ export function Sidebar() {
   const activeTab = pathname.split('/')[1] || 'dashboard'
   const t = useLang()
   const perm = usePermissions()
-  const role = useAuthStore(s => s.role)
-  const user = useAuthStore(s => s.user)
+  const role = useAppSelector(s => s.auth.role)
+  const user = useAppSelector(s => s.auth.user)
   const rc = ROLE_COLORS[role]
   const labels = t.nav as Record<string, string>
 

@@ -1,32 +1,20 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  Box, AppBar, Toolbar, Typography,
-  IconButton, Badge, ToggleButtonGroup, ToggleButton,
-  Fab, Tooltip, Avatar, Menu, MenuItem, CircularProgress, Button,
+  Box, Fab, Tooltip, CircularProgress, Typography,
+  Snackbar, Alert,
 } from '@mui/material'
-import TuneIcon        from '@mui/icons-material/Tune'
-import MapIcon         from '@mui/icons-material/Map'
-import ListIcon        from '@mui/icons-material/List'
-import MyLocationIcon  from '@mui/icons-material/MyLocation'
+import MyLocationIcon   from '@mui/icons-material/MyLocation'
 import EditLocationIcon from '@mui/icons-material/EditLocation'
-import GpsFixedIcon    from '@mui/icons-material/GpsFixed'
-import MenuBookIcon    from '@mui/icons-material/MenuBook'
-import AddBusinessIcon from '@mui/icons-material/AddBusiness'
-import PersonIcon      from '@mui/icons-material/Person'
-import LogoutIcon      from '@mui/icons-material/Logout'
-import DarkModeIcon    from '@mui/icons-material/DarkMode'
-import LightModeIcon   from '@mui/icons-material/LightMode'
-import VolunteerActivismIcon from '@mui/icons-material/VolunteerActivism'
+import GpsFixedIcon     from '@mui/icons-material/GpsFixed'
 
-import { LegalNotice }            from '@/components/community/LegalNotice'
-import { useMapController }      from '@/controllers/useMapController'
-import { useIpCenter }           from '@/hooks/useIpCenter'
-import { useGetMapMeQuery }      from '@/store/api/mapCommunityApi'
+import { LegalNotice }       from '@/components/community/LegalNotice'
+import { MapAppBar }         from '@/components/map/MapAppBar'
+import { useMapController }  from '@/controllers/useMapController'
+import { useIpCenter }       from '@/hooks/useIpCenter'
+import { useGetMapMeQuery }  from '@/store/api/mapCommunityApi'
 import { clearCredentials, setUser } from '@/store/mapAuthSlice'
-import { setMapLang, type MapLang } from '@/store/mapLangSlice'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
-import { useMapLang }            from '@/i18n/useMapLang'
+import { useMapLang }        from '@/i18n/useMapLang'
 import type { ThemeMode } from '@/theme'
 import type { MapRestaurant, MapViewport } from '@/types'
 
@@ -34,8 +22,6 @@ interface Props {
   themeMode: ThemeMode
   onToggleThemeMode: () => void
 }
-
-const LANGS: MapLang[] = ['en', 'ru', 'he']
 
 const AuthDialog = lazy(() =>
   import('@/components/auth/AuthDialog').then(module => ({ default: module.AuthDialog })),
@@ -93,7 +79,6 @@ function getViewportCenter(viewport: MapViewport | null): [number, number] | nul
 }
 
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
-  const navigate = useNavigate()
   const ipCenter = useIpCenter()
   const ctrl = useMapController({
     fallbackPosition: ipCenter.value,
@@ -101,12 +86,11 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   })
   const dispatch = useAppDispatch()
   const t = useMapLang()
-  const user = useAppSelector(state => state.mapAuth.user)
+  const user  = useAppSelector(state => state.mapAuth.user)
   const token = useAppSelector(state => state.mapAuth.token)
-  const lang = useAppSelector(state => state.mapLang.lang)
   const { data: freshUser, isError: authExpired } = useGetMapMeQuery(undefined, { skip: !token })
   const [authOpen, setAuthOpen] = useState(false)
-  const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null)
+  const [sessionExpiredOpen, setSessionExpiredOpen] = useState(false)
   const [suggestionOpen, setSuggestionOpen] = useState(false)
   const [suggestionRestaurant, setSuggestionRestaurant] = useState<MapRestaurant | null>(null)
 
@@ -120,17 +104,14 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     setSuggestionOpen(true)
   }
 
-  const logout = () => {
-    dispatch(clearCredentials())
-    setAccountAnchor(null)
-  }
-
   useEffect(() => {
     if (freshUser) dispatch(setUser(freshUser))
   }, [dispatch, freshUser])
 
   useEffect(() => {
-    if (authExpired) dispatch(clearCredentials())
+    if (!authExpired) return
+    dispatch(clearCredentials())
+    setSessionExpiredOpen(true)
   }, [authExpired, dispatch])
 
   const [showMapFetching, setShowMapFetching] = useState(false)
@@ -164,110 +145,16 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
 
-      {/* ── AppBar ── */}
-      <AppBar position="static" elevation={0} sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', zIndex: 1200 }}>
-        <Toolbar sx={{ gap: 1 }}>
-          <MenuBookIcon sx={{ color: 'primary.main', mr: 0.5 }} />
-          <Typography variant="h6" color="primary.main" noWrap sx={{ flexGrow: 1, minWidth: 0, letterSpacing: 0, fontWeight: 800 }}>
-            {t.appName}
-          </Typography>
-
-          {/* Language switcher */}
-          <Box sx={{ display: 'flex', border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
-            {LANGS.map(l => (
-              <Button
-                key={l}
-                onClick={() => dispatch(setMapLang(l))}
-                size="small"
-                sx={{
-                  minWidth: 0,
-                  px: 1.25, py: '4px',
-                  fontSize: '0.625rem',
-                  fontWeight: lang === l ? 700 : 500,
-                  color: lang === l ? 'primary.main' : 'text.disabled',
-                  bgcolor: lang === l ? 'rgba(232,165,7,0.08)' : 'transparent',
-                  borderRadius: 0,
-                  letterSpacing: '0.5px',
-                  '&:hover': { color: 'text.secondary' },
-                }}
-              >
-                {l.toUpperCase()}
-              </Button>
-            ))}
-          </Box>
-
-          <Tooltip title={t.suggestBusiness}>
-            <IconButton onClick={openAddSuggestion} sx={{ color: 'text.secondary' }}>
-              <AddBusinessIcon />
-            </IconButton>
-          </Tooltip>
-
-          <Tooltip title={t.donate}>
-            <IconButton onClick={() => navigate('/donate')} sx={{ color: 'text.secondary' }}>
-              <VolunteerActivismIcon />
-            </IconButton>
-          </Tooltip>
-
-          <Tooltip title={themeMode === 'light' ? t.darkTheme : t.lightTheme}>
-            <IconButton onClick={onToggleThemeMode} sx={{ color: 'text.secondary' }}>
-              {themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
-            </IconButton>
-          </Tooltip>
-
-          {/* Map / List toggle */}
-          <ToggleButtonGroup
-            value={ctrl.view}
-            exclusive
-            onChange={(_e, v) => { if (v) ctrl.setView(v) }}
-            size="small"
-            sx={{
-              '& .MuiToggleButton-root': { px: 1.5, borderColor: 'divider', color: 'text.secondary' },
-              '& .Mui-selected': { color: 'primary.main !important', bgcolor: 'rgba(232,165,7,0.1) !important' },
-            }}
-          >
-            <ToggleButton value="map"  aria-label="map"><MapIcon  fontSize="small" /></ToggleButton>
-            <ToggleButton value="list" aria-label="list"><ListIcon fontSize="small" /></ToggleButton>
-          </ToggleButtonGroup>
-
-          {/* Filters */}
-          <Tooltip title={t.filtersTooltip}>
-            <IconButton onClick={() => ctrl.setFilterOpen(true)} sx={{ color: ctrl.activeFilterCount ? 'primary.main' : 'text.secondary' }}>
-              <Badge badgeContent={ctrl.activeFilterCount || null} color="primary">
-                <TuneIcon />
-              </Badge>
-            </IconButton>
-          </Tooltip>
-
-          {user ? (
-            <>
-              <Tooltip title={user.name}>
-                <IconButton onClick={(event) => setAccountAnchor(event.currentTarget)} sx={{ p: 0.5 }}>
-                  <Avatar src={user.avatarUrl ?? undefined} sx={{ width: 30, height: 30, bgcolor: 'primary.main', fontSize: 14 }}>
-                    {user.name.slice(0, 1).toUpperCase()}
-                  </Avatar>
-                </IconButton>
-              </Tooltip>
-              <Menu
-                anchorEl={accountAnchor}
-                open={Boolean(accountAnchor)}
-                onClose={() => setAccountAnchor(null)}
-              >
-                <MenuItem disabled>{user.name}</MenuItem>
-                <MenuItem onClick={logout}>
-                  <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
-                  {t.logout}
-                </MenuItem>
-              </Menu>
-            </>
-          ) : (
-            <Tooltip title={t.loginTooltip}>
-              <IconButton onClick={() => setAuthOpen(true)} sx={{ color: 'text.secondary' }}>
-                <PersonIcon />
-              </IconButton>
-            </Tooltip>
-          )}
-        </Toolbar>
-      </AppBar>
+      <MapAppBar
+        themeMode={themeMode}
+        onToggleThemeMode={onToggleThemeMode}
+        activeFilterCount={ctrl.activeFilterCount}
+        onOpenFilters={() => ctrl.setFilterOpen(true)}
+        view={ctrl.view}
+        onSetView={ctrl.setView}
+        onOpenAuth={() => setAuthOpen(true)}
+        onOpenAddSuggestion={openAddSuggestion}
+      />
 
       <LegalNotice />
 
@@ -474,8 +361,10 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             activeFilterCount={ctrl.activeFilterCount}
             availableHechshers={ctrl.availableHechshers}
             availableCities={ctrl.availableCities}
+            availableCategories={ctrl.availableCategories}
             onToggleHechsher={ctrl.toggleHechsher}
             onToggleFoodType={ctrl.toggleFoodType}
+            onToggleCategory={ctrl.toggleCategory}
             onSetCity={ctrl.setCity}
             onSetRadius={ctrl.setRadius}
             onReset={ctrl.resetFilters}
@@ -500,6 +389,17 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           />
         </Suspense>
       )}
+
+      <Snackbar
+        open={sessionExpiredOpen}
+        autoHideDuration={6000}
+        onClose={() => setSessionExpiredOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="warning" onClose={() => setSessionExpiredOpen(false)} sx={{ width: '100%' }}>
+          {t.sessionExpired}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

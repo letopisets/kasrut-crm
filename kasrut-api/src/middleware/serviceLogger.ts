@@ -138,24 +138,29 @@ function sanitizedQuery(req: Request): Record<string, unknown> {
   )
 }
 
+const AUTH_PATH_MESSAGES: Record<string, string> = {
+  '/api/auth/login':                      'CRM login succeeded',
+  '/api/auth/logout':                     'CRM logout succeeded',
+  '/api/auth/2fa/setup':                  '2FA setup started',
+  '/api/auth/2fa/enable':                 '2FA enabled',
+  '/api/auth/2fa/disable':                '2FA disabled',
+  '/api/auth/2fa/verify':                 'CRM 2FA login succeeded',
+  '/api/auth/2fa/verify-backup':          'CRM backup-code login succeeded',
+  '/api/map-auth/register':               'Map user registered',
+  '/api/map-auth/login':                  'Map login succeeded',
+  '/api/map-auth/oauth':                  'Map OAuth login succeeded',
+  '/api/map-auth/password-reset/request': 'Map password reset requested',
+  '/api/map-auth/password-reset/confirm': 'Map password reset completed',
+}
+
 function messageFor(req: Request, res: Response, entity: { entityType?: string; entityId?: string }): string {
   if (typeof res.locals.serviceLogMessage === 'string') return res.locals.serviceLogMessage
   if (typeof res.locals.serviceErrorMessage === 'string') return res.locals.serviceErrorMessage
 
   if (res.statusCode >= 400) return `${req.method} ${req.path} returned ${res.statusCode}`
 
-  if (req.path === '/api/auth/login') return 'CRM login succeeded'
-  if (req.path === '/api/auth/logout') return 'CRM logout succeeded'
-  if (req.path === '/api/auth/2fa/setup') return '2FA setup started'
-  if (req.path === '/api/auth/2fa/enable') return '2FA enabled'
-  if (req.path === '/api/auth/2fa/disable') return '2FA disabled'
-  if (req.path === '/api/auth/2fa/verify') return 'CRM 2FA login succeeded'
-  if (req.path === '/api/auth/2fa/verify-backup') return 'CRM backup-code login succeeded'
-  if (req.path === '/api/map-auth/register') return 'Map user registered'
-  if (req.path === '/api/map-auth/login') return 'Map login succeeded'
-  if (req.path === '/api/map-auth/oauth') return 'Map OAuth login succeeded'
-  if (req.path === '/api/map-auth/password-reset/request') return 'Map password reset requested'
-  if (req.path === '/api/map-auth/password-reset/confirm') return 'Map password reset completed'
+  const authMessage = AUTH_PATH_MESSAGES[req.path]
+  if (authMessage) return authMessage
 
   const verb = req.method === 'POST' ? 'Created'
     : req.method === 'DELETE' ? 'Deleted'

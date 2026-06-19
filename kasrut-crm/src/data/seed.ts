@@ -7,11 +7,11 @@ export const seedRabbanuts: Rabbanut[] = [
 ]
 
 export const seedHechsherim: Hechsher[] = [
-  { id: 'h1', name: 'Rabbanut Jerusalem',   shortName: 'רבנות י-ם',   city: 'Jerusalem', contact: 'Rav Goldberg', phone: '02-6700100', email: 'kashrut@jer.il',    type: 'Rabbanut', color: '#3498DB', rabbanutId: 'rb1' },
-  { id: 'h2', name: 'Badatz Eda Hacharedit',shortName: 'בד"ץ העדה',  city: 'Jerusalem', contact: 'Rav Weiss',    phone: '02-6700200', email: 'vaad@edah.il',       type: 'Badatz',   color: '#E74C3C', rabbanutId: 'rb1' },
-  { id: 'h3', name: 'Rabbanut Haifa',       shortName: 'רבנות חיפה', city: 'Haifa',     contact: 'Rav Cohen',    phone: '04-8867000', email: 'kashrut@haifa.il',   type: 'Rabbanut', color: '#2ECC71', rabbanutId: 'rb2' },
-  { id: 'h4', name: 'Badatz Beit Yosef',    shortName: 'בד"ץ ב"י',  city: 'Jerusalem', contact: 'Rav Yosef',    phone: '02-5382832', email: 'info@beityosef.il',  type: 'Badatz',   color: '#9B59B6', rabbanutId: 'rb1' },
-  { id: 'h5', name: 'Chief Rabbinate',      shortName: 'הרה"ר',      city: 'Jerusalem', contact: 'Rav Adiriya', phone: '02-9705149', email: 'adiryap@rab.gov.il', type: 'Rabbanut', color: '#E8C96D', rabbanutId: 'rb1' },
+  { id: 'h1', name: 'Rabbanut Jerusalem',   shortName: 'רבנות י-ם',   city: 'Jerusalem', contact: 'Rav Goldberg', phone: '02-6700100', email: 'kashrut@jer.il',    type: 'Rabbanut', color: '#3498DB', rabbanutId: 'rb1', active: true },
+  { id: 'h2', name: 'Badatz Eda Hacharedit',shortName: 'בד"ץ העדה',  city: 'Jerusalem', contact: 'Rav Weiss',    phone: '02-6700200', email: 'vaad@edah.il',       type: 'Badatz',   color: '#E74C3C', rabbanutId: 'rb1', active: true },
+  { id: 'h3', name: 'Rabbanut Haifa',       shortName: 'רבנות חיפה', city: 'Haifa',     contact: 'Rav Cohen',    phone: '04-8867000', email: 'kashrut@haifa.il',   type: 'Rabbanut', color: '#2ECC71', rabbanutId: 'rb2', active: true },
+  { id: 'h4', name: 'Badatz Beit Yosef',    shortName: 'בד"ץ ב"י',  city: 'Jerusalem', contact: 'Rav Yosef',    phone: '02-5382832', email: 'info@beityosef.il',  type: 'Badatz',   color: '#9B59B6', rabbanutId: 'rb1', active: true },
+  { id: 'h5', name: 'Chief Rabbinate',      shortName: 'הרה"ר',      city: 'Jerusalem', contact: 'Rav Adiriya', phone: '02-9705149', email: 'adiryap@rab.gov.il', type: 'Rabbanut', color: '#E8C96D', rabbanutId: 'rb1', active: true },
 ]
 
 export const seedMashgichim: Mashgiach[] = [
@@ -22,12 +22,12 @@ export const seedMashgichim: Mashgiach[] = [
 ]
 
 export const seedRestaurants: Restaurant[] = [
-  { id: 'r1', name: 'מסעדת הגורמה',        address: "רח' יפו 42",        city: 'Jerusalem', level: 'Mehadrin', hechsherId: 'h1', mashgiachId: 'm1', kitniyot: 'ללא חשש קטניות', expires: '2026-03-15', status: 'warning',  lastInspection: '2026-01-20', notes: '',                   rabbanutId: 'rb1' },
-  { id: 'r2', name: 'בית האוכל המרכזי',    address: "רח' בן יהודה 18",   city: 'Jerusalem', level: 'Regular',  hechsherId: 'h2', mashgiachId: 'm2', kitniyot: 'מכיל קטניות',     expires: '2026-06-30', status: 'ok',       lastInspection: '2026-02-01', notes: '',                   rabbanutId: 'rb1' },
-  { id: 'r3', name: 'מסעדת צפון',          address: "שד' הרצל 55",       city: 'Haifa',     level: 'Mehadrin', hechsherId: 'h4', mashgiachId: 'm3', kitniyot: 'ללא חשש קטניות', expires: '2026-02-28', status: 'critical', lastInspection: '2025-12-15', notes: 'Requires attention', rabbanutId: 'rb2' },
-  { id: 'r4', name: 'פיצה שמש',            address: "רח' גאולה 31",      city: 'Haifa',     level: 'Regular',  hechsherId: 'h3', mashgiachId: 'm1', kitniyot: 'מכיל קטניות',     expires: '2026-08-10', status: 'ok',       lastInspection: '2026-01-30', notes: '',                   rabbanutId: 'rb2' },
-  { id: 'r5', name: 'המאפייה העתיקה',      address: "רח' ירושלים 17",    city: 'Tzfat',     level: 'Mehadrin', hechsherId: 'h5', mashgiachId: 'm4', kitniyot: 'ללא חשש קטניות', expires: '2026-04-01', status: 'warning',  lastInspection: '2026-01-10', notes: '',                   rabbanutId: 'rb1' },
-  { id: 'r6', name: 'מלון כנרות',          address: "רח' זיידל 9",       city: 'Tiberias',  level: 'Mehadrin', hechsherId: 'h1', mashgiachId: 'm2', kitniyot: 'ללא חשש קטניות', expires: '2026-09-20', status: 'ok',       lastInspection: '2026-02-05', notes: '',                   rabbanutId: 'rb1' },
+  { id: 'r1', name: 'מסעדת הגורמה',        address: "רח' יפו 42",        city: 'Jerusalem', levelId: 'kl_mehadrin',    level: 'Mehadrin', hechsherId: 'h1', mashgiachId: 'm1', kitniyot: false, expires: '2026-03-15', status: 'warning',  lastInspection: '2026-01-20', notes: '',                   rabbanutId: 'rb1' },
+  { id: 'r2', name: 'בית האוכל המרכזי',    address: "רח' בן יהודה 18",   city: 'Jerusalem', levelId: 'kl_regular',     level: 'Regular',  hechsherId: 'h2', mashgiachId: 'm2', kitniyot: true,  expires: '2026-06-30', status: 'ok',       lastInspection: '2026-02-01', notes: '',                   rabbanutId: 'rb1' },
+  { id: 'r3', name: 'מסעדת צפון',          address: "שד' הרצל 55",       city: 'Haifa',     levelId: 'kl_mehadrin',    level: 'Mehadrin', hechsherId: 'h4', mashgiachId: 'm3', kitniyot: false, expires: '2026-02-28', status: 'critical', lastInspection: '2025-12-15', notes: 'Requires attention', rabbanutId: 'rb2' },
+  { id: 'r4', name: 'פיצה שמש',            address: "רח' גאולה 31",      city: 'Haifa',     levelId: 'kl_lo_mehadrin', level: 'Regular',  hechsherId: 'h3', mashgiachId: 'm1', kitniyot: true,  expires: '2026-08-10', status: 'ok',       lastInspection: '2026-01-30', notes: '',                   rabbanutId: 'rb2' },
+  { id: 'r5', name: 'המאפייה העתיקה',      address: "רח' ירושלים 17",    city: 'Tzfat',     levelId: 'kl_mehadrin',    level: 'Mehadrin', hechsherId: 'h5', mashgiachId: 'm4', kitniyot: false, expires: '2026-04-01', status: 'warning',  lastInspection: '2026-01-10', notes: '',                   rabbanutId: 'rb1' },
+  { id: 'r6', name: 'מלון כנרות',          address: "רח' זיידל 9",       city: 'Tiberias',  levelId: 'kl_regular',     level: 'Regular',  hechsherId: 'h1', mashgiachId: 'm2', kitniyot: false, expires: '2026-09-20', status: 'ok',       lastInspection: '2026-02-05', notes: '',                   rabbanutId: 'rb1' },
 ]
 
 export const seedInspections: Inspection[] = [

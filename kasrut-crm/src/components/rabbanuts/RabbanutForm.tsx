@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
+import { SettlementAutocomplete } from '@/components/ui/SettlementAutocomplete'
+import type { SettlementOption } from '@/components/ui/SettlementAutocomplete'
 import type { Rabbanut } from '@/types'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -17,6 +19,8 @@ interface Props {
 export function RabbanutForm({ initial, onSave, onClose }: Props) {
   const t = useLang()
 
+  const [settlement, setSettlement] = useState<SettlementOption | null>(null)
+
   const [form, setForm] = useState({
     name:    initial?.name    ?? '',
     city:    initial?.city    ?? '',
@@ -30,20 +34,44 @@ export function RabbanutForm({ initial, onSave, onClose }: Props) {
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
+  const [submitted, setSubmitted] = useState(false)
+
   const handleSave = () => {
-    if (!form.name || !form.city) return
-    onSave(form)
+    setSubmitted(true)
+    const city = settlement?.nameHe ?? form.city
+    if (!form.name || !city) return
+    onSave({ ...form, city })
   }
 
   const isEdit = !!initial
+  const cityValue = settlement?.nameHe ?? form.city
 
   return (
     <Modal
       title={isEdit ? (t.rabbanuts?.title ?? 'Rabbanut') : (t.rabbanuts?.add ?? '+ Add Rabbanut')}
       onClose={onClose}
     >
-      <Input label={t.rabbanuts?.name    ?? 'Name'}    value={form.name}    onChange={v => set('name', v)} />
-      <Input label={t.rabbanuts?.city    ?? 'City'}    value={form.city}    onChange={v => set('city', v)} />
+      <Input
+        label={t.rabbanuts?.name ?? 'Name'}
+        value={form.name}
+        onChange={v => set('name', v)}
+        required
+        error={submitted && !form.name}
+        helperText={submitted && !form.name ? t.validation.required : undefined}
+      />
+
+      <SettlementAutocomplete
+        value={settlement}
+        onChange={s => {
+          setSettlement(s)
+          if (s) set('city', s.nameHe)
+        }}
+        label={t.rabbanuts?.city ?? 'City'}
+        required
+        error={submitted && !cityValue}
+        helperText={submitted && !cityValue ? t.validation.required : undefined}
+      />
+
       <Input label={t.rabbanuts?.contact ?? 'Contact'} value={form.contact} onChange={v => set('contact', v)} />
       <Input label={t.rabbanuts?.phone   ?? 'Phone'}   value={form.phone}   onChange={v => set('phone', v)} />
       <Input label={t.rabbanuts?.email   ?? 'Email'}   value={form.email}   onChange={v => set('email', v)} />
@@ -71,7 +99,7 @@ export function RabbanutForm({ initial, onSave, onClose }: Props) {
       </Box>
 
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
-        <Button variant="contained" onClick={handleSave} disabled={!form.name || !form.city} disableElevation>
+        <Button variant="contained" onClick={handleSave} disableElevation>
           {t.rabbanuts?.save ?? 'Save'}
         </Button>
         <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>

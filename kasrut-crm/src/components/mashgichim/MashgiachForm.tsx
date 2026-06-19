@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuthStore } from '@/store/useAuthStore'
+import { useAppSelector } from '@/store'
 import { useLang } from '@/i18n/useLang'
 import { Modal, Input } from '@/components/ui'
 import Box from '@mui/material/Box'
@@ -18,7 +18,7 @@ interface Props {
 
 export function MashgiachForm({ hechsherOptions, initial, onSave, onClose }: Props) {
   const t    = useLang()
-  const user = useAuthStore(s => s.user)
+  const user = useAppSelector(s => s.auth.user)
 
   const [form, setForm] = useState({
     name:          initial?.name          ?? '',
@@ -33,12 +33,28 @@ export function MashgiachForm({ hechsherOptions, initial, onSave, onClose }: Pro
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
+  const [submitted, setSubmitted] = useState(false)
+
   const title = initial ? 'Edit Mashgiach' : (t.mashgichim?.addTitle ?? 'Add Mashgiach')
 
   return (
     <Modal title={title} onClose={onClose}>
-      <Input label={t.mashgichim?.name  ?? 'Name'}  value={form.name}  onChange={v => set('name', v)} />
-      <Input label={t.mashgichim?.phone ?? 'Phone'} value={form.phone} onChange={v => set('phone', v)} />
+      <Input
+        label={t.mashgichim?.name ?? 'Name'}
+        value={form.name}
+        onChange={v => set('name', v)}
+        required
+        error={submitted && !form.name}
+        helperText={submitted && !form.name ? t.validation.required : undefined}
+      />
+      <Input
+        label={t.mashgichim?.phone ?? 'Phone'}
+        value={form.phone}
+        onChange={v => set('phone', v)}
+        required
+        error={submitted && !form.phone}
+        helperText={submitted && !form.phone ? t.validation.required : undefined}
+      />
       <Input label={t.mashgichim?.email ?? 'Email'} value={form.email} onChange={v => set('email', v)} />
       <Input label={t.mashgichim?.area  ?? 'Area'}  value={form.area}  onChange={v => set('area', v)} />
       <Input
@@ -48,7 +64,7 @@ export function MashgiachForm({ hechsherOptions, initial, onSave, onClose }: Pro
         options={hechsherOptions}
       />
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
-        <Button variant="contained" onClick={() => onSave(form)} disabled={!form.name || !form.phone} disableElevation>
+        <Button variant="contained" onClick={() => { setSubmitted(true); if (form.name && form.phone) onSave(form) }} disableElevation>
           {t.addRest?.save ?? 'Save'}
         </Button>
         <Button variant="outlined" color="inherit" onClick={onClose} sx={{ color: 'text.secondary' }}>

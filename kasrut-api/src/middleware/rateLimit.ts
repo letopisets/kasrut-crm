@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { redis } from '../lib/redis'
+import { logger } from '../lib/logger'
 
 interface RateLimitOptions {
   windowMs: number
@@ -10,6 +11,7 @@ interface RateLimitOptions {
 // ── In-memory fallback (single-process) ──────────────────────────────────────
 interface Bucket { count: number; resetAt: number }
 const buckets = new Map<string, Bucket>()
+let lastRedisWarnAt = 0
 let cleanupCursor = 0
 
 function inMemoryCheck(key: string, windowMs: number, now: number): {
@@ -59,7 +61,10 @@ export function rateLimit(options: RateLimitOptions) {
         throw new Error('not ready')
       }
     } catch {
-      // Fall back to in-memory when Redis is unavailable
+      if (now - lastRedisWarnAt > 60_000) {
+        logger.warn('Redis unavailable — rate limiter falling back to in-memory store')
+        lastRedisWarnAt = now
+      }
       const b = inMemoryCheck(key, options.windowMs, now)
       count   = b.count
       resetAt = b.resetAt

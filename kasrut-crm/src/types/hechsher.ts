@@ -12,4 +12,7 @@ export interface Hechsher {
   type: HechsherType
   color: string
   rabbanutId: string
+  active: boolean
+  settlementId?: string
+  createdAt?: string
 }
