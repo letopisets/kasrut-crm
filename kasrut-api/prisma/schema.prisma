@@ -391,6 +391,7 @@ model MapRestaurantSuggestion {
   proposedHechsher      String?
   proposedKashrutStatus String?
   proposedFoodType      FoodType?
+  proposedCategory      String?   // EstablishmentCategory.slug — вид заведения
   proposedImageUrl      String?
   proposedLat           Float?
   proposedLng           Float?

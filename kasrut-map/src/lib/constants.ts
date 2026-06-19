@@ -23,6 +23,11 @@ export const CATEGORY_EMOJI: Record<string, string> = {
   cafe:       '☕',
 }
 
+// Fixed set of establishment kinds offered when suggesting a place.
+// Matches the seeded EstablishmentCategory slugs.
+export const CATEGORY_KINDS = ['restaurant', 'bakery', 'cafe'] as const
+export type CategoryKind = typeof CATEGORY_KINDS[number]
+
 export const KASHRUT_COLOR: Record<KashrutLevel, string> = {
   mehadrin: '#9B59B6',
   badatz:   '#E74C3C',

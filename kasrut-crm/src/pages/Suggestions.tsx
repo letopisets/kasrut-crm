@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLang } from '@/i18n/useLang'
 import { useGetSuggestionsQuery, useReviewSuggestionMutation } from '@/store/api/suggestionsApi'
+import { useGetEstablishmentCategoriesQuery } from '@/store/api/establishmentCategoriesApi'
+import { useAppSelector } from '@/store'
 import { Badge } from '@/components/ui'
 import type { MapSuggestion, SuggestionStatus } from '@/types'
 import { alpha } from '@mui/material/styles'
@@ -24,6 +26,14 @@ const STATUS_COLOR: Record<SuggestionStatus, string> = {
 export default function Suggestions() {
   const t    = useLang()
   const ts   = t.suggestions!
+  const lang = useAppSelector(s => s.lang.lang)
+  const { data: categories = [] } = useGetEstablishmentCategoriesQuery()
+  const categoryName = (slug: string | null): string | null => {
+    if (!slug) return null
+    const c = categories.find(c => c.slug === slug)
+    if (!c) return slug
+    return lang === 'he' ? c.nameHe : lang === 'ru' ? (c.nameRu ?? c.nameHe) : (c.nameEn ?? c.nameHe)
+  }
   const [searchParams, setSearchParams] = useSearchParams()
   const initialStatus = searchParams.get('status') as SuggestionStatus | 'all' | null
 
@@ -150,6 +160,7 @@ export default function Suggestions() {
                   <Field label={ts.proposedHechsher} value={s.proposedHechsher} />
                   <Field label={ts.proposedStatus}  value={s.proposedKashrutStatus} />
                   <Field label={ts.proposedFoodType} value={s.proposedFoodType ? (t.addRest.foodTypeLabels?.[s.proposedFoodType] ?? s.proposedFoodType) : null} />
+                  <Field label={ts.proposedCategory ?? 'Вид заведения'} value={categoryName(s.proposedCategory)} />
                 </Box>
 
                 {/* Attached image */}

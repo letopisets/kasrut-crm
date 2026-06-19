@@ -171,6 +171,7 @@ const he: Translations = {
     proposedHechsher:       'הכשר',
     proposedStatus:         'סטטוס כשרות',
     proposedFoodType:       'סוג מטבח',
+    proposedCategory:       'סוג עסק',
     proposedImage:          'תמונה',
     notes:                  'הערת משתמש',
     user:                   'הוגש על ידי',

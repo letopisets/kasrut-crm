@@ -8,6 +8,8 @@ import { useGetMapHechsherimQuery } from '@/store/api/restaurantsApi'
 import { useMapLang } from '@/i18n/useMapLang'
 import { geocodeRestaurantAddress } from '@/lib/geocode'
 import { resizeImageToDataUrl } from '@/lib/image'
+import { CATEGORY_KINDS } from '@/lib/constants'
+import type { CategoryKind } from '@/lib/constants'
 import type { FoodType, MapRestaurant, MapSuggestionPayload } from '@/types'
 
 interface Props {
@@ -29,6 +31,7 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
   const [hechsher, setHechsher] = useState('')
   const [kashrutStatus, setKashrutStatus] = useState('')
   const [foodType, setFoodType] = useState<FoodType | ''>('')
+  const [category, setCategory] = useState<CategoryKind | ''>('')
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [imageBusy, setImageBusy] = useState(false)
   const [notes, setNotes] = useState('')
@@ -53,6 +56,11 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
     setHechsher(restaurant?.hechsher ?? '')
     setKashrutStatus('')
     setFoodType(restaurant?.foodType ?? '')
+    setCategory(
+      restaurant?.category && (CATEGORY_KINDS as readonly string[]).includes(restaurant.category)
+        ? restaurant.category as CategoryKind
+        : '',
+    )
     setImageDataUrl(null)
     setImageBusy(false)
     setNotes('')
@@ -68,9 +76,9 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
     return Boolean(
       name.trim() || address.trim() || city.trim() ||
       hechsher.trim() || kashrutStatus.trim() || notes.trim() ||
-      foodType || imageDataUrl,
+      foodType || category || imageDataUrl,
     )
-  }, [address, city, foodType, hechsher, imageBusy, imageDataUrl, isAuthenticated, kashrutStatus, mode, name, notes])
+  }, [address, category, city, foodType, hechsher, imageBusy, imageDataUrl, isAuthenticated, kashrutStatus, mode, name, notes])
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -120,6 +128,7 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
       proposedHechsher: hechsher.trim() || null,
       proposedKashrutStatus: kashrutStatus.trim() || null,
       proposedFoodType: foodType || null,
+      proposedCategory: category || null,
       proposedImageUrl: imageDataUrl,
       proposedLat: position?.[0] ?? null,
       proposedLng: position?.[1] ?? null,
@@ -213,6 +222,19 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
             <MenuItem value="">{t.foodTypeAny}</MenuItem>
             {FOOD_TYPES.map(ft => (
               <MenuItem key={ft} value={ft}>{t.foodType[ft]}</MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            label={t.categoryField}
+            value={category}
+            onChange={(e) => setCategory(e.target.value as CategoryKind | '')}
+            select
+            fullWidth
+          >
+            <MenuItem value="">{t.categoryAny}</MenuItem>
+            {CATEGORY_KINDS.map(kind => (
+              <MenuItem key={kind} value={kind}>{t.category[kind]}</MenuItem>
             ))}
           </TextField>
 

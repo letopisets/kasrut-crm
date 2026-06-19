@@ -66,6 +66,9 @@ export interface MapTranslations {
   kashrutStatusField: string
   foodTypeField: string
   foodTypeAny: string
+  categoryField: string
+  categoryAny: string
+  category: { restaurant: string; bakery: string; cafe: string }
   imageField: string
   imageHint: string
   imageAdd: string
