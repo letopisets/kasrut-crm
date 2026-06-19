@@ -8,12 +8,13 @@ import {
 import CloseIcon        from '@mui/icons-material/Close'
 import RestartAltIcon   from '@mui/icons-material/RestartAlt'
 import ExpandMoreIcon   from '@mui/icons-material/ExpandMore'
-import type { MapFilters, FoodType } from '@/types'
+import type { MapFilters, FoodType, MapCategoryOption } from '@/types'
 import {
-  FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI,
+  FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, CATEGORY_EMOJI,
   RADIUS_VALUES,
 } from '@/lib/constants'
 import { useMapLang } from '@/i18n/useMapLang'
+import { useAppSelector } from '@/store/hooks'
 
 interface Props {
   open:                boolean
@@ -22,8 +23,10 @@ interface Props {
   activeFilterCount:   number
   availableHechshers:  string[]
   availableCities:     string[]
+  availableCategories: MapCategoryOption[]
   onToggleHechsher:    (h: string) => void
   onToggleFoodType:    (t: FoodType) => void
+  onToggleCategory:    (slug: string) => void
   onSetCity:           (c: string) => void
   onSetRadius:         (r: number | null) => void
   onReset:             () => void
@@ -33,11 +36,15 @@ const FOOD_TYPES: FoodType[] = ['meat', 'dairy', 'pareve', 'takeaway']
 
 export function FilterPanel({
   open, onClose, filters, activeFilterCount,
-  availableHechshers, availableCities,
-  onToggleHechsher, onToggleFoodType, onSetCity, onSetRadius, onReset,
+  availableHechshers, availableCities, availableCategories,
+  onToggleHechsher, onToggleFoodType, onToggleCategory, onSetCity, onSetRadius, onReset,
 }: Props) {
   const t = useMapLang()
+  const lang = useAppSelector(s => s.mapLang.lang)
   const [hechsherExpanded, setHechsherExpanded] = useState(filters.hechsher.length > 0)
+
+  const categoryLabel = (c: MapCategoryOption): string =>
+    lang === 'he' ? c.nameHe : lang === 'ru' ? (c.nameRu ?? c.nameHe) : (c.nameEn ?? c.nameHe)
 
   const cityOptions = [t.allCities, ...availableCities]
   const cityValue   = filters.city ? filters.city : t.allCities
@@ -91,6 +98,31 @@ export function FilterPanel({
             )
           })}
         </Stack>
+
+        {/* Establishment kind (вид) — restaurant / bakery / cafe */}
+        {availableCategories.length > 0 && (
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0, mb: 1.5, display: 'block' }}>
+              {t.categorySection}
+            </Typography>
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, mb: 3 }}>
+              {availableCategories.map(category => {
+                const active = filters.category.includes(category.slug)
+                const emoji  = CATEGORY_EMOJI[category.slug]
+                return (
+                  <Chip
+                    key={category.slug}
+                    label={emoji ? `${emoji} ${categoryLabel(category)}` : categoryLabel(category)}
+                    onClick={() => onToggleCategory(category.slug)}
+                    variant={active ? 'filled' : 'outlined'}
+                    color={active ? 'primary' : 'default'}
+                    sx={{ borderColor: active ? 'primary.main' : 'divider' }}
+                  />
+                )
+              })}
+            </Stack>
+          </>
+        )}
 
         {/* Hechsher — collapsible */}
         <Accordion

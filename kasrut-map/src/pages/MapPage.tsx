@@ -361,8 +361,10 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             activeFilterCount={ctrl.activeFilterCount}
             availableHechshers={ctrl.availableHechshers}
             availableCities={ctrl.availableCities}
+            availableCategories={ctrl.availableCategories}
             onToggleHechsher={ctrl.toggleHechsher}
             onToggleFoodType={ctrl.toggleFoodType}
+            onToggleCategory={ctrl.toggleCategory}
             onSetCity={ctrl.setCity}
             onSetRadius={ctrl.setRadius}
             onReset={ctrl.resetFilters}

@@ -18,6 +18,7 @@ const en: MapTranslations = {
   filterTitle: 'Filters',
   resetAll: 'Reset all',
   foodTypeSection: 'Food type',
+  categorySection: 'Establishment kind',
   hechsherSection: 'Hechsher',
   citySection: 'City',
   radiusSection: 'Search radius',

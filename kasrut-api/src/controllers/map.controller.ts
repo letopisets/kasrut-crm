@@ -31,6 +31,7 @@ function restaurantsCacheKey(filter: MapFilter): string {
     kashrutLevel: filter.kashrutLevel ? [...filter.kashrutLevel].sort() : null,
     hechsher:     filter.hechsher ? [...filter.hechsher].sort() : null,
     foodType:     filter.foodType ? [...filter.foodType].sort() : null,
+    category:     filter.category ? [...filter.category].sort() : null,
     bounds:       filter.bounds
       ? {
           north: roundCacheCoord(filter.bounds.north),
@@ -132,6 +133,7 @@ export const mapController = {
         kashrutLevel: parseCsv<KashrutLevel>(queryString(q.kashrutLevel)),
         hechsher:     parseCsv(queryString(q.hechsher)),
         foodType:     parseCsv(queryString(q.foodType)),
+        category:     parseCsv(queryString(q.category)),
         bounds:       parseBounds(q),
         center:       parseCenter(q),
         radius:       parseNumber(q.radius, 1, 100_000),

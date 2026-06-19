@@ -119,6 +119,19 @@ export default function Restaurants() {
           ))}
         </TextField>
 
+        <TextField
+          select
+          size="small"
+          value={ctrl.categoryFilter}
+          onChange={e => ctrl.setCategoryFilter(e.target.value)}
+          sx={selectSx}
+        >
+          <MenuItem value=""><em>{t.addRest.category ?? 'Вид заведения'}</em></MenuItem>
+          {ctrl.categoryOptions.map(o => (
+            <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+          ))}
+        </TextField>
+
         {ctrl.isOwner && (
           <TextField
             select
