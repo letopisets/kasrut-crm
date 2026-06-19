@@ -19,6 +19,7 @@ const suggestionSchema = z.object({
   proposedHechsher: z.string().trim().min(1).max(180).optional().nullable(),
   proposedKashrutStatus: z.string().trim().min(1).max(120).optional().nullable(),
   proposedFoodType: z.enum(['meat', 'dairy', 'pareve', 'takeaway']).optional().nullable(),
+  proposedCategory: z.string().trim().min(1).max(40).optional().nullable(),
   proposedImageUrl: z.string()
     .max(MAX_SUGGESTION_IMAGE_BYTES, 'Image is too large')
     .regex(SUGGESTION_IMAGE_PATTERN, 'Image must be a JPEG, PNG or WebP data URL')
@@ -40,7 +41,7 @@ const suggestionSchema = z.object({
   const hasChange = Boolean(
     value.proposedName || value.proposedAddress || value.proposedCity ||
     value.proposedHechsher || value.proposedKashrutStatus || value.proposedFoodType ||
-    value.proposedImageUrl || value.notes,
+    value.proposedCategory || value.proposedImageUrl || value.notes,
   )
   if (!hasChange) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'At least one proposed change is required' })

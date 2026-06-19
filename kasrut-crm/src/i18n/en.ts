@@ -171,6 +171,7 @@ const en: Translations = {
     proposedHechsher:       'Hechsher',
     proposedStatus:         'Kashrut status',
     proposedFoodType:       'Cuisine type',
+    proposedCategory:       'Establishment kind',
     proposedImage:          'Photo',
     notes:                  'User comment',
     user:                   'Submitted by',

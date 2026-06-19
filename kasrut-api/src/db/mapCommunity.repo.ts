@@ -41,6 +41,7 @@ export interface CreateSuggestionInput {
   proposedHechsher?: string | null
   proposedKashrutStatus?: string | null
   proposedFoodType?: FoodType | null
+  proposedCategory?: string | null   // EstablishmentCategory.slug
   proposedImageUrl?: string | null
   proposedLat?: number | null
   proposedLng?: number | null
@@ -224,6 +225,13 @@ const LEVEL_NAME_FOR_HECHSHER = {
 
 const FALLBACK_LEVEL_NAME = 'Regular'
 
+async function resolveCategoryId(tx: Prisma.TransactionClient, slug: string | null): Promise<string | null> {
+  const trimmed = slug?.trim()
+  if (!trimmed) return null
+  const row = await tx.establishmentCategory.findUnique({ where: { slug: trimmed }, select: { id: true } })
+  return row?.id ?? null
+}
+
 async function levelIdFromHechsher(tx: Prisma.TransactionClient, type: string): Promise<string> {
   const name =
     type in LEVEL_NAME_FOR_HECHSHER
@@ -399,6 +407,7 @@ export const mapCommunityRepo = {
         proposedHechsher: input.proposedHechsher || undefined,
         proposedKashrutStatus: input.proposedKashrutStatus || undefined,
         proposedFoodType: input.proposedFoodType ? input.proposedFoodType as PrismaFoodType : undefined,
+        proposedCategory: input.proposedCategory || undefined,
         proposedImageUrl: input.proposedImageUrl || undefined,
         proposedLat: input.proposedLat ?? undefined,
         proposedLng: input.proposedLng ?? undefined,
@@ -438,6 +447,10 @@ export const mapCommunityRepo = {
         if (suggestion.proposedAddress) patch.address = suggestion.proposedAddress
         if (suggestion.proposedCity)    patch.city    = suggestion.proposedCity
         if (suggestion.proposedFoodType) patch.foodType = suggestion.proposedFoodType
+        if (suggestion.proposedCategory) {
+          const categoryId = await resolveCategoryId(tx, suggestion.proposedCategory)
+          if (categoryId) patch.category = { connect: { id: categoryId } }
+        }
         if (
           isFiniteNumber(suggestion.proposedLat) &&
           isFiniteNumber(suggestion.proposedLng)
@@ -480,6 +493,7 @@ export const mapCommunityRepo = {
           reviewerRabbanutId: data.reviewerRabbanutId,
         })
         const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
+        const categoryId = await resolveCategoryId(tx, suggestion.proposedCategory)
         const restaurant = await tx.restaurant.create({
           data: {
             name: suggestion.proposedName,
@@ -495,6 +509,7 @@ export const mapCommunityRepo = {
             lat: suggestion.proposedLat,
             lng: suggestion.proposedLng,
             foodType: suggestion.proposedFoodType ?? DEFAULT_ADD_FOOD_TYPE,
+            ...(categoryId ? { categoryId } : {}),
           },
           select: { id: true },
         })

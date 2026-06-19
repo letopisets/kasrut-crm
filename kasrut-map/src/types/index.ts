@@ -104,6 +104,7 @@ export interface MapSuggestionPayload {
   proposedHechsher?: string | null
   proposedKashrutStatus?: string | null
   proposedFoodType?: FoodType | null
+  proposedCategory?: string | null   // EstablishmentCategory.slug — вид
   proposedImageUrl?: string | null
   proposedLat?: number | null
   proposedLng?: number | null

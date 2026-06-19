@@ -171,6 +171,7 @@ const ru: Translations = {
     proposedHechsher:       'Гекшер',
     proposedStatus:         'Статус кашрута',
     proposedFoodType:       'Тип кухни',
+    proposedCategory:       'Вид заведения',
     proposedImage:          'Фотография',
     notes:                  'Комментарий пользователя',
     user:                   'Автор',

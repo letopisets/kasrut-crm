@@ -175,6 +175,7 @@ export interface Translations {
     proposedHechsher: string
     proposedStatus: string
     proposedFoodType: string
+    proposedCategory: string
     proposedImage: string
     notes: string
     user: string
