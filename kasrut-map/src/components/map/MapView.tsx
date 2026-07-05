@@ -45,6 +45,19 @@ function FollowController({
   return null
 }
 
+/**
+ * Toggles the correction-mode crosshair class on the map container.
+ * Done imperatively because react-leaflet's MapContainer captures its
+ * className prop once at mount and never applies later changes.
+ */
+function CorrectingCursor({ correcting }: { correcting: boolean }) {
+  const map = useMap()
+  useEffect(() => {
+    map.getContainer().classList.toggle('km-correcting', correcting)
+  }, [map, correcting])
+  return null
+}
+
 /** Fires onMapClick when the user clicks anywhere on the map */
 function MapClickHandler({ onMapClick }: { onMapClick: (pos: [number, number]) => void }) {
   useMapEvents({ click: (e) => onMapClick([e.latlng.lat, e.latlng.lng]) })
@@ -226,9 +239,9 @@ export function MapView({
       center={userPosition ?? initialCenter}
       zoom={DEFAULT_ZOOM}
       style={{ width: '100%', height: '100%' }}
-      className={correcting ? 'km-correcting' : undefined}
       zoomControl={false}
     >
+      <CorrectingCursor correcting={correcting} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
