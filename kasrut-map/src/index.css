@@ -38,8 +38,11 @@ html, body, #root {
 
 /* Theme-specific tile treatment for OSM. Applied per tile, not on the pane:
    a filter on the moving pane forces re-rasterization every pan/zoom frame,
-   while per-tile filters are rasterized once and composited as textures. */
-.leaflet-tile { filter: var(--km-tile-filter); }
+   while per-tile filters are rasterized once and composited as textures.
+   Two-class selector: leaflet.css ships `.leaflet-tile { filter: inherit }`
+   and loads after this file (lazy MapView chunk), so equal specificity
+   would lose the cascade. */
+.leaflet-tile-pane .leaflet-tile { filter: var(--km-tile-filter); }
 
 /* Custom marker pin */
 .km-pin {
