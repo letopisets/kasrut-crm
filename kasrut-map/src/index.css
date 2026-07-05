@@ -36,8 +36,10 @@ html, body, #root {
   background: var(--km-bg);
 }
 
-/* Theme-specific tile treatment for OSM */
-.leaflet-tile-pane { filter: var(--km-tile-filter); }
+/* Theme-specific tile treatment for OSM. Applied per tile, not on the pane:
+   a filter on the moving pane forces re-rasterization every pan/zoom frame,
+   while per-tile filters are rasterized once and composited as textures. */
+.leaflet-tile { filter: var(--km-tile-filter); }
 
 /* Custom marker pin */
 .km-pin {
@@ -85,20 +87,32 @@ html, body, #root {
   box-shadow: 0 8px 24px var(--km-pin-shadow);
 }
 
-/* User location pulse */
+/* User location pulse. The expanding ring animates transform/opacity only
+   (compositor-friendly); animating box-shadow here would repaint the marker
+   region on every frame, forever, stealing frame budget from panning. */
 .km-user-dot {
+  position: relative;
   width: 22px;
   height: 22px;
   border-radius: 50%;
   background: var(--km-primary);
   border: 3px solid #fff;
-  box-shadow: 0 0 0 0 rgba(232,165,7,0.5), 0 2px 6px rgba(0,0,0,0.28);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.28);
+}
+.km-user-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: rgba(232,165,7,0.55);
+  z-index: -1;
   animation: km-pulse 1.8s ease-out infinite;
+  will-change: transform, opacity;
 }
 @keyframes km-pulse {
-  0%   { box-shadow: 0 0 0 0   rgba(232,165,7,0.55), 0 2px 6px rgba(0,0,0,0.4); }
-  60%  { box-shadow: 0 0 0 14px rgba(232,165,7,0),   0 2px 6px rgba(0,0,0,0.4); }
-  100% { box-shadow: 0 0 0 0   rgba(232,165,7,0),    0 2px 6px rgba(0,0,0,0.4); }
+  0%   { transform: scale(1);   opacity: 1; }
+  60%  { transform: scale(2.3); opacity: 0; }
+  100% { transform: scale(2.3); opacity: 0; }
 }
 
 /* Correction mode — crosshair cursor */
