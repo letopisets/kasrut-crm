@@ -24,7 +24,13 @@ const DEFAULT_FILTERS: MapFilters = {
 }
 
 const MAP_RESTAURANT_LIMIT = 750
-const QUERY_COORD_PRECISION = 4
+// Matches the server-side cache grid (~110 m): finer client precision would
+// only mint new query-cache entries (and network refetches while moving)
+// without ever changing what the server returns.
+const QUERY_COORD_PRECISION = 3
+// Viewport bounds never reach the server — they only feed marker culling and
+// the suggestion-dialog default position, so they keep ~11 m precision.
+const VIEWPORT_COORD_PRECISION = 4
 const EMPTY_RESTAURANTS_RESPONSE: MapRestaurantsResponse = {
   restaurants: [],
   total: 0,
@@ -48,6 +54,11 @@ function roundCoord(value: number): number {
   return Math.round(value * factor) / factor
 }
 
+function roundViewportCoord(value: number): number {
+  const factor = 10 ** VIEWPORT_COORD_PRECISION
+  return Math.round(value * factor) / factor
+}
+
 function positionKey(position: [number, number] | null): string {
   return position ? `${roundCoord(position[0])}:${roundCoord(position[1])}` : ''
 }
@@ -61,10 +72,10 @@ function positionFromKey(key: string): [number, number] | null {
 function normalizeViewport(viewport: MapViewport): MapViewport {
   return {
     bounds: {
-      north: roundCoord(viewport.bounds.north),
-      south: roundCoord(viewport.bounds.south),
-      east:  roundCoord(viewport.bounds.east),
-      west:  roundCoord(viewport.bounds.west),
+      north: roundViewportCoord(viewport.bounds.north),
+      south: roundViewportCoord(viewport.bounds.south),
+      east:  roundViewportCoord(viewport.bounds.east),
+      west:  roundViewportCoord(viewport.bounds.west),
     },
     zoom: Math.round(viewport.zoom * 100) / 100,
   }
@@ -195,45 +206,68 @@ export function useMapController({
       .sort((a, b) => a.localeCompare(b, lang))
   ), [options.cities, lang])
 
-  /** Attach distance from the effective position (GPS or IP fallback),
-   *  apply radius filter, sort nearest first. */
-  const restaurants = useMemo<MapRestaurant[]>(() => {
-    const withDist = restaurantPayload.restaurants.map(r => ({
-      ...r,
-      distance: effectivePosition ? haversine(effectivePosition, [r.lat, r.lng]) : undefined,
-    }))
-    const filtered = (filters.radius && effectivePosition)
-      ? withDist.filter(r => r.distance !== undefined && r.distance <= filters.radius!)
-      : withDist
-    if (!effectivePosition) return filtered
-    return [...filtered].sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+  /** Map layer: the restaurant objects from the query cache, radius-filtered
+   *  but NOT copied or annotated. Preserving object identity across GPS
+   *  updates lets memoized markers skip re-rendering — annotating distance
+   *  here would mint 750 new objects on every accepted position change. */
+  const mapRestaurants = useMemo<MapRestaurant[]>(() => {
+    if (!filters.radius || !effectivePosition) return restaurantPayload.restaurants
+    return restaurantPayload.restaurants.filter(r =>
+      haversine(effectivePosition, [r.lat, r.lng]) <= filters.radius!)
   }, [restaurantPayload.restaurants, effectivePosition, filters.radius])
 
-  const goToMyLocation  = () => { geo.refresh(); setPanToUser(true) }
-  const startCorrection = () => { setCorrecting(true); setView('map') }
-  const stopCorrection  = () => setCorrecting(false)
-  const applyPosition   = (pos: [number, number]) => {
-    geo.setPosition(pos)
+  /** List layer: same set, annotated with distance and sorted nearest first. */
+  const restaurants = useMemo<MapRestaurant[]>(() => {
+    if (!effectivePosition) return mapRestaurants
+    return mapRestaurants
+      .map(r => ({ ...r, distance: haversine(effectivePosition, [r.lat, r.lng]) }))
+      .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+  }, [mapRestaurants, effectivePosition])
+
+  /** Detail-sheet copy of the selection with an up-to-date distance. */
+  const selectedWithDistance = useMemo<MapRestaurant | null>(() => {
+    if (!selected) return null
+    if (!effectivePosition) return selected
+    return { ...selected, distance: haversine(effectivePosition, [selected.lat, selected.lng]) }
+  }, [selected, effectivePosition])
+
+  // Stable function pieces of the geo/route hooks, so callbacks below do not
+  // pick up a new identity every render (the hook objects themselves are
+  // recreated each time).
+  const { refresh: refreshGeo, setPosition: setGeoPosition, setHighFrequency } = geo
+  const { fetchRoute, clearRoute } = router
+
+  const goToMyLocation = useCallback(() => {
+    refreshGeo()
+    setPanToUser(true)
+  }, [refreshGeo])
+  const startCorrection = useCallback(() => { setCorrecting(true); setView('map') }, [])
+  const stopCorrection  = useCallback(() => setCorrecting(false), [])
+  const applyPosition   = useCallback((pos: [number, number]) => {
+    setGeoPosition(pos)
     setCorrecting(false)
     setPanToUser(true)
-  }
+  }, [setGeoPosition])
+  const onPanHandled        = useCallback(() => setPanToUser(false), [])
+  const onFollowUserHandled = useCallback(() => setFollowUser(false), [])
 
-  const startRoute = (r: MapRestaurant) => {
-    if (!geo.position) return
+  const geoPosition = geo.position
+  const startRoute = useCallback((r: MapRestaurant) => {
+    if (!geoPosition) return
     setSelected(r)
     setView('map')
-    router.fetchRoute(geo.position, [r.lat, r.lng])
+    fetchRoute(geoPosition, [r.lat, r.lng])
     setRoutePanelOpen(true)
     setRouteMode('steps')
     setFollowUser(false)
-  }
+  }, [fetchRoute, geoPosition])
 
-  const stopRoute = () => {
-    router.clearRoute()
+  const stopRoute = useCallback(() => {
+    clearRoute()
     setRoutePanelOpen(false)
     setRouteMode('steps')
     setFollowUser(false)
-  }
+  }, [clearRoute])
 
   const enterNavigation = useCallback(() => {
     setRouteMode('navigate')
@@ -251,38 +285,38 @@ export function useMapController({
 
   // High-frequency GPS only while actively navigating
   useEffect(() => {
-    geo.setHighFrequency(routeMode === 'navigate')
-  }, [routeMode, geo])
+    setHighFrequency(routeMode === 'navigate')
+  }, [routeMode, setHighFrequency])
 
   const activeStep = useActiveStep(router.route, geo.position)
 
-  const toggleHechsher = (hechsher: string) =>
+  const toggleHechsher = useCallback((hechsher: string) =>
     setFilters(f => ({
       ...f,
       hechsher: f.hechsher.includes(hechsher)
         ? f.hechsher.filter(h => h !== hechsher)
         : [...f.hechsher, hechsher],
-    }))
+    })), [])
 
-  const toggleFoodType = (type: FoodType) =>
+  const toggleFoodType = useCallback((type: FoodType) =>
     setFilters(f => ({
       ...f,
       foodType: f.foodType.includes(type)
         ? f.foodType.filter(t => t !== type)
         : [...f.foodType, type],
-    }))
+    })), [])
 
-  const toggleCategory = (slug: string) =>
+  const toggleCategory = useCallback((slug: string) =>
     setFilters(f => ({
       ...f,
       category: f.category.includes(slug)
         ? f.category.filter(c => c !== slug)
         : [...f.category, slug],
-    }))
+    })), [])
 
-  const setCity   = (city: string)         => setFilters(f => ({ ...f, city }))
-  const setRadius = (radius: number | null) => setFilters(f => ({ ...f, radius }))
-  const resetFilters = ()                  => setFilters(DEFAULT_FILTERS)
+  const setCity      = useCallback((city: string)          => setFilters(f => ({ ...f, city })), [])
+  const setRadius    = useCallback((radius: number | null) => setFilters(f => ({ ...f, radius })), [])
+  const resetFilters = useCallback(()                      => setFilters(DEFAULT_FILTERS), [])
 
   const activeFilterCount =
     filters.hechsher.length +
@@ -305,20 +339,21 @@ export function useMapController({
     availableHechshers, availableCities, availableCategories,
     // data
     restaurants,
+    mapRestaurants,
     isLoading,
     isFetching,
     restaurantTotal: restaurantPayload.total,
     restaurantLimit: restaurantPayload.limit,
     restaurantResultLimited: restaurantPayload.limited,
     // selected
-    selected, setSelected,
+    selected, selectedWithDistance, setSelected,
     // viewport
     viewport, setViewport: setStableViewport,
     // geolocation
     geo,
     // location correction
     correcting, goToMyLocation, startCorrection, stopCorrection, applyPosition,
-    panToUser, onPanHandled: () => setPanToUser(false),
+    panToUser, onPanHandled,
     // routing
     route:          router.route,
     routeLoading:   router.loading,
@@ -327,7 +362,7 @@ export function useMapController({
     routeMode,
     activeStep,
     followUser,
-    onFollowUserHandled: () => setFollowUser(false),
+    onFollowUserHandled,
     startRoute, stopRoute,
     enterNavigation, exitNavigation, recenterOnUser,
     formatDist:  router.formatDist,

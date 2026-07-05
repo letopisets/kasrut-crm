@@ -54,8 +54,8 @@ export interface RestaurantClusterIndex {
  * being swallowed by a cluster (and without inflating cluster counts).
  *
  * Input is re-sorted by id before loading: supercluster's greedy clustering
- * depends on point order, and the caller's array is distance-sorted (its
- * order shifts as the user moves). A stable order keeps cluster anchors,
+ * depends on point order, and the caller's array order is not guaranteed
+ * stable across query-cache entries. A stable order keeps cluster anchors,
  * counts and cluster_ids identical across rebuilds for the same data set.
  */
 export function buildClusterIndex(

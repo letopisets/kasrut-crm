@@ -1,7 +1,8 @@
 import { baseApi } from './baseApi'
 import type { MapHechsher, MapOptions, MapRestaurantQuery, MapRestaurantsResponse } from '@/types'
 
-const QUERY_COORD_PRECISION = 4
+// Matches the server-side cache grid (~110 m) — see useMapController.
+const QUERY_COORD_PRECISION = 3
 
 function formatCoord(value: number): string {
   const factor = 10 ** QUERY_COORD_PRECISION
