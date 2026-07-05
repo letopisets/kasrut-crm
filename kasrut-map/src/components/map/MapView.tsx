@@ -7,6 +7,7 @@ import type { MapRestaurant, MapViewport, RouteData } from '@/types'
 import { RestaurantMarker } from './RestaurantMarker'
 import { RouteLayer }       from './RouteLayer'
 import { DEFAULT_ZOOM, NAV_ZOOM } from '@/lib/constants'
+import { buildClusterIndex, getRenderItems } from '@/lib/clusterIndex'
 
 type RotatableMap = L.Map & {
   setBearing?: (deg: number) => void
@@ -102,79 +103,6 @@ function ViewportReporter({ onViewportChange }: { onViewportChange: (viewport: M
   return null
 }
 
-interface ClusterRenderItem {
-  type: 'cluster'
-  id: string
-  count: number
-  position: [number, number]
-}
-
-interface RestaurantRenderItem {
-  type: 'restaurant'
-  restaurant: MapRestaurant
-}
-
-type RenderItem = ClusterRenderItem | RestaurantRenderItem
-
-function clusterCellSize(zoom: number): number {
-  if (zoom >= 16) return 0
-  if (zoom >= 15) return 0.0015
-  if (zoom >= 14) return 0.003
-  if (zoom >= 13) return 0.006
-  if (zoom >= 12) return 0.012
-  if (zoom >= 11) return 0.024
-  return 0.05
-}
-
-function clusterRestaurants(restaurants: MapRestaurant[], zoom: number, selectedId?: string): RenderItem[] {
-  const cellSize = clusterCellSize(zoom)
-  if (cellSize === 0 || restaurants.length <= 120) {
-    return restaurants.map(restaurant => ({ type: 'restaurant' as const, restaurant }))
-  }
-
-  const clusters = new Map<string, { count: number; latSum: number; lngSum: number; restaurants: MapRestaurant[] }>()
-  const items: RenderItem[] = []
-
-  for (const restaurant of restaurants) {
-    if (restaurant.id === selectedId) {
-      items.push({ type: 'restaurant', restaurant })
-      continue
-    }
-
-    const key = `${Math.floor(restaurant.lat / cellSize)}:${Math.floor(restaurant.lng / cellSize)}`
-    const cluster = clusters.get(key)
-    if (cluster) {
-      cluster.count += 1
-      cluster.latSum += restaurant.lat
-      cluster.lngSum += restaurant.lng
-      cluster.restaurants.push(restaurant)
-    } else {
-      clusters.set(key, {
-        count: 1,
-        latSum: restaurant.lat,
-        lngSum: restaurant.lng,
-        restaurants: [restaurant],
-      })
-    }
-  }
-
-  for (const [key, cluster] of clusters) {
-    if (cluster.count === 1) {
-      items.push({ type: 'restaurant', restaurant: cluster.restaurants[0] })
-      continue
-    }
-
-    items.push({
-      type: 'cluster',
-      id: key,
-      count: cluster.count,
-      position: [cluster.latSum / cluster.count, cluster.lngSum / cluster.count],
-    })
-  }
-
-  return items
-}
-
 function makeClusterIcon(count: number): L.DivIcon {
   return L.divIcon({
     className: '',
@@ -184,12 +112,18 @@ function makeClusterIcon(count: number): L.DivIcon {
   })
 }
 
-function ClusterMarker({ count, position }: { count: number; position: [number, number] }) {
+function ClusterMarker({
+  count, position, expansionZoom,
+}: {
+  count: number
+  position: [number, number]
+  expansionZoom: number
+}) {
   const map = useMap()
   const icon = useMemo(() => makeClusterIcon(count), [count])
   const eventHandlers = useMemo(() => ({
-    click: () => map.setView(position, Math.min(map.getZoom() + 2, 19), { animate: true }),
-  }), [map, position])
+    click: () => map.setView(position, expansionZoom, { animate: true }),
+  }), [map, position, expansionZoom])
 
   return (
     <Marker
@@ -262,10 +196,25 @@ export function MapView({
     () => navigating ? makeNavIcon(userHeading) : USER_ICON,
     [navigating, userHeading],
   )
-  const renderItems = useMemo(
-    () => clusterRestaurants(restaurants, viewport?.zoom ?? DEFAULT_ZOOM, selected?.id),
-    [restaurants, selected?.id, viewport?.zoom],
+  // Spatial index over everything loaded (minus the selected pin); the render
+  // list is then just the clusters/pins inside the current viewport, so
+  // off-screen restaurants never become DOM nodes.
+  const clusterIndex = useMemo(
+    () => buildClusterIndex(restaurants, selected?.id),
+    [restaurants, selected?.id],
   )
+  const renderItems = useMemo(
+    () => getRenderItems(clusterIndex, viewport, DEFAULT_ZOOM),
+    [clusterIndex, viewport],
+  )
+  // The selected restaurant is excluded from the index and rendered as its
+  // own pin whenever a selection exists, so it never gets swallowed by a
+  // cluster and stays visible even when the marker layer is empty (low zoom,
+  // filtered out). Prefer the fresh copy from the current results over the
+  // possibly stale object held in selection state.
+  const selectedOnMap = selected
+    ? restaurants.find(r => r.id === selected.id) ?? selected
+    : null
 
   const mapOptions = { rotate: true, rotateControl: false, touchRotate: false } as L.MapOptions
 
@@ -344,15 +293,25 @@ export function MapView({
           key={`cluster:${item.id}`}
           count={item.count}
           position={item.position}
+          expansionZoom={item.expansionZoom}
         />
       ) : (
         <RestaurantMarker
           key={item.restaurant.id}
           restaurant={item.restaurant}
-          selected={selected?.id === item.restaurant.id}
+          selected={false}
           onClick={onSelect}
         />
       ))}
+
+      {selectedOnMap && (
+        <RestaurantMarker
+          key={selectedOnMap.id}
+          restaurant={selectedOnMap}
+          selected
+          onClick={onSelect}
+        />
+      )}
     </MapContainer>
   )
 }
