@@ -187,6 +187,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         }}>
           <Suspense fallback={<MapSkeleton />}>
             <MapView
+              themeMode={themeMode}
               userPosition={ctrl.geo.position}
               gpsAccuracy={ctrl.geo.accuracy}
               userHeading={ctrl.geo.heading}

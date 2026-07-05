@@ -3,7 +3,6 @@
 :root {
   --km-bg: #f6f7f9;
   --km-text: #17202a;
-  --km-tile-filter: none;
   --km-scroll-track: #e9eef3;
   --km-scroll-thumb: #b8c3cf;
   --km-pin-border: rgba(255,255,255,0.85);
@@ -14,7 +13,6 @@
 :root[data-theme="dark"] {
   --km-bg: #0f1117;
   --km-text: #e8e8ee;
-  --km-tile-filter: brightness(0.85) saturate(0.9);
   --km-scroll-track: #1a1d2e;
   --km-scroll-thumb: #2a2d3e;
   --km-pin-border: rgba(255,255,255,0.3);
@@ -29,20 +27,10 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Leaflet map fills parent */
-.leaflet-container {
-  width: 100%;
-  height: 100%;
+/* Map canvas — dark/light comes from the vector style itself, not filters */
+.maplibregl-map {
   background: var(--km-bg);
 }
-
-/* Theme-specific tile treatment for OSM. Applied per tile, not on the pane:
-   a filter on the moving pane forces re-rasterization every pan/zoom frame,
-   while per-tile filters are rasterized once and composited as textures.
-   Two-class selector: leaflet.css ships `.leaflet-tile { filter: inherit }`
-   and loads after this file (lazy MapView chunk), so equal specificity
-   would lose the cascade. */
-.leaflet-tile-pane .leaflet-tile { filter: var(--km-tile-filter); }
 
 /* Custom marker pin */
 .km-pin {
@@ -117,10 +105,6 @@ html, body, #root {
   60%  { transform: scale(2.3); opacity: 0; }
   100% { transform: scale(2.3); opacity: 0; }
 }
-
-/* Correction mode — crosshair cursor */
-.leaflet-container.km-correcting,
-.leaflet-container.km-correcting .leaflet-interactive { cursor: crosshair !important; }
 
 /* Navigation cursor — points along user heading */
 .km-user-nav {

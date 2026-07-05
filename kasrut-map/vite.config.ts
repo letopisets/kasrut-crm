@@ -13,11 +13,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Splitting heavy vendor groups so a code-only deploy doesn't bust
-        // the leaflet/mui chunks (which dominate first-paint cost). Order
+        // the maplibre/mui chunks (which dominate first-paint cost). Order
         // matches what the user-perceived load tree actually fetches.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
-          if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-leaflet'
+          if (id.includes('maplibre') || id.includes('react-map-gl')) return 'vendor-maplibre'
           if (id.includes('@mui') || id.includes('@emotion')) return 'vendor-mui'
           if (id.includes('@reduxjs') || id.includes('react-redux')) return 'vendor-redux'
           if (id.includes('@sentry')) return 'vendor-sentry'
