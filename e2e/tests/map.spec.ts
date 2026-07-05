@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test'
 test.describe('Public map', () => {
   test('renders map and loads markers', async ({ page }) => {
     await page.goto('/')
-    // Leaflet container
-    await expect(page.locator('.leaflet-container')).toBeVisible({ timeout: 10_000 })
+    // MapLibre canvas container
+    await expect(page.locator('.maplibregl-map')).toBeVisible({ timeout: 10_000 })
   })
 
   test('opens filter panel', async ({ page }) => {

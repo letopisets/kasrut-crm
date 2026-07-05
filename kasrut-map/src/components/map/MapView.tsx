@@ -1,70 +1,33 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { MapContainer, TileLayer, Circle, Marker, useMap, useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Map, { Marker, useMap } from 'react-map-gl/maplibre'
+import type { MapRef, MapLayerMouseEvent, MarkerEvent, ViewStateChangeEvent } from 'react-map-gl/maplibre'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import type { MapRestaurant, MapViewport, RouteData } from '@/types'
+import type { ThemeMode } from '@/theme'
 import { RestaurantMarker } from './RestaurantMarker'
 import { RouteLayer }       from './RouteLayer'
+import { CirclesLayer }     from './CirclesLayer'
 import { DEFAULT_ZOOM, NAV_ZOOM } from '@/lib/constants'
+import { toClassicZoom, toMapZoom } from '@/lib/mapZoom'
 import { buildClusterIndex, getRenderItems } from '@/lib/clusterIndex'
 
-// Fix Leaflet default icon broken in Vite
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)['_getIconUrl']
-L.Icon.Default.mergeOptions({
-  iconUrl:       new URL('leaflet/dist/images/marker-icon.png',    import.meta.url).href,
-  iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).href,
-  shadowUrl:     new URL('leaflet/dist/images/marker-shadow.png',  import.meta.url).href,
-})
-
-/** Centers map on the user's position once, then calls onDone */
-function PanTo({ position, onDone }: { position: [number, number]; onDone: () => void }) {
-  const map = useMap()
-  useEffect(() => {
-    map.setView(position, Math.max(map.getZoom(), DEFAULT_ZOOM), { animate: true })
-    onDone()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  return null
+// Hebrew (and Arabic) labels only render in the correct character order with
+// the RTL text plugin. `true` = lazy: it loads the first time RTL text is on
+// screen, which for an Israel-centred map is immediately, but keeps the
+// plugin off the critical path. The file is vendored in public/rtl-text
+// (from @mapbox/mapbox-gl-rtl-text 0.4.0, BSD-2-Clause — its package exports
+// hide the dist build from bundlers).
+if (maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+  void maplibregl.setRTLTextPlugin('/rtl-text/mapbox-gl-rtl-text-0.4.0.js', true)
 }
 
-/** Keeps the map centered on the user while followUser is true. */
-function FollowController({
-  position, followUser, onFollowHandled,
-}: {
-  position: [number, number] | null
-  followUser: boolean
-  onFollowHandled: () => void
-}) {
-  const map = useMap()
-  useEffect(() => {
-    if (!followUser || !position) return
-    const targetZoom = Math.max(map.getZoom(), NAV_ZOOM)
-    map.setView(position, targetZoom, { animate: true, duration: 0.5 })
-    onFollowHandled()
-  }, [followUser, position, map, onFollowHandled])
-  return null
+const STYLE_URL: Record<ThemeMode, string> = {
+  light: 'https://tiles.openfreemap.org/styles/liberty',
+  dark:  'https://tiles.openfreemap.org/styles/dark',
 }
 
-/**
- * Toggles the correction-mode crosshair class on the map container.
- * Done imperatively because react-leaflet's MapContainer captures its
- * className prop once at mount and never applies later changes.
- */
-function CorrectingCursor({ correcting }: { correcting: boolean }) {
-  const map = useMap()
-  useEffect(() => {
-    map.getContainer().classList.toggle('km-correcting', correcting)
-  }, [map, correcting])
-  return null
-}
-
-/** Fires onMapClick when the user clicks anywhere on the map */
-function MapClickHandler({ onMapClick }: { onMapClick: (pos: [number, number]) => void }) {
-  useMapEvents({ click: (e) => onMapClick([e.latlng.lat, e.latlng.lng]) })
-  return null
-}
-
-function toViewport(map: L.Map): MapViewport {
+function toViewport(map: maplibregl.Map): MapViewport {
   const bounds = map.getBounds()
   return {
     bounds: {
@@ -73,36 +36,8 @@ function toViewport(map: L.Map): MapViewport {
       east:  bounds.getEast(),
       west:  bounds.getWest(),
     },
-    zoom: map.getZoom(),
+    zoom: toClassicZoom(map.getZoom()),
   }
-}
-
-/** Reports current bounds after map movement so API can load only visible markers. */
-function ViewportReporter({ onViewportChange }: { onViewportChange: (viewport: MapViewport) => void }) {
-  const map = useMap()
-  const report = useCallback(() => {
-    onViewportChange(toViewport(map))
-  }, [map, onViewportChange])
-
-  useEffect(() => {
-    report()
-  }, [report])
-
-  useMapEvents({
-    moveend: report,
-    zoomend: report,
-    resize: report,
-  })
-  return null
-}
-
-function makeClusterIcon(count: number): L.DivIcon {
-  return L.divIcon({
-    className: '',
-    iconSize: [42, 42],
-    iconAnchor: [21, 21],
-    html: `<div class="km-cluster">${count}</div>`,
-  })
 }
 
 function ClusterMarker({
@@ -112,18 +47,56 @@ function ClusterMarker({
   position: [number, number]
   expansionZoom: number
 }) {
-  const map = useMap()
-  const icon = useMemo(() => makeClusterIcon(count), [count])
-  const eventHandlers = useMemo(() => ({
-    click: () => map.setView(position, expansionZoom, { animate: true }),
-  }), [map, position, expansionZoom])
+  const { current: map } = useMap()
+  const handleClick = useCallback((e: MarkerEvent<MouseEvent>) => {
+    // Marker clicks bubble into the map's own click handler (both live on the
+    // canvas container) — without this, a tap in correction mode would also
+    // apply the cluster's location as the user's corrected position.
+    e.originalEvent.stopPropagation()
+    map?.easeTo({
+      center: [position[1], position[0]],
+      zoom: toMapZoom(expansionZoom),
+      duration: 400,
+    })
+  }, [map, position, expansionZoom])
 
   return (
     <Marker
-      position={position}
-      icon={icon}
-      eventHandlers={eventHandlers}
-    />
+      longitude={position[1]}
+      latitude={position[0]}
+      anchor="center"
+      onClick={handleClick}
+    >
+      <div className="km-cluster">{count}</div>
+    </Marker>
+  )
+}
+
+/**
+ * User-position marker: pulsing dot, or a heading arrow while navigating.
+ * The arrow is drawn relative to the MAP (rotationAlignment="map"), so it
+ * points along the travel direction whether or not the map itself is
+ * rotated to heading-up.
+ */
+function UserMarker({
+  position, navigating, heading,
+}: {
+  position: [number, number]
+  navigating: boolean
+  heading: number | null
+}) {
+  return (
+    <Marker
+      longitude={position[1]}
+      latitude={position[0]}
+      anchor="center"
+      rotation={navigating ? heading ?? 0 : 0}
+      rotationAlignment="map"
+      pitchAlignment="viewport"
+      style={{ pointerEvents: 'none', zIndex: 3 }}
+    >
+      <div className={navigating ? 'km-user-nav' : 'km-user-dot'} />
+    </Marker>
   )
 }
 
@@ -141,57 +114,12 @@ interface Props {
   viewport:     MapViewport | null
   radius:       number | null
   route:        RouteData | null
+  themeMode:    ThemeMode
   onSelect:     (r: MapRestaurant) => void
   onPanHandled: () => void
   onFollowHandled: () => void
   onMapClick:   (pos: [number, number]) => void
   onViewportChange: (viewport: MapViewport) => void
-}
-
-const USER_ICON = L.divIcon({
-  className: '',
-  iconSize:   [24, 24],
-  iconAnchor: [12, 12],
-  html: '<div class="km-user-dot"></div>',
-})
-
-const NAV_ICON = L.divIcon({
-  className: '',
-  iconSize:   [40, 40],
-  iconAnchor: [20, 20],
-  html: '<div class="km-user-nav"></div>',
-})
-
-/**
- * User-position marker. In navigate mode the arrow tracks the heading by
- * mutating the existing element's transform — recreating the DivIcon per
- * GPS tick would replace the DOM node (and its drop-shadow) every update.
- */
-function UserMarker({
-  position, navigating, heading,
-}: {
-  position: [number, number]
-  navigating: boolean
-  heading: number | null
-}) {
-  const markerRef = useRef<L.Marker | null>(null)
-
-  useEffect(() => {
-    if (!navigating) return
-    const arrow = markerRef.current?.getElement()
-      ?.querySelector<HTMLElement>('.km-user-nav')
-    if (arrow) arrow.style.transform = `rotate(${heading ?? 0}deg)`
-  }, [navigating, heading])
-
-  return (
-    <Marker
-      ref={markerRef}
-      position={position}
-      icon={navigating ? NAV_ICON : USER_ICON}
-      interactive={false}
-      zIndexOffset={2000}
-    />
-  )
 }
 
 // Memoized: MapPage re-renders on plenty of unrelated state (dialogs,
@@ -211,12 +139,20 @@ export const MapView = memo(function MapView({
   viewport,
   radius,
   route,
+  themeMode,
   onSelect,
   onPanHandled,
   onFollowHandled,
   onMapClick,
   onViewportChange,
 }: Props) {
+  const mapRef = useRef<MapRef>(null)
+  // react-map-gl creates the maplibre instance asynchronously, so
+  // mapRef.current is null during the first effect passes. Camera effects
+  // below depend on this flag so intents that arrive before the map exists
+  // (e.g. a cached GPS fix setting panToUser at mount) replay once it loads.
+  const [mapReady, setMapReady] = useState(false)
+
   // Spatial index over everything loaded (minus the selected pin); the render
   // list is then just the clusters/pins inside the current viewport, so
   // off-screen restaurants never become DOM nodes.
@@ -237,60 +173,114 @@ export const MapView = memo(function MapView({
     ? restaurants.find(r => r.id === selected.id) ?? selected
     : null
 
+  const reportViewport = useCallback((e: ViewStateChangeEvent | maplibregl.MapLibreEvent) => {
+    onViewportChange(toViewport(e.target))
+  }, [onViewportChange])
+
+  const handleLoad = useCallback((e: maplibregl.MapLibreEvent) => {
+    // User-driven rotation stays off (parity with the Leaflet version);
+    // navigation mode rotates the map programmatically.
+    e.target.touchZoomRotate.disableRotation()
+    e.target.keyboard.disableRotation()
+    reportViewport(e)
+    setMapReady(true)
+  }, [reportViewport])
+
+  // If the style fails to load (offline, blocked host), the 'load' event
+  // never fires — still report the viewport so the marker layer and zoom
+  // gating keep working over the blank canvas.
+  const handleError = useCallback(() => {
+    const map = mapRef.current
+    if (map) onViewportChange(toViewport(map.getMap()))
+  }, [onViewportChange])
+
+  const handleClick = useCallback((e: MapLayerMouseEvent) => {
+    if (correcting) onMapClick([e.lngLat.lat, e.lngLat.lng])
+  }, [correcting, onMapClick])
+
+  const headingValid = userHeading != null && Number.isFinite(userHeading)
+
+  // Centers the map on the user once (my-location button / first GPS fix).
+  // Gated on mapReady so an intent raised before the map instance exists is
+  // replayed on load instead of being consumed against a null ref.
+  useEffect(() => {
+    if (!mapReady || !panToUser || !userPosition) return
+    const map = mapRef.current
+    if (!map) return
+    map.flyTo({
+      center: [userPosition[1], userPosition[0]],
+      zoom: Math.max(map.getZoom(), toMapZoom(DEFAULT_ZOOM)),
+      duration: 800,
+    })
+    onPanHandled()
+  }, [mapReady, panToUser, userPosition, onPanHandled])
+
+  // One-shot recenter when followUser is raised (entering navigation or the
+  // recenter FAB). The bearing is folded into the same easeTo: a separate
+  // bearing ease issued in the same effect flush would cancel this one at
+  // frame zero (easeTo starts by stopping the in-flight animation).
+  useEffect(() => {
+    if (!mapReady || !followUser || !userPosition) return
+    const map = mapRef.current
+    if (!map) return
+    map.easeTo({
+      center: [userPosition[1], userPosition[0]],
+      zoom: Math.max(map.getZoom(), toMapZoom(NAV_ZOOM)),
+      ...(navigating && headingValid ? { bearing: userHeading! } : {}),
+      duration: 500,
+    })
+    onFollowHandled()
+  }, [mapReady, followUser, userPosition, navigating, headingValid, userHeading, onFollowHandled])
+
+  // Heading-up navigation: the map rotates so the travel direction points up.
+  // MapLibre's bearing is the compass direction that is "up", i.e. exactly
+  // the GPS heading. The transition INTO navigation is handled by the follow
+  // effect above (combined ease); this effect only tracks later heading
+  // changes and resets north-up when navigation ends.
+  const prevNavigatingRef = useRef(false)
+  useEffect(() => {
+    const wasNavigating = prevNavigatingRef.current
+    prevNavigatingRef.current = navigating
+    if (!mapReady) return
+    const map = mapRef.current
+    if (!map) return
+    if (!navigating) {
+      if (wasNavigating && map.getBearing() !== 0) {
+        map.easeTo({ bearing: 0, duration: 400 })
+      }
+      return
+    }
+    if (!wasNavigating || !headingValid) return
+    map.easeTo({ bearing: userHeading!, duration: 300 })
+  }, [mapReady, navigating, headingValid, userHeading])
+
   return (
-    <MapContainer
-      center={userPosition ?? initialCenter}
-      zoom={DEFAULT_ZOOM}
+    <Map
+      ref={mapRef}
+      initialViewState={{
+        longitude: (userPosition ?? initialCenter)[1],
+        latitude:  (userPosition ?? initialCenter)[0],
+        zoom: toMapZoom(DEFAULT_ZOOM),
+      }}
+      mapStyle={STYLE_URL[themeMode]}
       style={{ width: '100%', height: '100%' }}
-      zoomControl={false}
+      maxZoom={toMapZoom(19)}
+      dragRotate={false}
+      pitchWithRotate={false}
+      touchPitch={false}
+      cursor={correcting ? 'crosshair' : undefined}
+      onLoad={handleLoad}
+      onError={handleError}
+      onMoveEnd={reportViewport}
+      onClick={handleClick}
     >
-      <CorrectingCursor correcting={correcting} />
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        maxZoom={19}
-        referrerPolicy="origin"
-      />
-
-      <ViewportReporter onViewportChange={onViewportChange} />
-
-      {correcting && <MapClickHandler onMapClick={onMapClick} />}
-
-      {panToUser && userPosition && (
-        <PanTo position={userPosition} onDone={onPanHandled} />
-      )}
-
-      <FollowController
-        position={userPosition}
-        followUser={followUser}
-        onFollowHandled={onFollowHandled}
-      />
-
       {userPosition && (
         <>
-          {/* Radius ring (filter) */}
-          {radius && (
-            <Circle
-              center={userPosition}
-              radius={radius}
-              pathOptions={{
-                color: '#E8A507', fillColor: '#E8A507',
-                fillOpacity: 0.06, weight: 1.5, dashArray: '6 4',
-              }}
-            />
-          )}
-          {/* GPS accuracy circle — shows location precision (small = precise, large = IP-based) */}
-          {gpsAccuracy && gpsAccuracy > 50 && (
-            <Circle
-              center={userPosition}
-              radius={gpsAccuracy}
-              pathOptions={{
-                color: '#4A90D9', fillColor: '#4A90D9',
-                fillOpacity: 0.12, weight: 1, dashArray: undefined,
-              }}
-            />
-          )}
-          {/* User dot — pulsing gold DivIcon (arrow while navigating) */}
+          <CirclesLayer
+            userPosition={userPosition}
+            radius={radius}
+            gpsAccuracy={gpsAccuracy}
+          />
           <UserMarker
             position={userPosition}
             navigating={navigating}
@@ -327,6 +317,6 @@ export const MapView = memo(function MapView({
           onClick={onSelect}
         />
       )}
-    </MapContainer>
+    </Map>
   )
 })
