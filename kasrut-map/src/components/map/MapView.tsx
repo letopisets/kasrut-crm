@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, Circle, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -194,7 +194,10 @@ function UserMarker({
   )
 }
 
-export function MapView({
+// Memoized: MapPage re-renders on plenty of unrelated state (dialogs,
+// fetching indicator, snackbars); with stable props the whole map subtree
+// — up to 750 markers — skips reconciliation entirely.
+export const MapView = memo(function MapView({
   userPosition,
   gpsAccuracy,
   userHeading,
@@ -326,4 +329,4 @@ export function MapView({
       )}
     </MapContainer>
   )
-}
+})

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import {
   Box, Fab, Tooltip, CircularProgress, Typography,
   Snackbar, Alert,
@@ -29,8 +29,15 @@ const AuthDialog = lazy(() =>
 const SuggestionDialog = lazy(() =>
   import('@/components/community/SuggestionDialog').then(module => ({ default: module.SuggestionDialog })),
 )
+// The map is the primary view — kick off its chunk download at module load
+// instead of waiting for first render + Suspense to request it.
+const mapViewImport = import('@/components/map/MapView')
+// If the map never renders (e.g. /donate), a failed chunk fetch would become
+// an unhandled rejection; lazy() attaches its own handlers when it runs and
+// still surfaces the error through Suspense on the map route.
+mapViewImport.catch(() => {})
 const MapView = lazy(() =>
-  import('@/components/map/MapView').then(module => ({ default: module.MapView })),
+  mapViewImport.then(module => ({ default: module.MapView })),
 )
 const RestaurantListView = lazy(() =>
   import('@/components/list/RestaurantListView').then(module => ({ default: module.RestaurantListView })),
@@ -78,6 +85,15 @@ function getViewportCenter(viewport: MapViewport | null): [number, number] | nul
   return [(north + south) / 2, (east + west) / 2]
 }
 
+// Markers only appear once the map is zoomed in enough — the list (opened
+// via the count badge) is the primary entry point at the default/overview
+// zoom, and markers reveal themselves when the user zooms in to inspect a
+// specific area.
+const MARKER_VISIBILITY_ZOOM = 14
+// Stable empty array so hiding the markers does not change the MapView
+// props identity on every render.
+const NO_MARKERS: MapRestaurant[] = []
+
 export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const ipCenter = useIpCenter()
   const ctrl = useMapController({
@@ -93,6 +109,14 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const [sessionExpiredOpen, setSessionExpiredOpen] = useState(false)
   const [suggestionOpen, setSuggestionOpen] = useState(false)
   const [suggestionRestaurant, setSuggestionRestaurant] = useState<MapRestaurant | null>(null)
+
+  // Stable identity so memoized list items are not re-rendered by unrelated
+  // MapPage state changes (dialogs, fetching indicator, snackbars).
+  const { setSelected, setView } = ctrl
+  const selectFromList = useCallback((r: MapRestaurant) => {
+    setSelected(r)
+    setView('map')
+  }, [setSelected, setView])
 
   const openAddSuggestion = () => {
     setSuggestionRestaurant(null)
@@ -126,15 +150,10 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     return () => window.clearTimeout(timer)
   }, [ctrl.isFetching])
 
-  // Markers only appear once the map is zoomed in enough — the list (opened
-  // via the count badge) is the primary entry point at the default/overview
-  // zoom, and markers reveal themselves when the user zooms in to inspect a
-  // specific area.
-  const MARKER_VISIBILITY_ZOOM = 14
   const mapRestaurants: MapRestaurant[] =
     ctrl.viewport && ctrl.viewport.zoom >= MARKER_VISIBILITY_ZOOM
-      ? ctrl.restaurants
-      : []
+      ? ctrl.mapRestaurants
+      : NO_MARKERS
   const suggestionDefaultPosition = getViewportCenter(ctrl.viewport) ?? ctrl.geo.position ?? ipCenter.value
   const restaurantCountLabel = ctrl.restaurantResultLimited
     ? t.establishmentCountLimited
@@ -295,7 +314,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             <Suspense fallback={<PanelFallback />}>
               <RestaurantListView
                 restaurants={ctrl.restaurants}
-                onSelect={(r: MapRestaurant) => { ctrl.setSelected(r); ctrl.setView('map') }}
+                onSelect={selectFromList}
                 onStartRoute={ctrl.startRoute}
                 formatDist={ctrl.formatDist}
               />
@@ -336,10 +355,10 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
       </Box>
 
       {/* ── Bottom sheet ── */}
-      {!ctrl.routePanelOpen && ctrl.selected && (
+      {!ctrl.routePanelOpen && ctrl.selectedWithDistance && (
         <Suspense fallback={<PanelFallback />}>
           <RestaurantDetailSheet
-            restaurant={ctrl.selected}
+            restaurant={ctrl.selectedWithDistance}
             hasLocation={!!ctrl.geo.position}
             onClose={() => ctrl.setSelected(null)}
             onStartRoute={ctrl.startRoute}

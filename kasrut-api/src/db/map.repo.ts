@@ -79,9 +79,16 @@ function toHechsherTypes(levels: KashrutLevel[] | undefined): HechsherType[] | u
   return [...types]
 }
 
+// Map clients round the query centre to a ~110 m grid (3 decimals) to align
+// with the response cache, so the centre can be up to ~56 m off the user's
+// true position per axis. Pad the box so establishments near the radius edge
+// survive that rounding — clients re-filter by exact distance anyway.
+const CENTER_ROUNDING_SLACK_METERS = 80
+
 function getRadiusBounds(center: MapPoint, radius: number): MapBounds {
-  const latDelta = radius / 111_320
-  const lngDelta = radius / (111_320 * Math.max(Math.cos(center.lat * Math.PI / 180), 0.01))
+  const paddedRadius = radius + CENTER_ROUNDING_SLACK_METERS
+  const latDelta = paddedRadius / 111_320
+  const lngDelta = paddedRadius / (111_320 * Math.max(Math.cos(center.lat * Math.PI / 180), 0.01))
 
   return {
     north: Math.min(90, center.lat + latDelta),
