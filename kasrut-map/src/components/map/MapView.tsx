@@ -1,17 +1,12 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, Circle, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import 'leaflet-rotate'
 import type { MapRestaurant, MapViewport, RouteData } from '@/types'
 import { RestaurantMarker } from './RestaurantMarker'
 import { RouteLayer }       from './RouteLayer'
 import { DEFAULT_ZOOM, NAV_ZOOM } from '@/lib/constants'
 import { buildClusterIndex, getRenderItems } from '@/lib/clusterIndex'
-
-type RotatableMap = L.Map & {
-  setBearing?: (deg: number) => void
-}
 
 // Fix Leaflet default icon broken in Vite
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)['_getIconUrl']
@@ -47,21 +42,6 @@ function FollowController({
     map.setView(position, targetZoom, { animate: true, duration: 0.5 })
     onFollowHandled()
   }, [followUser, position, map, onFollowHandled])
-  return null
-}
-
-/** Rotates the map by `bearing` degrees while in navigate mode. */
-function BearingController({ bearing, active }: { bearing: number | null; active: boolean }) {
-  const map = useMap() as RotatableMap
-  useEffect(() => {
-    if (!map.setBearing) return
-    if (!active) {
-      map.setBearing(0)
-      return
-    }
-    if (bearing == null || !Number.isFinite(bearing)) return
-    map.setBearing(-bearing)
-  }, [bearing, active, map])
   return null
 }
 
@@ -162,14 +142,43 @@ const USER_ICON = L.divIcon({
   html: '<div class="km-user-dot"></div>',
 })
 
-function makeNavIcon(bearing: number | null): L.DivIcon {
-  const angle = bearing ?? 0
-  return L.divIcon({
-    className: '',
-    iconSize:   [40, 40],
-    iconAnchor: [20, 20],
-    html: `<div class="km-user-nav" style="transform: rotate(${angle}deg)"></div>`,
-  })
+const NAV_ICON = L.divIcon({
+  className: '',
+  iconSize:   [40, 40],
+  iconAnchor: [20, 20],
+  html: '<div class="km-user-nav"></div>',
+})
+
+/**
+ * User-position marker. In navigate mode the arrow tracks the heading by
+ * mutating the existing element's transform — recreating the DivIcon per
+ * GPS tick would replace the DOM node (and its drop-shadow) every update.
+ */
+function UserMarker({
+  position, navigating, heading,
+}: {
+  position: [number, number]
+  navigating: boolean
+  heading: number | null
+}) {
+  const markerRef = useRef<L.Marker | null>(null)
+
+  useEffect(() => {
+    if (!navigating) return
+    const arrow = markerRef.current?.getElement()
+      ?.querySelector<HTMLElement>('.km-user-nav')
+    if (arrow) arrow.style.transform = `rotate(${heading ?? 0}deg)`
+  }, [navigating, heading])
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={position}
+      icon={navigating ? NAV_ICON : USER_ICON}
+      interactive={false}
+      zIndexOffset={2000}
+    />
+  )
 }
 
 export function MapView({
@@ -192,10 +201,6 @@ export function MapView({
   onMapClick,
   onViewportChange,
 }: Props) {
-  const userIcon = useMemo(
-    () => navigating ? makeNavIcon(userHeading) : USER_ICON,
-    [navigating, userHeading],
-  )
   // Spatial index over everything loaded (minus the selected pin); the render
   // list is then just the clusters/pins inside the current viewport, so
   // off-screen restaurants never become DOM nodes.
@@ -216,8 +221,6 @@ export function MapView({
     ? restaurants.find(r => r.id === selected.id) ?? selected
     : null
 
-  const mapOptions = { rotate: true, rotateControl: false, touchRotate: false } as L.MapOptions
-
   return (
     <MapContainer
       center={userPosition ?? initialCenter}
@@ -225,7 +228,6 @@ export function MapView({
       style={{ width: '100%', height: '100%' }}
       className={correcting ? 'km-correcting' : undefined}
       zoomControl={false}
-      {...mapOptions}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -247,8 +249,6 @@ export function MapView({
         followUser={followUser}
         onFollowHandled={onFollowHandled}
       />
-
-      <BearingController bearing={userHeading} active={navigating} />
 
       {userPosition && (
         <>
@@ -274,12 +274,11 @@ export function MapView({
               }}
             />
           )}
-          {/* User dot — pulsing gold DivIcon */}
-          <Marker
+          {/* User dot — pulsing gold DivIcon (arrow while navigating) */}
+          <UserMarker
             position={userPosition}
-            icon={userIcon}
-            interactive={false}
-            zIndexOffset={2000}
+            navigating={navigating}
+            heading={userHeading}
           />
         </>
       )}
