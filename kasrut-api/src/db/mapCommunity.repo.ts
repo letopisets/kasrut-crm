@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { assertPlausibleCoordinates } from '../lib/geoValidation'
 import type { FoodType, MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
 import type {
   FoodType as PrismaFoodType,
@@ -455,6 +456,7 @@ export const mapCommunityRepo = {
           isFiniteNumber(suggestion.proposedLat) &&
           isFiniteNumber(suggestion.proposedLng)
         ) {
+          assertPlausibleCoordinates({ lat: suggestion.proposedLat, lng: suggestion.proposedLng })
           patch.lat = suggestion.proposedLat
           patch.lng = suggestion.proposedLng
         }
@@ -485,6 +487,7 @@ export const mapCommunityRepo = {
         if (!isFiniteNumber(suggestion.proposedLat) || !isFiniteNumber(suggestion.proposedLng)) {
           throw new Error('Cannot approve suggestion: coordinates are required for map display')
         }
+        assertPlausibleCoordinates({ lat: suggestion.proposedLat, lng: suggestion.proposedLng })
 
         const hechsher = await resolveHechsher(tx, {
           name: suggestion.proposedHechsher,
