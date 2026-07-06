@@ -215,6 +215,7 @@ const en: Translations = {
     invalidEmail:     'Invalid email address',
     passwordTooShort: 'Password must be at least 8 characters',
     passwordWeak:     'Password must contain letters and digits',
+    cityNotInRegistry: 'Not in the registry — will be saved as typed',
   },
   noAccess:         "You don't have access to this section.",
   myEstablishments: 'My Establishments',

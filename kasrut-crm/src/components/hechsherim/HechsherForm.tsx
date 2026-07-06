@@ -59,8 +59,10 @@ export function HechsherForm({ rabbanutOptions, initial, onSave, onClose, error,
     void onSave({
       ...form,
       type:        form.type as HechsherType,
-      city:        settlement?.nameHe ?? form.city,
-      settlementId: settlement?.id,
+      city:        (settlement?.nameHe ?? form.city).trim(),
+      // Explicit null so a manual city edit clears the old settlement link
+      // (undefined would be dropped from the JSON payload).
+      settlementId: settlement?.id ?? null,
     })
   }
 
@@ -91,6 +93,8 @@ export function HechsherForm({ rabbanutOptions, initial, onSave, onClose, error,
           setSettlement(s)
           if (s) set('city', s.nameHe)
         }}
+        onTextChange={text => set('city', text)}
+        initialText={initial?.city}
         label={t.hechsherim?.city ?? 'City'}
       />
 
