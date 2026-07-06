@@ -68,7 +68,7 @@ export const createRestaurantSchema = z.object({
   status:       certStatus.optional(),
   rabbanutId:   id,
   notes:        z.string().max(2000).trim().optional(),
-  settlementId: id.optional(),
+  settlementId: id.nullable().optional(),
   categoryId:   id.optional(),
 })
 export const updateRestaurantSchema = createRestaurantSchema.partial()
@@ -96,7 +96,7 @@ export const createHechsherSchema = z.object({
   color,
   rabbanutId:   id,
   active:       z.boolean().default(true),
-  settlementId: id.optional(),
+  settlementId: id.nullable().optional(),
 })
 export const updateHechsherSchema = createHechsherSchema.partial()
 

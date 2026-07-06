@@ -89,7 +89,8 @@ export function RestaurantForm({ initial, onClose }: Props) {
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
-  const canSave = !!(form.name && form.expires && form.levelId && form.hechsherId && form.rabbanutId)
+  const cityValue = (settlement?.nameHe ?? form.city).trim()
+  const canSave = !!(form.name && cityValue && form.expires && form.levelId && form.hechsherId && form.rabbanutId)
 
   const handleSave = async () => {
     setSubmitted(true)
@@ -97,7 +98,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
     const payload = {
       name:         form.name,
       address:      form.address,
-      city:         settlement?.nameHe ?? form.city,
+      city:         (settlement?.nameHe ?? form.city).trim(),
       levelId:      form.levelId,
       hechsherId:   form.hechsherId,
       mashgiachId:  form.mashgiachId || undefined,
@@ -107,7 +108,10 @@ export function RestaurantForm({ initial, onClose }: Props) {
       expires:      form.expires,
       notes:        form.notes,
       rabbanutId:   form.rabbanutId,
-      settlementId: settlement?.id,
+      // Explicit null (not undefined): undefined keys are dropped from the
+      // JSON PATCH, and the server would keep the OLD settlement link paired
+      // with the newly typed city.
+      settlementId: settlement?.id ?? null,
     }
     if (isEdit) {
       await updateMutation({ id: initial!.id, patch: payload }).unwrap()
@@ -181,7 +185,12 @@ export function RestaurantForm({ initial, onClose }: Props) {
             setSettlement(s)
             if (s) set('city', s.nameHe)
           }}
+          onTextChange={text => set('city', text)}
+          initialText={initial?.city}
           label={t.addRest.city ?? 'City'}
+          required
+          error={submitted && !cityValue}
+          helperText={submitted && !cityValue ? t.validation.required : undefined}
         />
 
         <Input

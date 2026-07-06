@@ -6,6 +6,7 @@ import Typography            from '@mui/material/Typography'
 import Box                   from '@mui/material/Box'
 import { detectScript, scriptToNameField } from '@/lib/detectScript'
 import type { InputScript }  from '@/lib/detectScript'
+import { useLang } from '@/i18n/useLang'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,12 @@ export interface SettlementOption {
 interface Props {
   value?:      SettlementOption | null
   onChange:    (s: SettlementOption | null) => void
+  /** Fires as the user types. Lets parents accept a city that is not in the
+   *  settlements registry — the field is free-form, the list is a helper. */
+  onTextChange?: (text: string) => void
+  /** Seeds the visible text when editing a record that has a plain-text city
+   *  but no linked settlement. */
+  initialText?: string
   label?:      string
   required?:   boolean
   error?:      boolean
@@ -61,11 +68,15 @@ async function fetchSettlements(q: string, lang: InputScript): Promise<Settlemen
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function SettlementAutocomplete({
-  value = null, onChange, label = 'City', required, error, helperText,
+  value = null, onChange, onTextChange, initialText,
+  label = 'City', required, error, helperText,
 }: Props) {
+  const t = useLang()
   const [inputValue, setInputValue] = useState(
-    // Seed the visible text from the current value if editing an existing record
-    () => value ? (value.nameEn ?? value.nameHe) : '',
+    // Seed the visible text from the current value if editing an existing
+    // record; fall back to the plain-text city when there is no linked
+    // settlement (manually entered cities).
+    () => value ? (value.nameEn ?? value.nameHe) : (initialText ?? ''),
   )
   const [options, setOptions]     = useState<SettlementOption[]>([])
   const [loading, setLoading]     = useState(false)
@@ -74,8 +85,21 @@ export function SettlementAutocomplete({
   // Detect the script the user is typing in right now
   const typingScript = useMemo(() => detectScript(inputValue), [inputValue])
 
-  const handleInputChange = (_: unknown, newInput: string) => {
+  const handleInputChange = (_: unknown, newInput: string, reason: string) => {
     setInputValue(newInput)
+
+    // MUI fires this with reason 'selectOption' when it syncs the text after
+    // an option is picked (before onChange delivers the selection) — only
+    // real typing/clearing counts as manual city entry, so whitelist rather
+    // than exclude.
+    if (reason === 'input' || reason === 'clear') {
+      onTextChange?.(newInput)
+      // Manual edits invalidate a previously selected settlement: keeping it
+      // would save the old settlementId alongside the newly typed city.
+      if (value && newInput !== labelForScript(value, typingScript)) {
+        onChange(null)
+      }
+    }
 
     if (timer) clearTimeout(timer)
 
@@ -99,12 +123,21 @@ export function SettlementAutocomplete({
   }
 
   return (
-    <Autocomplete<SettlementOption>
+    <Autocomplete<SettlementOption, false, false, true>
+      // Free-form entry: the registry list is a convenience, not a gate —
+      // cities missing from it can be typed and saved as plain text.
+      freeSolo
       options={options}
       value={value}
       inputValue={inputValue}
       onInputChange={handleInputChange}
       onChange={(_, selected) => {
+        // With freeSolo, Enter on unmatched text delivers a plain string.
+        if (typeof selected === 'string') {
+          onChange(null)
+          onTextChange?.(selected)
+          return
+        }
         onChange(selected)
         // When a city is selected, update the visible text to match the
         // script the user was typing — keeps the UX consistent.
@@ -112,7 +145,7 @@ export function SettlementAutocomplete({
       }}
 
       // Show the name in whichever script the user is typing
-      getOptionLabel={opt => labelForScript(opt, typingScript)}
+      getOptionLabel={opt => typeof opt === 'string' ? opt : labelForScript(opt, typingScript)}
 
       renderOption={(props, opt) => {
         const { key, ...rest } = props as typeof props & { key: React.Key }
@@ -132,14 +165,16 @@ export function SettlementAutocomplete({
         )
       }}
 
-      isOptionEqualToValue={(a, b) => a.id === b.id}
+      isOptionEqualToValue={(a, b) =>
+        typeof a !== 'string' && typeof b !== 'string' && a.id === b.id}
 
       // Filtering is done server-side — pass all options through
       filterOptions={x => x}
 
       loading={loading}
       loadingText="…"
-      noOptionsText={inputValue.length < 2 ? 'Start typing…' : 'Not found'}
+      // noOptionsText never renders under freeSolo — registry feedback is
+      // surfaced through helperText below instead.
 
       renderInput={params => (
         <TextField
@@ -148,7 +183,12 @@ export function SettlementAutocomplete({
           size="small"
           required={required}
           error={error}
-          helperText={helperText}
+          helperText={
+            helperText
+            ?? (!loading && !value && inputValue.trim().length >= 2 && options.length === 0
+              ? t.validation.cityNotInRegistry
+              : undefined)
+          }
           slotProps={{
             ...params.slotProps,
             input: {

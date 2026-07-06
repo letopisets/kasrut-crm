@@ -13,6 +13,6 @@ export interface Hechsher {
   color: string
   rabbanutId: string
   active: boolean
-  settlementId?: string
+  settlementId?: string | null
   createdAt?: string
 }

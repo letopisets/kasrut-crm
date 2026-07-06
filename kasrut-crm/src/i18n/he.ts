@@ -215,6 +215,7 @@ const he: Translations = {
     invalidEmail:     'כתובת דוא"ל לא תקינה',
     passwordTooShort: 'הסיסמה חייבת להכיל לפחות 8 תווים',
     passwordWeak:     'הסיסמה חייבת להכיל אותיות וספרות',
+    cityNotInRegistry: 'לא נמצא במאגר — יישמר כפי שהוקלד',
   },
   noAccess:         'אין לך גישה לקטע זה.',
   myEstablishments: 'העסקים שלי',

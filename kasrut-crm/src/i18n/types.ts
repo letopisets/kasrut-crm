@@ -205,6 +205,7 @@ export interface Translations {
     invalidEmail:     string
     passwordTooShort: string
     passwordWeak:     string
+    cityNotInRegistry: string
   }
   noAccess: string
   myEstablishments: string

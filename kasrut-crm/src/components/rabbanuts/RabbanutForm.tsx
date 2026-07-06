@@ -38,13 +38,15 @@ export function RabbanutForm({ initial, onSave, onClose }: Props) {
 
   const handleSave = () => {
     setSubmitted(true)
-    const city = settlement?.nameHe ?? form.city
+    const city = (settlement?.nameHe ?? form.city).trim()
     if (!form.name || !city) return
     onSave({ ...form, city })
   }
 
   const isEdit = !!initial
-  const cityValue = settlement?.nameHe ?? form.city
+  // Trimmed to match the save guard — otherwise a whitespace-only city blocks
+  // the save without showing the required error.
+  const cityValue = (settlement?.nameHe ?? form.city).trim()
 
   return (
     <Modal
@@ -66,6 +68,8 @@ export function RabbanutForm({ initial, onSave, onClose }: Props) {
           setSettlement(s)
           if (s) set('city', s.nameHe)
         }}
+        onTextChange={text => set('city', text)}
+        initialText={initial?.city}
         label={t.rabbanuts?.city ?? 'City'}
         required
         error={submitted && !cityValue}

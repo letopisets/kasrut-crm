@@ -18,6 +18,6 @@ export interface Restaurant {
   notes?: string
   categoryId?: string
   lastInspection?: string
-  settlementId?: string
+  settlementId?: string | null
   createdAt?: string
 }

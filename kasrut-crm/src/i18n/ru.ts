@@ -215,6 +215,7 @@ const ru: Translations = {
     invalidEmail:     'Некорректный адрес электронной почты',
     passwordTooShort: 'Пароль должен содержать минимум 8 символов',
     passwordWeak:     'Пароль должен содержать буквы и цифры',
+    cityNotInRegistry: 'Нет в справочнике — будет сохранено как введено',
   },
   noAccess:         'У вас нет доступа к этому разделу.',
   myEstablishments: 'Мои заведения',
