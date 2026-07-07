@@ -98,6 +98,7 @@ const ru: Translations = {
     addTitle:      'Добавить кашрут',
     editTitle:     'Редактировать кашрут',
     edit:          'Редактировать',
+    saveError:     'Не удалось сохранить кашрут',
     name:          'Название',
     shortName:     'Аббревиатура',
     city:          'Город',

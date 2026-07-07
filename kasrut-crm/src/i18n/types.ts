@@ -96,6 +96,7 @@ export interface Translations {
     addTitle: string
     editTitle?: string
     edit?: string
+    saveError?: string
     name: string
     shortName: string
     city: string

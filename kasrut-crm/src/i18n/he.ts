@@ -98,6 +98,7 @@ const he: Translations = {
     addTitle:      'הוסף הכשר',
     editTitle:     'עריכת הכשר',
     edit:          'עריכה',
+    saveError:     'שמירת ההכשר נכשלה',
     name:          'שם',
     shortName:     'ר"ת',
     city:          'עיר',
