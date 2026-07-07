@@ -98,6 +98,7 @@ const en: Translations = {
     addTitle:      'Add Hechsher',
     editTitle:     'Edit Hechsher',
     edit:          'Edit',
+    saveError:     'Failed to save hechsher',
     name:          'Name',
     shortName:     'Short Name',
     city:          'City',

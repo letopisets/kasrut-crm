@@ -5,6 +5,7 @@ import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
 import { usePermissions }         from '@/hooks/usePermissions'
+import { useLang }                 from '@/i18n/useLang'
 import { HECHSHER_TYPE_COLOR }    from '@/lib/statusColor'
 import type { Hechsher, HechsherType } from '@/types'
 
@@ -12,6 +13,7 @@ export function useHechsherimController() {
   const user  = useAppSelector(s => s.auth.user)
   const role  = useAppSelector(s => s.auth.role)
   const perm  = usePermissions()
+  const t     = useLang()
 
   const [showForm,   setShowForm]   = useState(false)
   const [editing,    setEditing]    = useState<Hechsher | null>(null)
@@ -50,7 +52,7 @@ export function useHechsherimController() {
       }
       closeForm()
     } catch {
-      setSaveError('Failed to save hechsher')
+      setSaveError(t.hechsherim?.saveError ?? 'Failed to save hechsher')
     } finally {
       setSaving(false)
     }
