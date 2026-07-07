@@ -96,6 +96,8 @@ const en: Translations = {
     sub:           'Kashrut certifications inside each authority',
     add:           'Add',
     addTitle:      'Add Hechsher',
+    editTitle:     'Edit Hechsher',
+    edit:          'Edit',
     name:          'Name',
     shortName:     'Short Name',
     city:          'City',

@@ -69,7 +69,7 @@ export function HechsherForm({ rabbanutOptions, initial, onSave, onClose, error,
   const typeOptions = HECHSHER_TYPES.map(t => ({ value: t, label: t }))
 
   return (
-    <Modal title={t.hechsherim?.addTitle ?? 'Add Hechsher'} onClose={onClose}>
+    <Modal title={initial ? (t.hechsherim?.editTitle ?? 'Edit Hechsher') : (t.hechsherim?.addTitle ?? 'Add Hechsher')} onClose={onClose}>
       <Input
         label={t.hechsherim?.name ?? 'Name'}
         value={form.name}

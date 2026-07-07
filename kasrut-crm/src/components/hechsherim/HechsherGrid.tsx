@@ -8,11 +8,12 @@ interface Props {
   canEdit:    boolean
   getStats:   (h: Hechsher) => { restaurants: number; mashgichim: number }
   getMashgichimForHechsher: (id: string) => Mashgiach[]
+  onEdit:     (h: Hechsher) => void
   onToggle:   (id: string) => void
   onDelete:   (id: string) => void
 }
 
-export function HechsherGrid({ hechsherim, expandedId, canEdit, getStats, getMashgichimForHechsher, onToggle, onDelete }: Props) {
+export function HechsherGrid({ hechsherim, expandedId, canEdit, getStats, getMashgichimForHechsher, onEdit, onToggle, onDelete }: Props) {
   return (
     <Grid container spacing={1.75}>
       {hechsherim.map(h => (
@@ -23,6 +24,7 @@ export function HechsherGrid({ hechsherim, expandedId, canEdit, getStats, getMas
             mashgichim={getMashgichimForHechsher(h.id)}
             expanded={expandedId === h.id}
             canEdit={canEdit}
+            onEdit={onEdit}
             onToggle={onToggle}
             onDelete={onDelete}
           />
