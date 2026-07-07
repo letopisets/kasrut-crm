@@ -48,6 +48,7 @@ export default function Hechsherim() {
           canEdit={ctrl.canEdit}
           getStats={ctrl.getStats}
           getMashgichimForHechsher={ctrl.getMashgichimForHechsher}
+          onEdit={ctrl.openEdit}
           onToggle={ctrl.toggleExpand}
           onDelete={ctrl.deleteHechsher}
         />
@@ -56,8 +57,11 @@ export default function Hechsherim() {
       {ctrl.showForm && (
         <HechsherForm
           rabbanutOptions={ctrl.rabbanutOptions}
-          onSave={ctrl.createHechsher}
+          initial={ctrl.editing ?? undefined}
+          onSave={ctrl.saveHechsher}
           onClose={ctrl.closeForm}
+          error={ctrl.saveError}
+          saving={ctrl.saving}
         />
       )}
     </Box>

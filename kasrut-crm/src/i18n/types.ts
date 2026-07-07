@@ -94,6 +94,8 @@ export interface Translations {
     sub: string
     add: string
     addTitle: string
+    editTitle?: string
+    edit?: string
     name: string
     shortName: string
     city: string

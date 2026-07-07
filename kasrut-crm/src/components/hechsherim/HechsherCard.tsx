@@ -16,11 +16,12 @@ interface Props {
   mashgichim: Mashgiach[]
   expanded:   boolean
   canEdit:    boolean
+  onEdit:     (h: Hechsher) => void
   onToggle:   (id: string) => void
   onDelete:   (id: string) => void
 }
 
-export const HechsherCard = memo(function HechsherCard({ hechsher: h, stats, mashgichim, expanded, canEdit, onToggle, onDelete }: Props) {
+export const HechsherCard = memo(function HechsherCard({ hechsher: h, stats, mashgichim, expanded, canEdit, onEdit, onToggle, onDelete }: Props) {
   const t = useLang()
 
   return (
@@ -93,7 +94,10 @@ export const HechsherCard = memo(function HechsherCard({ hechsher: h, stats, mas
           )}
 
           {canEdit && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 0.5 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, pt: 0.5 }}>
+              <Button variant="outlined" size="small" onClick={() => onEdit(h)}>
+                {t.hechsherim?.edit ?? 'Edit'}
+              </Button>
               <Button variant="outlined" color="error" size="small" onClick={() => onDelete(h.id)}>
                 {t.hechsherim?.delete ?? 'Delete'}
               </Button>

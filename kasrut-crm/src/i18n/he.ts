@@ -96,6 +96,8 @@ const he: Translations = {
     sub:           'הכשרים בתוך כל גוף כשרות',
     add:           'הוסף',
     addTitle:      'הוסף הכשר',
+    editTitle:     'עריכת הכשר',
+    edit:          'עריכה',
     name:          'שם',
     shortName:     'ר"ת',
     city:          'עיר',

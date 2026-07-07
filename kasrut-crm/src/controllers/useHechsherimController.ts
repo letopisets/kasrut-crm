@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAppSelector } from '@/store'
-import { useGetHechsherimQuery, useCreateHechsherMutation, useDeleteHechsherMutation } from '@/store/api/hechsherimApi'
+import { useGetHechsherimQuery, useCreateHechsherMutation, useUpdateHechsherMutation, useDeleteHechsherMutation } from '@/store/api/hechsherimApi'
 import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { useGetMashgichimQuery }  from '@/store/api/mashgichimApi'
 import { useGetRabbanutsQuery }   from '@/store/api/rabbanutApi'
@@ -14,6 +14,9 @@ export function useHechsherimController() {
   const perm  = usePermissions()
 
   const [showForm,   setShowForm]   = useState(false)
+  const [editing,    setEditing]    = useState<Hechsher | null>(null)
+  const [saveError,  setSaveError]  = useState<string | null>(null)
+  const [saving,     setSaving]     = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const { data: all = [], isLoading } = useGetHechsherimQuery()
@@ -21,6 +24,7 @@ export function useHechsherimController() {
   const { data: mashgichim  = [] }    = useGetMashgichimQuery()
   const { data: rabbanuts   = [] }    = useGetRabbanutsQuery()
   const [createMutation] = useCreateHechsherMutation()
+  const [updateMutation] = useUpdateHechsherMutation()
   const [deleteMutation] = useDeleteHechsherMutation()
 
   const hechsherim = role === 'rabbanut'
@@ -29,10 +33,27 @@ export function useHechsherimController() {
 
   const rabbanutOptions = rabbanuts.map(r => ({ value: r.id, label: r.name }))
 
-  const createHechsher = async (data: Omit<Hechsher, 'id'>) => {
+  const openCreate = () => { setEditing(null); setSaveError(null); setShowForm(true) }
+  const openEdit   = (h: Hechsher) => { setEditing(h); setSaveError(null); setShowForm(true) }
+  const closeForm  = () => { setShowForm(false); setEditing(null); setSaveError(null) }
+
+  // One handler for both create and edit: the color follows the type, and an
+  // edit PATCHes the record being edited rather than creating a new one.
+  const saveHechsher = async (data: Omit<Hechsher, 'id'>) => {
     const color = HECHSHER_TYPE_COLOR[data.type as HechsherType] ?? '#888'
-    await createMutation({ ...data, color }).unwrap()
-    setShowForm(false)
+    setSaving(true); setSaveError(null)
+    try {
+      if (editing) {
+        await updateMutation({ id: editing.id, patch: { ...data, color } }).unwrap()
+      } else {
+        await createMutation({ ...data, color }).unwrap()
+      }
+      closeForm()
+    } catch {
+      setSaveError('Failed to save hechsher')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const deleteHechsher = (id: string) => {
@@ -53,10 +74,11 @@ export function useHechsherimController() {
 
   return {
     hechsherim, isLoading,
-    showForm, openForm: () => setShowForm(true), closeForm: () => setShowForm(false),
+    showForm, editing, saveError, saving,
+    openForm: openCreate, openEdit, closeForm,
     expandedId, toggleExpand,
     canEdit: perm.canEdit,
-    createHechsher, deleteHechsher,
+    saveHechsher, deleteHechsher,
     rabbanutOptions, getStats, getMashgichimForHechsher,
   }
 }
