@@ -7,6 +7,7 @@ import Box                   from '@mui/material/Box'
 import { detectScript, scriptToNameField } from '@/lib/detectScript'
 import type { InputScript }  from '@/lib/detectScript'
 import { useLang } from '@/i18n/useLang'
+import { useAppSelector } from '@/store'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -58,9 +59,17 @@ function altNames(opt: SettlementOption, primaryScript: InputScript): string {
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
 
-async function fetchSettlements(q: string, lang: InputScript): Promise<SettlementOption[]> {
+async function fetchSettlements(
+  q: string,
+  lang: InputScript,
+  token: string | null,
+): Promise<SettlementOption[]> {
   const params = new URLSearchParams({ q, lang: lang === 'unknown' ? 'he' : lang })
-  const res    = await fetch(`${BASE_URL}/settlements/search?${params}`)
+  // /settlements/search requires auth — without the token it 401s and the
+  // dropdown silently stays empty (which is why the list never loaded).
+  const res = await fetch(`${BASE_URL}/settlements/search?${params}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
   if (!res.ok) return []
   return res.json() as Promise<SettlementOption[]>
 }
@@ -72,6 +81,7 @@ export function SettlementAutocomplete({
   label = 'City', required, error, helperText,
 }: Props) {
   const t = useLang()
+  const token = useAppSelector(s => s.auth.token)
   const [inputValue, setInputValue] = useState(
     // Seed the visible text from the current value if editing an existing
     // record; fall back to the plain-text city when there is no linked
@@ -114,7 +124,7 @@ export function SettlementAutocomplete({
     setTimer(setTimeout(async () => {
       setLoading(true)
       try {
-        const results = await fetchSettlements(newInput, script)
+        const results = await fetchSettlements(newInput, script, token)
         setOptions(results)
       } finally {
         setLoading(false)
