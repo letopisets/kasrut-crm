@@ -4,8 +4,8 @@ import { render, screen, fireEvent } from '@testing-library/react'
 // useLang reads the language from the Redux store — stub it so the component
 // renders without a Provider.
 vi.mock('@/store', () => ({
-  useAppSelector: (sel: (s: { lang: { lang: string } }) => unknown) =>
-    sel({ lang: { lang: 'en' } }),
+  useAppSelector: (sel: (s: { lang: { lang: string }; auth: { token: string | null } }) => unknown) =>
+    sel({ lang: { lang: 'en' }, auth: { token: null } }),
 }))
 
 import { SettlementAutocomplete } from '@/components/ui/SettlementAutocomplete'

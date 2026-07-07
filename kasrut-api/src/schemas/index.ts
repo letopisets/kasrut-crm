@@ -1,7 +1,12 @@
 import { z } from 'zod'
 
 // Shared primitives
-const id       = z.string().uuid()
+// IDs are Prisma cuids (@default(cuid())) plus custom seed ids like
+// `rb_jerusalem` / `kl_regular` — NOT uuids. `.uuid()` here silently rejected
+// every real id, so any create/update carrying a foreign key (rabbanutId,
+// hechsherId, levelId, settlementId, …) 400'd. Accept any bounded non-empty
+// string; invalid ids still fail at the DB foreign-key level.
+const id       = z.string().min(1).max(64)
 const email    = z.string().email().max(254).trim().toLowerCase()
 const contactEmail = z.string().max(254).trim().toLowerCase().refine(
   value => value === '' || z.string().email().safeParse(value).success,

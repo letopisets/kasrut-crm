@@ -66,12 +66,17 @@ describe('createRestaurantSchema', () => {
     expect(createRestaurantSchema.safeParse({ ...valid, expires: '2030/01/01' }).success).toBe(false)
   })
 
-  it('rejects bad UUID for hechsherId', () => {
-    expect(createRestaurantSchema.safeParse({ ...valid, hechsherId: 'not-uuid' }).success).toBe(false)
+  it('accepts cuid ids (Prisma @default(cuid())) and custom seed ids', () => {
+    expect(createRestaurantSchema.safeParse({
+      ...valid,
+      levelId: 'kl_mehadrin',
+      hechsherId: 'cmr9rd885000001l4b0svdy5p',
+      rabbanutId: 'rb_542290b9bb4133',
+    }).success).toBe(true)
   })
 
-  it('rejects non-UUID levelId', () => {
-    expect(createRestaurantSchema.safeParse({ ...valid, levelId: 'not-a-uuid' }).success).toBe(false)
+  it('rejects an empty id', () => {
+    expect(createRestaurantSchema.safeParse({ ...valid, hechsherId: '' }).success).toBe(false)
   })
 
   it('rejects unknown status', () => {
