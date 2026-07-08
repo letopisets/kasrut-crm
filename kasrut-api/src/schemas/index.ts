@@ -130,7 +130,7 @@ export const createDocumentSchema = z.object({
 
 // Restaurant list query
 export const listRestaurantQuerySchema = z.object({
-  rabbanutId: z.string().uuid().optional(),
+  rabbanutId: id.optional(),
   status:     certStatus.optional(),
   limit:      z.coerce.number().int().min(1).max(200).optional(),
   cursor:     z.string().min(1).max(100).optional(),
