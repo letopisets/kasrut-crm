@@ -14,6 +14,11 @@ const he: MapTranslations = {
   correctLocation: 'תקן את מיקומי',
   myLocation: 'המיקום שלי',
   detectingLocation: 'מאתר מיקום…',
+  searchPlaceholder: 'חיפוש לפי שם או כתובת',
+  searchClear: 'נקה חיפוש',
+  moreActions: 'עוד',
+  sharePlace: 'שיתוף',
+  shareCopied: 'הקישור הועתק',
 
   filterTitle: 'סינון',
   resetAll: 'אפס הכל',

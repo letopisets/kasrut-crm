@@ -32,6 +32,7 @@ function restaurantsCacheKey(filter: MapFilter): string {
     hechsher:     filter.hechsher ? [...filter.hechsher].sort() : null,
     foodType:     filter.foodType ? [...filter.foodType].sort() : null,
     category:     filter.category ? [...filter.category].sort() : null,
+    q:            filter.q ?? null,
     bounds:       filter.bounds
       ? {
           north: roundCacheCoord(filter.bounds.north),
@@ -93,6 +94,13 @@ function parseCsv<T extends string>(value: string | undefined): T[] | undefined 
   return parts.length ? [...new Set(parts)].sort() : undefined
 }
 
+const MAX_SEARCH_LENGTH = 100
+function parseSearch(value: unknown): string | undefined {
+  const raw = queryString(value)?.trim()
+  if (!raw) return undefined
+  return raw.slice(0, MAX_SEARCH_LENGTH)
+}
+
 function geoFromHeaders(req: Request): { lat: number; lng: number } | null {
   const tryPair = (latKey: string, lngKey: string) => {
     const lat = Number(req.header(latKey))
@@ -134,6 +142,7 @@ export const mapController = {
         hechsher:     parseCsv(queryString(q.hechsher)),
         foodType:     parseCsv(queryString(q.foodType)),
         category:     parseCsv(queryString(q.category)),
+        q:            parseSearch(q.q),
         bounds:       parseBounds(q),
         center:       parseCenter(q),
         radius:       parseNumber(q.radius, 1, 100_000),

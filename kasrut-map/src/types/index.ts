@@ -38,6 +38,7 @@ export interface MapViewport {
 }
 
 export interface MapRestaurantQuery extends MapFilters {
+  q?:           string   // free-text search over name/address/city
   viewport:     MapViewport | null
   userPosition: [number, number] | null
   limit:        number

@@ -12,6 +12,7 @@ function formatCoord(value: number): string {
 /** Build query string from filters */
 function toQueryString(f: MapRestaurantQuery): string {
   const params = new URLSearchParams()
+  if (f.q)                           params.set('q', f.q)
   if (f.city)                        params.set('city', f.city)
   if (f.hechsher.length)             params.set('hechsher',     f.hechsher.join(','))
   if (f.foodType.length)             params.set('foodType',     f.foodType.join(','))

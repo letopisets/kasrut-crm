@@ -14,6 +14,11 @@ const en: MapTranslations = {
   correctLocation: 'Correct my location',
   myLocation: 'My location',
   detectingLocation: 'Detecting location…',
+  searchPlaceholder: 'Search by name or address',
+  searchClear: 'Clear search',
+  moreActions: 'More',
+  sharePlace: 'Share',
+  shareCopied: 'Link copied',
 
   filterTitle: 'Filters',
   resetAll: 'Reset all',

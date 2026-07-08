@@ -14,6 +14,11 @@ const ru: MapTranslations = {
   correctLocation: 'Уточнить моё местоположение',
   myLocation: 'Моё местоположение',
   detectingLocation: 'Определяем местоположение…',
+  searchPlaceholder: 'Поиск по названию или адресу',
+  searchClear: 'Очистить поиск',
+  moreActions: 'Ещё',
+  sharePlace: 'Поделиться',
+  shareCopied: 'Ссылка скопирована',
 
   filterTitle: 'Фильтры',
   resetAll: 'Сбросить всё',

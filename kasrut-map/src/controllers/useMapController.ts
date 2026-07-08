@@ -117,6 +117,7 @@ export function useMapController({
 }: UseMapControllerOptions = {}) {
   const [view,          setView]          = useState<'map' | 'list'>('map')
   const [filters,       setFilters]       = useState<MapFilters>(DEFAULT_FILTERS)
+  const [search,        setSearch]        = useState('')
   const [filterOpen,    setFilterOpen]    = useState(false)
   // Whether the user has ever opened the filter panel — gates the
   // /map/options request so cold loads do not pay for data the user may
@@ -150,6 +151,14 @@ export function useMapController({
   // user wait a full second for the count badge after the first fix.
   const debouncedQueryUserPosition = useDebouncedValue(queryUserPosition, 300)
 
+  // Free-text search is global: while a query is active we drop the radius/
+  // position anchor so the server matches across all establishments (a person
+  // looking for a specific place may be nowhere near it), and the client stops
+  // radius-filtering the results below.
+  const debouncedSearch = useDebouncedValue(search, 300)
+  const trimmedSearch   = debouncedSearch.trim()
+  const isSearching     = trimmedSearch.length > 0
+
   const setStableViewport = useCallback((nextViewport: MapViewport) => {
     const normalized = normalizeViewport(nextViewport)
     setViewport(current => sameViewport(current, normalized) ? current : normalized)
@@ -168,16 +177,21 @@ export function useMapController({
   // whatever portion of the map is currently visible.
   const restaurantQuery = useMemo<MapRestaurantQuery>(() => ({
     ...filters,
+    q: trimmedSearch || undefined,
+    // Global search: no radius/position anchor, so the server searches everywhere.
+    radius: isSearching ? null : filters.radius,
     viewport: null,
-    userPosition: debouncedQueryUserPosition,
+    userPosition: isSearching ? null : debouncedQueryUserPosition,
     limit: MAP_RESTAURANT_LIMIT,
-  }), [debouncedQueryUserPosition, filters])
-  const shouldSkipRestaurants = !debouncedQueryUserPosition
+  }), [debouncedQueryUserPosition, filters, trimmedSearch, isSearching])
+  // A search runs even without a location fix; otherwise wait for a position.
+  const shouldSkipRestaurants = !debouncedQueryUserPosition && !isSearching
 
   // Skip until either GPS gives us a real fix OR the fallback (IP lookup) has
   // settled. Without this guard a cold load fires the query once on the cached
-  // DEFAULT_CENTER and again on the resolved IP centre.
-  const skipUntilPositionReady = !geo.position && !fallbackReady
+  // DEFAULT_CENTER and again on the resolved IP centre. A search overrides this
+  // — it doesn't depend on the user's position.
+  const skipUntilPositionReady = !geo.position && !fallbackReady && !isSearching
   const {
     data: restaurantPayload = EMPTY_RESTAURANTS_RESPONSE,
     isLoading,
@@ -212,10 +226,11 @@ export function useMapController({
    *  updates lets memoized markers skip re-rendering — annotating distance
    *  here would mint 750 new objects on every accepted position change. */
   const mapRestaurants = useMemo<MapRestaurant[]>(() => {
-    if (!filters.radius || !effectivePosition) return restaurantPayload.restaurants
+    // Don't radius-filter search results — search is global by design.
+    if (isSearching || !filters.radius || !effectivePosition) return restaurantPayload.restaurants
     return restaurantPayload.restaurants.filter(r =>
       haversine(effectivePosition, [r.lat, r.lng]) <= filters.radius!)
-  }, [restaurantPayload.restaurants, effectivePosition, filters.radius])
+  }, [restaurantPayload.restaurants, effectivePosition, filters.radius, isSearching])
 
   /** List layer: same set, annotated with distance and sorted nearest first. */
   const restaurants = useMemo<MapRestaurant[]>(() => {
@@ -348,6 +363,8 @@ export function useMapController({
   return {
     // view
     view, setView,
+    // search
+    search, setSearch, isSearching,
     // filters
     filters, filterOpen, setFilterOpen: openFilters,
     activeFilterCount, toggleHechsher, toggleFoodType, toggleCategory, setCity, setRadius, resetFilters,
