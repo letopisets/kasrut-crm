@@ -135,6 +135,7 @@ export interface JWTPayload {
   role:       Role
   name:       string
   email:      string
+  typ?:       'crm'    // audience marker — CRM tokens only (map/2FA-pending tokens are rejected)
   rabbanutId?:string
   jti?:       string   // unique token ID — used for blacklisting on logout
   iat:        number

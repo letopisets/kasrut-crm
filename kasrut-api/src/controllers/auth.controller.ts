@@ -14,6 +14,7 @@ function signFullToken(user: User) {
   const payload = {
     sub:   user.id,   role:  user.role,
     name:  user.name, email: user.email,
+    typ:   'crm' as const,
     jti:   randomUUID(),
     ...(user.rabbanutId ? { rabbanutId: user.rabbanutId } : {}),
   }
@@ -47,7 +48,7 @@ export const authController = {
     setServiceLogActor(res, user)
 
     if (user.twoFactorEnabled) {
-      const tempToken = jwt.sign({ sub: user.id, jti: randomUUID() }, env.JWT_SECRET, { expiresIn: '5m' })
+      const tempToken = jwt.sign({ sub: user.id, typ: '2fa_pending', jti: randomUUID() }, env.JWT_SECRET, { expiresIn: '5m' })
       res.locals.serviceLogMessage = 'CRM login requires 2FA'
       res.json({ requiresTwoFactor: true, tempToken })
       return
