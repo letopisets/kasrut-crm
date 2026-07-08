@@ -70,6 +70,15 @@ export const mashgichimRepo = {
     return m ? toMashgiach(m) : null
   },
 
+  /** True when every hechsher id belongs to the given rabbanut. Used to stop a
+   *  rabbanut from attaching their mashgiach to another tenant's hechsherim. */
+  async hechsherimBelongTo(rabbanutId: string, hechsherimIds: string[]): Promise<boolean> {
+    const ids = [...new Set(hechsherimIds)]
+    if (!ids.length) return true
+    const count = await prisma.hechsher.count({ where: { id: { in: ids }, rabbanutId } })
+    return count === ids.length
+  },
+
   async create(input: Omit<Mashgiach, 'id' | 'assignedRestaurantIds'>): Promise<Mashgiach> {
     const { hechsherimIds, ...rest } = input
     const m = await prisma.mashgiach.create({
