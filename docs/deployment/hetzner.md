@@ -121,16 +121,66 @@ docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.p
 
 ## Backups
 
-Create a Postgres backup:
+The database is the project's main asset (hundreds of hand-curated establishments
+plus community reviews/suggestions). A local-only dump dies with the disk it lives
+on, so the goal is: **automated + offsite + monitored + a tested restore.**
+
+### One-off backup
 
 ```sh
 sh scripts/backup-postgres.sh
 ```
 
-Recommended cron:
+The script dumps to `backups/postgres/`, validates the dump (non-empty + real
+`pg_dump` header + `gzip -t` integrity) before keeping it, prunes local dumps
+older than `RETENTION_DAYS` (14), and — if configured — uploads offsite and pings
+a monitor. A failed dump now aborts loudly instead of writing an empty "backup".
 
-```cron
-15 2 * * * cd /opt/kasrut && mkdir -p backups && sh scripts/backup-postgres.sh >> backups/postgres.log 2>&1
+### Offsite copy (required for real safety)
+
+Set up an rclone remote once on the host (e.g. a Hetzner Storage Box or S3/B2):
+
+```sh
+apt-get install -y rclone      # if missing
+rclone config                  # create a remote, e.g. named "hetzner-box"
 ```
 
-Also enable Hetzner server backups or snapshots for disaster recovery.
+Then point the backup at it via env (put these in the crontab line or a
+`backups/backup.env` you source):
+
+```sh
+export BACKUP_REMOTE="hetzner-box:kashrut-db"      # offsite target
+export BACKUP_PING_URL="https://hc-ping.com/<uuid>" # optional: healthchecks.io
+```
+
+With `BACKUP_REMOTE` set, the script uploads each dump and prunes remote copies
+older than `RETENTION_DAYS`; if rclone is missing it aborts (offsite is treated
+as required, not best-effort).
+
+### Automated cron
+
+```cron
+15 2 * * * cd /opt/kasrut && BACKUP_REMOTE="hetzner-box:kashrut-db" BACKUP_PING_URL="https://hc-ping.com/<uuid>" sh scripts/backup-postgres.sh >> backups/postgres.log 2>&1
+```
+
+`BACKUP_PING_URL` is pinged on success and `.../fail` on failure, so a monitor
+(healthchecks.io / Better Stack) alerts you when a nightly backup is missed —
+otherwise a silently broken backup is only discovered when you need it.
+
+### Tested restore
+
+A backup you have never restored is a guess. Verify quarterly by restoring the
+latest dump into a throwaway database (never prod):
+
+```sh
+sh scripts/restore-postgres.sh backups/postgres/<db>-<timestamp>.sql.gz
+# → restores into <db>_restore_check and reports the table count; drop it after.
+```
+
+To restore over the live DB (real disaster recovery) the script requires an
+explicit `CONFIRM=yes RESTORE_DB=<live-db>`.
+
+### Second layer
+
+Also enable Hetzner server backups or snapshots — a cheap second, independent
+restore path for full-server disaster recovery.
