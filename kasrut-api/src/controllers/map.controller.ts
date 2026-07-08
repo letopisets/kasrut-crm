@@ -1,7 +1,7 @@
 import type { Request } from 'express'
 import { createHash } from 'crypto'
 import { mapRepo } from '../db/map.repo'
-import { serializeMapRestaurantsPage } from '../serializers/map.serializer'
+import { serializeMapRestaurant, serializeMapRestaurantsPage } from '../serializers/map.serializer'
 import { withCache } from '../lib/cache'
 import { asyncHandler } from '../lib/asyncHandler'
 import type { KashrutLevel, MapBounds, MapFilter, MapPoint } from '../db/map.repo'
@@ -131,6 +131,13 @@ export const mapController = {
   listOptions: asyncHandler(async (_req, res) => {
     const data = await withCache('map:options', MAP_OPTIONS_CACHE_TTL, () => mapRepo.findMapOptions())
     res.json(data)
+  }),
+
+  getRestaurant: asyncHandler(async (req, res) => {
+    const id = req.params.restaurantId
+    const data = await withCache(`map:restaurant:${id}`, CACHE_TTL, () => mapRepo.findById(id))
+    if (!data) { res.status(404).json({ error: 'Not found' }); return }
+    res.json(serializeMapRestaurant(data))
   }),
 
   listRestaurants: asyncHandler(async (req, res) => {

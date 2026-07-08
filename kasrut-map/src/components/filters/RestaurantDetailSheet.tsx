@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import {
   SwipeableDrawer, Box, Typography, Chip, Stack,
-  Button, IconButton, Divider,
+  Button, IconButton, Divider, Tooltip,
 } from '@mui/material'
 import CloseIcon       from '@mui/icons-material/Close'
 import DirectionsIcon  from '@mui/icons-material/Directions'
@@ -8,6 +9,7 @@ import EditIcon        from '@mui/icons-material/Edit'
 import PhoneIcon       from '@mui/icons-material/Phone'
 import AccessTimeIcon  from '@mui/icons-material/AccessTime'
 import PlaceIcon       from '@mui/icons-material/Place'
+import IosShareIcon    from '@mui/icons-material/IosShare'
 import { ReviewsPanel } from '@/components/community/ReviewsPanel'
 import type { MapRestaurant, MapUser } from '@/types'
 import { FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_COLOR } from '@/lib/constants'
@@ -35,6 +37,21 @@ export function RestaurantDetailSheet({
   user,
 }: Props) {
   const t = useMapLang()
+  const [copied, setCopied] = useState(false)
+
+  const share = async () => {
+    if (!r) return
+    const url = `${window.location.origin}/r/${r.id}`
+    // Native share sheet on mobile; clipboard fallback on desktop.
+    try {
+      if (navigator.share) { await navigator.share({ title: r.name, url }); return }
+    } catch { /* user dismissed the share sheet — nothing to do */ }
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard blocked — silently ignore */ }
+  }
 
   return (
     <SwipeableDrawer
@@ -67,9 +84,16 @@ export function RestaurantDetailSheet({
                 <Typography variant="body2" color="text.secondary">{r.address}, {r.city}</Typography>
               </Box>
             </Box>
-            <IconButton size="small" onClick={onClose} sx={{ mt: -0.5 }}>
-              <CloseIcon fontSize="small" />
-            </IconButton>
+            <Box sx={{ display: 'flex', gap: 0.5, mt: -0.5, flexShrink: 0 }}>
+              <Tooltip title={copied ? t.shareCopied : t.sharePlace}>
+                <IconButton size="small" onClick={share} aria-label={t.sharePlace}>
+                  <IosShareIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <IconButton size="small" onClick={onClose} aria-label={t.closeBtn}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
           </Box>
 
           <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 2 }}>

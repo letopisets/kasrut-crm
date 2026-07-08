@@ -13,6 +13,8 @@ export default function App({ themeMode, onToggleThemeMode }: Props) {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<MapPage themeMode={themeMode} onToggleThemeMode={onToggleThemeMode} />} />
+        {/* Deep link to a single establishment (shareable / bookmarkable) */}
+        <Route path="/r/:id" element={<MapPage themeMode={themeMode} onToggleThemeMode={onToggleThemeMode} />} />
         <Route path="/donate" element={<DonatePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

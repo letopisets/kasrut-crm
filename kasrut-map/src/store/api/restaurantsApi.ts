@@ -1,5 +1,5 @@
 import { baseApi } from './baseApi'
-import type { MapHechsher, MapOptions, MapRestaurantQuery, MapRestaurantsResponse } from '@/types'
+import type { MapHechsher, MapOptions, MapRestaurant, MapRestaurantQuery, MapRestaurantsResponse } from '@/types'
 
 // Matches the server-side cache grid (~110 m) — see useMapController.
 const QUERY_COORD_PRECISION = 3
@@ -39,6 +39,10 @@ export const restaurantsApi = baseApi.injectEndpoints({
       query: (filters) => `/map/restaurants${toQueryString(filters)}`,
       providesTags: ['Restaurant'],
     }),
+    getMapRestaurant: build.query<MapRestaurant, string>({
+      query: (id) => `/map/restaurants/${id}`,
+      providesTags: ['Restaurant'],
+    }),
     getMapOptions: build.query<MapOptions, void>({
       query: () => '/map/options',
       providesTags: ['MapOptions'],
@@ -52,6 +56,7 @@ export const restaurantsApi = baseApi.injectEndpoints({
 
 export const {
   useGetMapRestaurantsQuery,
+  useGetMapRestaurantQuery,
   useGetMapOptionsQuery,
   useGetMapHechsherimQuery,
 } = restaurantsApi

@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   Box, Fab, Tooltip, CircularProgress, Typography,
   Snackbar, Alert,
@@ -12,6 +13,7 @@ import { MapAppBar }         from '@/components/map/MapAppBar'
 import { useMapController }  from '@/controllers/useMapController'
 import { useIpCenter }       from '@/hooks/useIpCenter'
 import { useGetMapMeQuery }  from '@/store/api/mapCommunityApi'
+import { useGetMapRestaurantQuery } from '@/store/api/restaurantsApi'
 import { clearCredentials, setUser } from '@/store/mapAuthSlice'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { useMapLang }        from '@/i18n/useMapLang'
@@ -101,7 +103,32 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     fallbackReady: ipCenter.ready,
   })
   const dispatch = useAppDispatch()
+  const navigate = useNavigate()
   const t = useMapLang()
+
+  // ── Deep links (/r/:id) ──────────────────────────────────────────────────
+  // Inbound: a shared link opens the place once it loads. Outbound: the open
+  // place is mirrored into the URL so it's always shareable / bookmarkable.
+  const { id: routeId } = useParams<{ id: string }>()
+  const initialDeepLinkId = useRef(routeId)
+  const [deepLinkResolved, setDeepLinkResolved] = useState(!routeId)
+  const { data: deepLinked, isError: deepLinkError } =
+    useGetMapRestaurantQuery(routeId ?? '', { skip: !routeId })
+  const { focusRestaurant, selected } = ctrl
+
+  useEffect(() => {
+    if (deepLinkResolved) return
+    if (!initialDeepLinkId.current) { setDeepLinkResolved(true); return }
+    if (deepLinked)      { focusRestaurant(deepLinked); setDeepLinkResolved(true) }
+    else if (deepLinkError) setDeepLinkResolved(true)  // removed/expired place → stop blocking URL sync
+  }, [deepLinked, deepLinkError, deepLinkResolved, focusRestaurant])
+
+  useEffect(() => {
+    if (!deepLinkResolved) return
+    const target = selected ? `/r/${selected.id}` : '/'
+    if (window.location.pathname !== target) navigate(target, { replace: true })
+  }, [selected, deepLinkResolved, navigate])
+
   const user  = useAppSelector(state => state.mapAuth.user)
   const token = useAppSelector(state => state.mapAuth.token)
   const { data: freshUser, isError: authExpired } = useGetMapMeQuery(undefined, { skip: !token })
