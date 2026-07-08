@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { assertPlausibleCoordinates } from '../lib/geoValidation'
+import { publicRestaurantVisibilityWhere } from './map.repo'
 import type { FoodType, MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
 import type {
   FoodType as PrismaFoodType,
@@ -534,8 +535,15 @@ export const mapCommunityRepo = {
     })
   },
 
+  // Existence for the PUBLIC community surface (reviews / suggestions): a
+  // soft-deleted or expired establishment is invisible on the map, so it must
+  // also 404 here — otherwise a user could confirm a hidden place exists and
+  // read/write reviews and update-suggestions against it via a direct id.
   async restaurantExists(restaurantId: string): Promise<boolean> {
-    const row = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true } })
+    const row = await prisma.restaurant.findFirst({
+      where: { id: restaurantId, ...publicRestaurantVisibilityWhere() },
+      select: { id: true },
+    })
     return Boolean(row)
   },
 
