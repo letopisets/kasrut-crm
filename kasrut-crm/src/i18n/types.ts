@@ -1,6 +1,7 @@
 export interface Translations {
   appName: string
   appSub: string
+  actionFailed: string
   nav: {
     dashboard: string
     restaurants: string
@@ -192,6 +193,7 @@ export interface Translations {
     empty: string
     alreadyReviewed: string
     count: string
+    reviewError: string
   }
   logs?: {
     title: string

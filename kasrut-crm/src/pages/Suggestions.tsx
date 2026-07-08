@@ -40,7 +40,10 @@ export default function Suggestions() {
   const [filter, setFilterState]      = useState<Filter>(
     initialStatus && ['all', 'pending', 'approved', 'rejected'].includes(initialStatus) ? initialStatus : 'pending'
   )
-  const [reviewingId, setReviewingId] = useState<string | null>(null)
+  // { id, action } — which suggestion is being reviewed and whether the pending
+  // action is approve or reject. Was a string hack (`id + '_reject'`) that never
+  // matched `isOpen`, so the reject flow could not open at all.
+  const [review, setReview]           = useState<{ id: string; action: 'approved' | 'rejected' } | null>(null)
   const [noteText, setNoteText]       = useState('')
   const [reviewError, setReviewError] = useState<string | null>(null)
 
@@ -50,12 +53,12 @@ export default function Suggestions() {
   const handleReview = async (id: string, status: 'approved' | 'rejected') => {
     try {
       await reviewSuggestion({ id, status, reviewerNote: noteText.trim() || undefined }).unwrap()
-      setReviewingId(null)
+      setReview(null)
       setNoteText('')
       setReviewError(null)
     } catch (e) {
       const error = e as { data?: { error?: string } }
-      setReviewError(error.data?.error ?? 'Failed to review suggestion')
+      setReviewError(error.data?.error ?? ts.reviewError)
     }
   }
 
@@ -130,8 +133,9 @@ export default function Suggestions() {
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {data.map((s: MapSuggestion) => {
-            const sc     = STATUS_COLOR[s.status]
-            const isOpen = reviewingId === s.id
+            const sc      = STATUS_COLOR[s.status]
+            const isOpen  = review?.id === s.id
+            const approving = review?.action === 'approved'
             return (
               <Box key={s.id} sx={{
                 background: '#161929', border: `1px solid #252840`,
@@ -240,14 +244,14 @@ export default function Suggestions() {
                         <>
                           <Button
                             size="small" variant="outlined" disableElevation
-                            onClick={() => { setReviewingId(s.id); setNoteText('') }}
+                            onClick={() => { setReview({ id: s.id, action: 'approved' }); setNoteText('') }}
                             sx={{ fontSize: 11, borderColor: alpha('#2ECC71', 0.4), color: '#2ECC71', '&:hover': { background: alpha('#2ECC71', 0.08) }, textTransform: 'none' }}
                           >
                             {ts.approve}
                           </Button>
                           <Button
                             size="small" variant="outlined" disableElevation
-                            onClick={() => { setReviewingId(s.id + '_reject'); setNoteText('') }}
+                            onClick={() => { setReview({ id: s.id, action: 'rejected' }); setNoteText('') }}
                             sx={{ fontSize: 11, borderColor: alpha('#E74C3C', 0.4), color: '#E74C3C', '&:hover': { background: alpha('#E74C3C', 0.08) }, textTransform: 'none' }}
                           >
                             {ts.reject}
@@ -257,18 +261,18 @@ export default function Suggestions() {
                         <>
                           <Button
                             size="small" variant="contained" disableElevation disabled={isReviewing}
-                            onClick={() => handleReview(s.id, reviewingId === s.id ? 'approved' : 'rejected')}
+                            onClick={() => handleReview(s.id, approving ? 'approved' : 'rejected')}
                             sx={{
                               fontSize: 11, textTransform: 'none',
-                              background: reviewingId === s.id ? '#2ECC71' : '#E74C3C',
-                              '&:hover': { background: reviewingId === s.id ? '#27AE60' : '#C0392B' },
+                              background: approving ? '#2ECC71' : '#E74C3C',
+                              '&:hover': { background: approving ? '#27AE60' : '#C0392B' },
                             }}
                           >
-                            {reviewingId === s.id ? ts.approve : ts.reject}
+                            {approving ? ts.approve : ts.reject}
                           </Button>
                           <Button
                             size="small" variant="text" disableElevation
-                            onClick={() => setReviewingId(null)}
+                            onClick={() => setReview(null)}
                             sx={{ fontSize: 11, color: 'text.secondary', textTransform: 'none' }}
                           >
                             {ts.cancel}

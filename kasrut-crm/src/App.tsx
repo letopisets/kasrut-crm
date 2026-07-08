@@ -5,6 +5,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import AppLayout from '@/components/layout/AppLayout'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
+import { GlobalSnackbar } from '@/components/ui/GlobalSnackbar'
 
 // Login is the only page that may be hit before authentication; load it eagerly
 import Login from '@/pages/Login'
@@ -71,6 +72,7 @@ function App() {
           <Route path="*"      element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Suspense>
+      <GlobalSnackbar />
     </BrowserRouter>
   )
 }
