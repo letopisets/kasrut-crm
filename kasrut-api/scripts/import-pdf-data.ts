@@ -680,80 +680,72 @@ async function loadIntoDatabase(builder: ImportBuilder) {
       }
     }
 
+    // Incremental upsert — NEVER wipe. Re-running the import updates existing
+    // rows by their deterministic id and inserts new ones, leaving community
+    // UGC (reviews, suggestions), inspections and any CRM-created rows intact.
+    // (Previously this transaction deleteMany()'d the whole graph including
+    // reviews/suggestions/inspections, so every re-run destroyed user data.)
     await prisma.$transaction(async tx => {
-      await tx.inspection.deleteMany()
-      await tx.mapRestaurantReview.deleteMany()
-      await tx.mapRestaurantSuggestion.deleteMany()
-      await tx.mashgiachHechsher.deleteMany()
-      await tx.restaurant.deleteMany()
-      await tx.mashgiach.deleteMany()
-      await tx.hechsher.deleteMany()
-      await tx.kashrutDocument.deleteMany()
-      await tx.rabbanut.deleteMany()
-
       await tx.kashrutLevel.createMany({ data: [...KASHRUT_LEVELS], skipDuplicates: true })
       await tx.establishmentCategory.createMany({ data: [...ESTABLISHMENT_CATEGORIES], skipDuplicates: true })
 
-      await tx.rabbanut.createMany({ data: [...builder.authorities.values()] })
+      for (const a of builder.authorities.values()) {
+        const data = {
+          id: a.id, name: a.name, city: a.city, contact: a.contact,
+          phone: a.phone, email: a.email, active: a.active, color: a.color,
+        }
+        await tx.rabbanut.upsert({ where: { id: a.id }, create: data, update: data })
+      }
+
       await tx.user.updateMany({
         where: { email: { in: ['admin@jer.il', 'cohen@jer.il'] } },
         data: { rabbanutId: JERUSALEM_RABBANUT_ID },
       })
-      await tx.hechsher.createMany({
-        data: [...builder.hechsherim.values()].map(h => ({
-          id: h.id,
-          name: h.name,
-          shortName: h.shortName,
-          city: h.city,
-          contact: h.contact,
-          phone: h.phone,
-          email: h.email,
-          type: h.type,
-          color: h.color,
-          rabbanutId: h.rabbanutId,
-        })),
-      })
-      await tx.mashgiach.createMany({
-        data: [...builder.mashgichim.values()].map(m => ({
-          id: m.id,
-          name: m.name,
-          phone: m.phone,
-          email: m.email,
-          area: m.area,
-          active: m.active,
-          rabbanutId: m.rabbanutId,
-        })),
-      })
 
+      for (const h of builder.hechsherim.values()) {
+        const data = {
+          id: h.id, name: h.name, shortName: h.shortName, city: h.city,
+          contact: h.contact, phone: h.phone, email: h.email,
+          type: h.type, color: h.color, rabbanutId: h.rabbanutId,
+        }
+        await tx.hechsher.upsert({ where: { id: h.id }, create: data, update: data })
+      }
+
+      for (const m of builder.mashgichim.values()) {
+        const data = {
+          id: m.id, name: m.name, phone: m.phone, email: m.email,
+          area: m.area, active: m.active, rabbanutId: m.rabbanutId,
+        }
+        await tx.mashgiach.upsert({ where: { id: m.id }, create: data, update: data })
+      }
+
+      // Refresh the hechsher links of ONLY the imported mashgichim (scoped,
+      // not a global wipe) so a changed hechsher set is reflected exactly.
+      const importedMashgiachIds = [...builder.mashgichim.values()].map(m => m.id)
+      if (importedMashgiachIds.length) {
+        await tx.mashgiachHechsher.deleteMany({ where: { mashgiachId: { in: importedMashgiachIds } } })
+      }
       const joins = [...builder.mashgichim.values()].flatMap(m =>
         [...m.hechsherIds].map(hechsherId => ({ mashgiachId: m.id, hechsherId })),
       )
       if (joins.length) await tx.mashgiachHechsher.createMany({ data: joins, skipDuplicates: true })
 
-      await tx.restaurant.createMany({
-        data: [...builder.restaurants.entries()].map(([key, r]) => ({
+      for (const [key, r] of builder.restaurants.entries()) {
+        const data = {
           id: idFor('r', key),
-          name: r.name,
-          address: r.address,
-          city: r.city,
-          levelId: r.levelId,
-          hechsherId: r.hechsherId,
-          mashgiachId: r.mashgiachId,
-          kitniyot: r.kitniyot,
-          expires: r.expires,
-          rabbanutId: r.rabbanutId,
-          notes: r.notes,
-          categoryId: r.categoryId,
-          lat: r.lat,
-          lng: r.lng,
-          foodType: r.foodType,
-          phone: r.phone,
-          hours: r.hours,
-        })),
-      })
+          name: r.name, address: r.address, city: r.city,
+          levelId: r.levelId, hechsherId: r.hechsherId, mashgiachId: r.mashgiachId,
+          kitniyot: r.kitniyot, expires: r.expires, rabbanutId: r.rabbanutId,
+          notes: r.notes, categoryId: r.categoryId, lat: r.lat, lng: r.lng,
+          foodType: r.foodType, phone: r.phone, hours: r.hours,
+        }
+        await tx.restaurant.upsert({ where: { id: data.id }, create: data, update: data })
+      }
 
-      await tx.kashrutDocument.createMany({ data: [...builder.documents.values()] })
-    }, { timeout: 60_000 })
+      for (const d of builder.documents.values()) {
+        await tx.kashrutDocument.upsert({ where: { id: d.id }, create: d, update: d })
+      }
+    }, { timeout: 120_000 })
   } finally {
     await prisma.$disconnect()
   }
@@ -906,28 +898,30 @@ function buildImportSql(data: {
   documents: Array<Record<string, unknown>>
 }) {
   const updatedAt = new Date().toISOString()
+  // Non-destructive upsert. This SQL used to begin with DELETE FROM inspections /
+  // map_restaurant_reviews / map_restaurant_suggestions / restaurants / … — a full
+  // reset that wiped all community UGC and inspections on every run. It now
+  // upserts entities by id and never touches reviews, suggestions or inspections.
+  const importedMashgiachIds = data.mashgichim.map(m => m.id)
   return [
     '-- Generated by kasrut-api/scripts/import-pdf-data.ts',
     `-- Generated at ${new Date().toISOString()}`,
+    '-- Idempotent upsert: safe to re-run; does NOT delete reviews, suggestions or inspections.',
     'BEGIN;',
     'SET CONSTRAINTS ALL DEFERRED;',
-    'DELETE FROM "inspections";',
-    'DELETE FROM "map_restaurant_reviews";',
-    'DELETE FROM "map_restaurant_suggestions";',
-    'DELETE FROM "mashgiach_hechsher";',
-    'DELETE FROM "restaurants";',
-    'DELETE FROM "mashgichim";',
-    'DELETE FROM "hechsherim";',
-    'DELETE FROM "documents";',
-    'DELETE FROM "rabbanuts";',
     upsertSql('kashrut_levels', ['id', 'name', 'sortOrder'], ['id'], [...KASHRUT_LEVELS]),
     upsertSql('establishment_categories', ['id', 'slug', 'nameHe', 'nameEn', 'nameRu'], ['id'], [...ESTABLISHMENT_CATEGORIES]),
-    insertSql('rabbanuts', ['id', 'name', 'city', 'contact', 'phone', 'email', 'active', 'color', 'updatedAt'], withUpdatedAt(data.authorities, updatedAt)),
+    upsertSql('rabbanuts', ['id', 'name', 'city', 'contact', 'phone', 'email', 'active', 'color', 'updatedAt'], ['id'], withUpdatedAt(data.authorities, updatedAt)),
     `UPDATE "users" SET "rabbanutId" = ${sqlValue(JERUSALEM_RABBANUT_ID)} WHERE "email" IN ('admin@jer.il', 'cohen@jer.il');`,
-    insertSql('hechsherim', ['id', 'name', 'shortName', 'city', 'contact', 'phone', 'email', 'type', 'color', 'rabbanutId', 'updatedAt'], withUpdatedAt(data.hechsherim, updatedAt)),
-    insertSql('mashgichim', ['id', 'name', 'phone', 'email', 'area', 'active', 'rabbanutId', 'updatedAt'], withUpdatedAt(data.mashgichim, updatedAt)),
-    insertSql('mashgiach_hechsher', ['mashgiachId', 'hechsherId'], data.mashgiachHechsher),
-    insertSql('restaurants', [
+    upsertSql('hechsherim', ['id', 'name', 'shortName', 'city', 'contact', 'phone', 'email', 'type', 'color', 'rabbanutId', 'updatedAt'], ['id'], withUpdatedAt(data.hechsherim, updatedAt)),
+    upsertSql('mashgichim', ['id', 'name', 'phone', 'email', 'area', 'active', 'rabbanutId', 'updatedAt'], ['id'], withUpdatedAt(data.mashgichim, updatedAt)),
+    // Refresh the hechsher links of only the imported mashgichim (scoped delete),
+    // then re-insert; ON CONFLICT DO NOTHING keeps it idempotent.
+    importedMashgiachIds.length
+      ? `DELETE FROM "mashgiach_hechsher" WHERE "mashgiachId" IN (${importedMashgiachIds.map(sqlValue).join(', ')});`
+      : '',
+    upsertSql('mashgiach_hechsher', ['mashgiachId', 'hechsherId'], ['mashgiachId', 'hechsherId'], data.mashgiachHechsher),
+    upsertSql('restaurants', [
       'id',
       'name',
       'address',
@@ -946,8 +940,8 @@ function buildImportSql(data: {
       'phone',
       'hours',
       'updatedAt',
-    ], withUpdatedAt(data.restaurants, updatedAt)),
-    insertSql('documents', ['id', 'name', 'category', 'date', 'size', 'ext', 'url', 'updatedAt'], withUpdatedAt(data.documents, updatedAt)),
+    ], ['id'], withUpdatedAt(data.restaurants, updatedAt)),
+    upsertSql('documents', ['id', 'name', 'category', 'date', 'size', 'ext', 'url', 'updatedAt'], ['id'], withUpdatedAt(data.documents, updatedAt)),
     'COMMIT;',
     '',
   ].filter(Boolean).join('\n')
@@ -955,15 +949,6 @@ function buildImportSql(data: {
 
 function withUpdatedAt(rows: Array<Record<string, unknown>>, updatedAt: string) {
   return rows.map(row => ({ ...row, updatedAt }))
-}
-
-function insertSql(table: string, columns: string[], rows: Array<Record<string, unknown>>) {
-  if (!rows.length) return ''
-  const values = rows.map(row => `(${columns.map(column => sqlValue(row[column])).join(', ')})`)
-  return [
-    `INSERT INTO "${table}" (${columns.map(column => `"${column}"`).join(', ')}) VALUES`,
-    `${values.join(',\n')};`,
-  ].join('\n')
 }
 
 function upsertSql(
@@ -977,10 +962,13 @@ function upsertSql(
   const updates = columns
     .filter(column => !conflictColumns.includes(column))
     .map(column => `"${column}" = EXCLUDED."${column}"`)
+  // Join tables have no non-key columns to update → DO NOTHING (an empty
+  // DO UPDATE SET would be invalid SQL).
+  const conflictAction = updates.length ? `DO UPDATE SET ${updates.join(', ')}` : 'DO NOTHING'
   return [
     `INSERT INTO "${table}" (${columns.map(column => `"${column}"`).join(', ')}) VALUES`,
     `${values.join(',\n')}`,
-    `ON CONFLICT (${conflictColumns.map(column => `"${column}"`).join(', ')}) DO UPDATE SET ${updates.join(', ')};`,
+    `ON CONFLICT (${conflictColumns.map(column => `"${column}"`).join(', ')}) ${conflictAction};`,
   ].join('\n')
 }
 
