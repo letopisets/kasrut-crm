@@ -8,7 +8,7 @@ import type { ThemeMode } from '@/theme'
 import { RestaurantMarker } from './RestaurantMarker'
 import { RouteLayer }       from './RouteLayer'
 import { CirclesLayer }     from './CirclesLayer'
-import { DEFAULT_ZOOM, NAV_ZOOM } from '@/lib/constants'
+import { DEFAULT_ZOOM, NAV_ZOOM, FOCUS_ZOOM } from '@/lib/constants'
 import { toClassicZoom, toMapZoom } from '@/lib/mapZoom'
 import { buildClusterIndex, getRenderItems } from '@/lib/clusterIndex'
 
@@ -111,6 +111,7 @@ interface Props {
   correcting:   boolean
   restaurants:  MapRestaurant[]
   selected:     MapRestaurant | null
+  focusTarget:  [number, number] | null
   viewport:     MapViewport | null
   radius:       number | null
   route:        RouteData | null
@@ -118,6 +119,7 @@ interface Props {
   onSelect:     (r: MapRestaurant) => void
   onPanHandled: () => void
   onFollowHandled: () => void
+  onFocusHandled: () => void
   onMapClick:   (pos: [number, number]) => void
   onViewportChange: (viewport: MapViewport) => void
 }
@@ -136,6 +138,7 @@ export const MapView = memo(function MapView({
   correcting,
   restaurants,
   selected,
+  focusTarget,
   viewport,
   radius,
   route,
@@ -143,6 +146,7 @@ export const MapView = memo(function MapView({
   onSelect,
   onPanHandled,
   onFollowHandled,
+  onFocusHandled,
   onMapClick,
   onViewportChange,
 }: Props) {
@@ -214,6 +218,26 @@ export const MapView = memo(function MapView({
     })
     onPanHandled()
   }, [mapReady, panToUser, userPosition, onPanHandled])
+
+  // Fly to a place picked from the list. The list is the primary entry point at
+  // overview zoom, where the chosen marker would otherwise sit off-screen, so we
+  // recentre on its coordinates and zoom in to street level. The camera is
+  // lifted upward by a slice of the viewport (one-shot `offset`, which — unlike
+  // `padding` — does not persist onto later user-centring animations) so the
+  // pin clears the detail sheet that slides up from the bottom.
+  useEffect(() => {
+    if (!mapReady || !focusTarget) return
+    const map = mapRef.current
+    if (!map) return
+    const liftForSheet = Math.round(map.getContainer().clientHeight * 0.2)
+    map.flyTo({
+      center: [focusTarget[1], focusTarget[0]],
+      zoom: Math.max(map.getZoom(), toMapZoom(FOCUS_ZOOM)),
+      offset: [0, -liftForSheet],
+      duration: 800,
+    })
+    onFocusHandled()
+  }, [mapReady, focusTarget, onFocusHandled])
 
   // One-shot recenter when followUser is raised (entering navigation or the
   // recenter FAB). The bearing is folded into the same easeTo: a separate

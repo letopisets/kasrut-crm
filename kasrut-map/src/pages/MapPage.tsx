@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import {
   Box, Fab, Tooltip, CircularProgress, Typography,
   Snackbar, Alert,
@@ -110,14 +110,6 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const [suggestionOpen, setSuggestionOpen] = useState(false)
   const [suggestionRestaurant, setSuggestionRestaurant] = useState<MapRestaurant | null>(null)
 
-  // Stable identity so memoized list items are not re-rendered by unrelated
-  // MapPage state changes (dialogs, fetching indicator, snackbars).
-  const { setSelected, setView } = ctrl
-  const selectFromList = useCallback((r: MapRestaurant) => {
-    setSelected(r)
-    setView('map')
-  }, [setSelected, setView])
-
   const openAddSuggestion = () => {
     setSuggestionRestaurant(null)
     setSuggestionOpen(true)
@@ -198,12 +190,14 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               correcting={ctrl.correcting}
               restaurants={mapRestaurants}
               selected={ctrl.selected}
+              focusTarget={ctrl.focusTarget}
               viewport={ctrl.viewport}
               radius={ctrl.filters.radius}
               route={ctrl.route}
               onSelect={ctrl.setSelected}
               onPanHandled={ctrl.onPanHandled}
               onFollowHandled={ctrl.onFollowUserHandled}
+              onFocusHandled={ctrl.onFocusHandled}
               onMapClick={ctrl.applyPosition}
               onViewportChange={ctrl.setViewport}
             />
@@ -315,7 +309,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
             <Suspense fallback={<PanelFallback />}>
               <RestaurantListView
                 restaurants={ctrl.restaurants}
-                onSelect={selectFromList}
+                onSelect={ctrl.focusRestaurant}
                 onStartRoute={ctrl.startRoute}
                 formatDist={ctrl.formatDist}
               />
