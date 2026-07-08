@@ -133,10 +133,32 @@ function applyBounds(where: Prisma.RestaurantWhereInput, bounds: MapBounds): Pri
   }
 }
 
-function buildMapWhere(filter: MapFilter): Prisma.RestaurantWhereInput {
-  let where: Prisma.RestaurantWhereInput = {
+// The public surface must only touch establishments that are (a) not
+// soft-deleted in the CRM and (b) still holding a valid certificate — so a
+// removed or expired teuda is never presented as kosher. Shared by the map
+// queries here AND the public community surface (reviews / suggestions in
+// mapCommunity.repo) so the visibility rule lives in exactly one place.
+// `expires` is a DATE at 00:00Z; `gte: now` keeps a cert visible through its
+// expiry day and hides it once past, matching calcStatus' 'critical' cutoff.
+export function publicRestaurantVisibilityWhere(): Prisma.RestaurantWhereInput {
+  return {
+    deletedAt: null,
+    expires:   { gte: new Date() },
+  }
+}
+
+// Map rows additionally need coordinates to be placeable.
+function mappableRestaurantWhere(): Prisma.RestaurantWhereInput {
+  return {
+    ...publicRestaurantVisibilityWhere(),
     lat: { not: null },
     lng: { not: null },
+  }
+}
+
+export function buildMapWhere(filter: MapFilter): Prisma.RestaurantWhereInput {
+  let where: Prisma.RestaurantWhereInput = {
+    ...mappableRestaurantWhere(),
     ...(filter.city && filter.city !== 'Все' ? { city: filter.city } : {}),
     ...(filter.foodType?.length
       ? { foodType: { in: filter.foodType as FoodType[] } }
@@ -188,9 +210,12 @@ export const mapRepo = {
   },
 
   async findMapOptions(): Promise<MapOptionsRow> {
+    // Same visibility rule as the map itself, so a city/hechsher/вид whose only
+    // establishments are deleted or expired never appears as a filter option.
+    const visible = mappableRestaurantWhere()
     const [cityRows, hechsherRows, categoryRows] = await Promise.all([
       prisma.restaurant.findMany({
-        where: { lat: { not: null }, lng: { not: null } },
+        where: visible,
         distinct: ['city'],
         select: { city: true },
         orderBy: { city: 'asc' },
@@ -198,7 +223,7 @@ export const mapRepo = {
       prisma.hechsher.findMany({
         where: {
           restaurants: {
-            some: { lat: { not: null }, lng: { not: null } },
+            some: visible,
           },
         },
         select: { name: true },
@@ -209,7 +234,7 @@ export const mapRepo = {
       prisma.establishmentCategory.findMany({
         where: {
           restaurants: {
-            some: { lat: { not: null }, lng: { not: null } },
+            some: visible,
           },
         },
         select: { id: true, slug: true, nameHe: true, nameEn: true, nameRu: true },
