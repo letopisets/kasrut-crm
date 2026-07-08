@@ -2,15 +2,18 @@ import { configureStore } from '@reduxjs/toolkit'
 import { useDispatch, useSelector } from 'react-redux'
 import authReducer, { persistAuthState } from './authSlice'
 import langReducer from './langSlice'
+import uiReducer from './uiSlice'
 import { baseApi } from './api/baseApi'
+import { rtkQueryErrorToast } from './errorMiddleware'
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     lang: langReducer,
+    ui:   uiReducer,
     [baseApi.reducerPath]: baseApi.reducer,
   },
-  middleware: (getDefault) => getDefault().concat(baseApi.middleware),
+  middleware: (getDefault) => getDefault().concat(baseApi.middleware, rtkQueryErrorToast),
 })
 
 export type RootState   = ReturnType<typeof store.getState>

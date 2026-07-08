@@ -3,6 +3,7 @@ import type { Translations } from './types'
 const ru: Translations = {
   appName: 'KashrutCRM',
   appSub: 'Система управления кашрутом',
+  actionFailed: 'Что-то пошло не так. Попробуйте ещё раз.',
   nav: {
     dashboard:   'Дашборд',
     restaurants: 'Заведения',
@@ -188,6 +189,7 @@ const ru: Translations = {
     empty:                  'Предложений нет',
     alreadyReviewed:        'Уже проверено',
     count:                  'предложений',
+    reviewError:            'Не удалось обработать предложение. Попробуйте ещё раз.',
   },
   logs: {
     title: 'Логи и сервис',
