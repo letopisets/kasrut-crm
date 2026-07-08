@@ -128,6 +128,7 @@ export function useMapController({
   const [followUser,    setFollowUser]    = useState(false)
   const [correcting,    setCorrecting]    = useState(false)
   const [panToUser,     setPanToUser]     = useState(false)
+  const [focusTarget,   setFocusTarget]   = useState<[number, number] | null>(null)
   const [viewport,      setViewport]      = useState<MapViewport | null>(null)
 
   const geo    = useGeolocation()
@@ -250,6 +251,20 @@ export function useMapController({
   }, [setGeoPosition])
   const onPanHandled        = useCallback(() => setPanToUser(false), [])
   const onFollowUserHandled = useCallback(() => setFollowUser(false), [])
+  const onFocusHandled      = useCallback(() => setFocusTarget(null), [])
+
+  // Selecting a place from the list: open its detail sheet on the map AND fly
+  // the camera to its coordinates, so the user lands on the picked address
+  // instead of wherever the map happened to be sitting.
+  const focusRestaurant = useCallback((r: MapRestaurant) => {
+    // A deliberate list pick pre-empts the one-shot "pan to me on the first GPS
+    // fix": without this, a fix landing during/after the focus fly would raise
+    // panToUser and yank the camera off the picked address onto the user.
+    didAutoPan.current = true
+    setSelected(r)
+    setView('map')
+    setFocusTarget([r.lat, r.lng])
+  }, [])
 
   const geoPosition = geo.position
   const startRoute = useCallback((r: MapRestaurant) => {
@@ -346,7 +361,9 @@ export function useMapController({
     restaurantLimit: restaurantPayload.limit,
     restaurantResultLimited: restaurantPayload.limited,
     // selected
-    selected, selectedWithDistance, setSelected,
+    selected, selectedWithDistance, setSelected, focusRestaurant,
+    // camera focus (fly-to a place picked from the list)
+    focusTarget, onFocusHandled,
     // viewport
     viewport, setViewport: setStableViewport,
     // geolocation
