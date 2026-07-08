@@ -268,6 +268,35 @@ export const mapRepo = {
     }
   },
 
+  // Single establishment for a shared/deep link. Same visibility rule as the
+  // map, so a link to a removed or expired place 404s instead of showing it.
+  async findById(id: string): Promise<MapRestaurantRow | null> {
+    const r = await prisma.restaurant.findFirst({
+      where: { id, ...mappableRestaurantWhere() },
+      select: {
+        id: true, name: true, address: true, city: true,
+        lat: true, lng: true, foodType: true, phone: true, hours: true,
+        category: { select: { slug: true } },
+        hechsher: { select: { name: true, type: true } },
+      },
+    })
+    if (!r) return null
+    return {
+      id:           r.id,
+      name:         r.name,
+      address:      r.address,
+      city:         r.city,
+      lat:          r.lat!,
+      lng:          r.lng!,
+      foodType:     r.foodType,
+      category:     r.category?.slug ?? null,
+      kashrutLevel: toKashrutLevel(r.hechsher.type),
+      hechsher:     r.hechsher.name,
+      phone:        r.phone ?? undefined,
+      hours:        r.hours ?? undefined,
+    }
+  },
+
   async findForMap(filter: MapFilter): Promise<MapRestaurantPage> {
     const where = buildMapWhere(filter)
 
