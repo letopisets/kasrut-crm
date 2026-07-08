@@ -186,6 +186,24 @@ export function buildMapWhere(filter: MapFilter): Prisma.RestaurantWhereInput {
     where = applyBounds(where, getRadiusBounds(filter.center, filter.radius))
   }
 
+  // Free-text search over name / address / city. ANDed with everything else
+  // (a separate OR key would collide with the antimeridian bounds OR above).
+  if (filter.q) {
+    const q = filter.q
+    where = {
+      AND: [
+        where,
+        {
+          OR: [
+            { name:    { contains: q, mode: 'insensitive' } },
+            { address: { contains: q, mode: 'insensitive' } },
+            { city:    { contains: q, mode: 'insensitive' } },
+          ],
+        },
+      ],
+    }
+  }
+
   return where
 }
 
@@ -195,6 +213,7 @@ export interface MapFilter {
   hechsher?:     string[]
   foodType?:     string[]
   category?:     string[]   // EstablishmentCategory.slug values
+  q?:            string     // free-text search over name/address/city
   bounds?:        MapBounds
   center?:        MapPoint
   radius?:        number

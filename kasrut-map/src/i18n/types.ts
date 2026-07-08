@@ -12,6 +12,11 @@ export interface MapTranslations {
   correctLocation: string
   myLocation: string
   detectingLocation: string
+  searchPlaceholder: string
+  searchClear: string
+  moreActions: string
+  sharePlace: string
+  shareCopied: string
 
   filterTitle: string
   resetAll: string

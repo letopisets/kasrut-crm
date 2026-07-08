@@ -165,6 +165,8 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
         onSetView={ctrl.setView}
         onOpenAuth={() => setAuthOpen(true)}
         onOpenAddSuggestion={openAddSuggestion}
+        search={ctrl.search}
+        onSearchChange={ctrl.setSearch}
       />
 
       <LegalNotice />
