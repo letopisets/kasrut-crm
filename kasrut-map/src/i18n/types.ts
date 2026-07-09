@@ -18,6 +18,11 @@ export interface MapTranslations {
   sharePlace: string
   shareCopied: string
   approxLocation: string
+  geoDenied: string
+  geoUnavailable: string
+  geoTimeout: string
+  geoUnsupported: string
+  geoSetManually: string
 
   filterTitle: string
   resetAll: string

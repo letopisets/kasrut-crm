@@ -20,6 +20,11 @@ const en: MapTranslations = {
   sharePlace: 'Share',
   shareCopied: 'Link copied',
   approxLocation: 'Approximate location — pin shown at the city area, not the exact address',
+  geoDenied: 'Location access is off — showing places by your approximate area. You can set your spot manually.',
+  geoUnavailable: 'Couldn’t determine your location — showing places by your approximate area.',
+  geoTimeout: 'Locating is taking too long — showing places by your approximate area.',
+  geoUnsupported: 'This browser doesn’t support location. Set your spot manually.',
+  geoSetManually: 'Set manually',
 
   filterTitle: 'Filters',
   resetAll: 'Reset all',

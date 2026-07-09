@@ -1,11 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
+export type GeoErrorCode = 'denied' | 'unavailable' | 'timeout' | 'unsupported'
+
 interface GeoState {
-  position: [number, number] | null
-  accuracy: number | null
-  heading:  number | null
-  error:    string | null
-  loading:  boolean
+  position:  [number, number] | null
+  accuracy:  number | null
+  heading:   number | null
+  error:     string | null          // raw browser message (diagnostics)
+  errorCode: GeoErrorCode | null    // localizable category for the UI
+  loading:   boolean
+}
+
+// GeolocationPositionError.code → our category
+function toErrorCode(code: number): GeoErrorCode {
+  if (code === 1) return 'denied'
+  if (code === 3) return 'timeout'
+  return 'unavailable'
 }
 
 const GEO_OPTIONS: PositionOptions = {
@@ -42,17 +52,17 @@ function bearing([lat1, lng1]: [number, number], [lat2, lng2]: [number, number])
 
 export function useGeolocation() {
   const [state, setState] = useState<GeoState>({
-    position: null, accuracy: null, heading: null, error: null, loading: true,
+    position: null, accuracy: null, heading: null, error: null, errorCode: null, loading: true,
   })
   const watchIdRef = useRef<number | null>(null)
   const highFreqRef = useRef(false)
 
   const start = useCallback(() => {
     if (!navigator.geolocation) {
-      setState({ position: null, accuracy: null, heading: null, error: 'Геолокация не поддерживается', loading: false })
+      setState({ position: null, accuracy: null, heading: null, error: 'Geolocation not supported', errorCode: 'unsupported', loading: false })
       return
     }
-    setState(s => ({ ...s, loading: true, error: null }))
+    setState(s => ({ ...s, loading: true, error: null, errorCode: null }))
 
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current)
@@ -70,7 +80,7 @@ export function useGeolocation() {
         // GPS noise filter — drop tiny jitter unless we're in nav mode
         if (prev.position && moved < threshold && !accuracyImproved) {
           return prev.loading || prev.error
-            ? { ...prev, loading: false, error: null }
+            ? { ...prev, loading: false, error: null, errorCode: null }
             : prev
         }
 
@@ -84,10 +94,11 @@ export function useGeolocation() {
           accuracy: p.coords.accuracy,
           heading: headingFromGps ?? computedHeading,
           error: null,
+          errorCode: null,
           loading: false,
         }
       }),
-      (e) => setState(s => ({ ...s, error: e.message, loading: false })),
+      (e) => setState(s => ({ ...s, error: e.message, errorCode: toErrorCode(e.code), loading: false })),
       GEO_OPTIONS,
     )
   }, [])
@@ -103,7 +114,7 @@ export function useGeolocation() {
   }, [start])
 
   const setPosition = useCallback((pos: [number, number]) => {
-    setState({ position: pos, accuracy: null, heading: null, error: null, loading: false })
+    setState({ position: pos, accuracy: null, heading: null, error: null, errorCode: null, loading: false })
   }, [])
 
   const setHighFrequency = useCallback((enabled: boolean) => {
