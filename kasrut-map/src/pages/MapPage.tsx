@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Box, Fab, Tooltip, CircularProgress, Typography,
-  Snackbar, Alert,
+  Snackbar, Alert, Button,
 } from '@mui/material'
 import MyLocationIcon   from '@mui/icons-material/MyLocation'
 import EditLocationIcon from '@mui/icons-material/EditLocation'
@@ -19,6 +19,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { useMapLang }        from '@/i18n/useMapLang'
 import type { ThemeMode } from '@/theme'
 import type { MapRestaurant, MapViewport } from '@/types'
+import type { GeoErrorCode } from '@/hooks/useGeolocation'
 
 interface Props {
   themeMode: ThemeMode
@@ -136,6 +137,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
   const [sessionExpiredOpen, setSessionExpiredOpen] = useState(false)
   const [suggestionOpen, setSuggestionOpen] = useState(false)
   const [suggestionRestaurant, setSuggestionRestaurant] = useState<MapRestaurant | null>(null)
+  const [geoNotice, setGeoNotice] = useState<GeoErrorCode | null>(null)
 
   const openAddSuggestion = () => {
     setSuggestionRestaurant(null)
@@ -156,6 +158,20 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     dispatch(clearCredentials())
     setSessionExpiredOpen(true)
   }, [authExpired, dispatch])
+
+  // Surface a geolocation failure instead of silently leaving the button
+  // spinning. errorCode goes null→code on each attempt, so re-clicking "my
+  // location" re-notifies without nagging after a dismissal.
+  const geoErrorCode = ctrl.geo.errorCode
+  useEffect(() => {
+    if (geoErrorCode) setGeoNotice(geoErrorCode)
+  }, [geoErrorCode])
+
+  const geoNoticeMessage =
+    geoNotice === 'denied'      ? t.geoDenied
+    : geoNotice === 'timeout'   ? t.geoTimeout
+    : geoNotice === 'unsupported' ? t.geoUnsupported
+    : t.geoUnavailable
 
   const [showMapFetching, setShowMapFetching] = useState(false)
 
@@ -181,7 +197,14 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     : t.establishmentCount.replace('{n}', String(ctrl.restaurants.length))
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      // 100dvh tracks the *visible* viewport on iOS Safari (100vh spills under
+      // the browser toolbar, pushing the map's controls out of reach); keep a
+      // 100vh fallback for browsers without dvh.
+      height: '100vh',
+      '@supports (height: 100dvh)': { height: '100dvh' },
+    }}>
 
       <MapAppBar
         themeMode={themeMode}
@@ -256,7 +279,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           )}
 
           {/* FABs */}
-          <Box sx={{ position: 'absolute', bottom: { xs: '10vh', sm: 18 }, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ position: 'absolute', bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', sm: 18 }, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {ctrl.routeMode === 'navigate' && (
               <Tooltip title={t.recenter} placement="left">
                 <Fab
@@ -307,7 +330,7 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
               onClick={() => ctrl.setView('list')}
               sx={{
                 position: 'absolute',
-                bottom: { xs: '10vh', sm: 18 },
+                bottom: { xs: 'calc(16px + env(safe-area-inset-bottom))', sm: 18 },
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
@@ -441,6 +464,30 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
       >
         <Alert severity="warning" onClose={() => setSessionExpiredOpen(false)} sx={{ width: '100%' }}>
           {t.sessionExpired}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={Boolean(geoNotice)}
+        autoHideDuration={8000}
+        onClose={() => setGeoNotice(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          severity="info"
+          onClose={() => setGeoNotice(null)}
+          sx={{ width: '100%', alignItems: 'center' }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => { setGeoNotice(null); ctrl.startCorrection() }}
+            >
+              {t.geoSetManually}
+            </Button>
+          }
+        >
+          {geoNoticeMessage}
         </Alert>
       </Snackbar>
     </Box>
