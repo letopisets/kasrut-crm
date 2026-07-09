@@ -13,6 +13,7 @@ export const serializeMapRestaurant = (r: MapRestaurantRow) => ({
   hechsher:     r.hechsher,
   phone:        r.phone ?? null,
   hours:        r.hours ?? null,
+  geoAccuracy:  r.geoAccuracy,
 })
 
 export const serializeMapRestaurants = (rs: MapRestaurantRow[]) =>

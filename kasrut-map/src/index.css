@@ -48,6 +48,8 @@ html, body, #root {
 }
 .km-pin:hover { transform: rotate(-45deg) scale(1.15); }
 .km-pin--selected { transform: rotate(-45deg) scale(1.25); border-color: #fff; }
+/* Approximate (city-centre) placement — dashed border signals "not exact". */
+.km-pin--approx { border-style: dashed; }
 
 .km-pin-emoji {
   transform: rotate(45deg);

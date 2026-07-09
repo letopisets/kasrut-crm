@@ -20,6 +20,7 @@ export type InspectionType     = 'planned' | 'urgent'
 export type DocumentCategory   = 'Instructions' | 'Forms' | 'Regulations' | 'Pesach'
 export type DocExt             = 'PDF' | 'DOCX' | 'XLSX'
 export type FoodType           = 'meat' | 'dairy' | 'pareve' | 'takeaway'
+export type GeoAccuracy         = 'exact' | 'approximate'
 
 export interface KashrutLevel {
   id:           string

@@ -184,3 +184,28 @@ explicit `CONFIRM=yes RESTORE_DB=<live-db>`.
 
 Also enable Hetzner server backups or snapshots — a cheap second, independent
 restore path for full-server disaster recovery.
+
+## Coordinate accuracy (re-geocoding)
+
+Imported establishments are placed at the **city centre + jitter** (the PDFs
+have no coordinates), so their `geoAccuracy` is `approximate` and the map shows
+them with a dashed pin plus an "approximate location" note. The re-geocode job
+upgrades them to real address-level points via OSM Nominatim and flips
+`geoAccuracy` to `exact`.
+
+It is rate-limited to 1 request/second (Nominatim policy) and processes a
+bounded batch per run, so it's safe to run against public Nominatim:
+
+```sh
+# from kasrut-api/, with DATABASE_URL set
+npm run regeocode -- --limit 25          # default 25 rows/run
+npm run regeocode -- --limit 50 --retry-days 30
+```
+
+`--retry-days` avoids re-hitting an un-geocodable address every run (it records
+`geocodeAttemptedAt`). A re-import never overwrites coordinates it has already
+upgraded. Optional nightly cron (small batch to stay well under rate limits):
+
+```cron
+30 3 * * * cd /opt/kasrut/kasrut-api && npm run regeocode -- --limit 40 >> ../backups/regeocode.log 2>&1
+```

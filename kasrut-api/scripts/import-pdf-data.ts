@@ -69,6 +69,7 @@ interface RestaurantDraft {
   categoryId: string | null
   lat: number | null
   lng: number | null
+  geoAccuracy: 'exact' | 'approximate'
   foodType: FoodType
   phone: string | null
   hours: string | null
@@ -373,6 +374,8 @@ class ImportBuilder {
       categoryId: inferCategoryId(foodText),
       lat: coords?.[0] ?? null,
       lng: coords?.[1] ?? null,
+      // Import only knows the city centre (+jitter), never the real address.
+      geoAccuracy: 'approximate',
       foodType: inferFoodType(raw.foodHint ?? `${name} ${raw.notes ?? ''}`),
       phone: raw.phone ? normalizePhone(raw.phone) : null,
       hours: null,
@@ -731,15 +734,19 @@ async function loadIntoDatabase(builder: ImportBuilder) {
       if (joins.length) await tx.mashgiachHechsher.createMany({ data: joins, skipDuplicates: true })
 
       for (const [key, r] of builder.restaurants.entries()) {
-        const data = {
-          id: idFor('r', key),
+        const id = idFor('r', key)
+        // lat/lng/geoAccuracy are enriched AFTER import (re-geocode job, manual
+        // map correction), so a re-import must not overwrite them on an existing
+        // row — set them only when the row is first created.
+        const geo = { lat: r.lat, lng: r.lng, geoAccuracy: r.geoAccuracy }
+        const common = {
           name: r.name, address: r.address, city: r.city,
           levelId: r.levelId, hechsherId: r.hechsherId, mashgiachId: r.mashgiachId,
           kitniyot: r.kitniyot, expires: r.expires, rabbanutId: r.rabbanutId,
-          notes: r.notes, categoryId: r.categoryId, lat: r.lat, lng: r.lng,
+          notes: r.notes, categoryId: r.categoryId,
           foodType: r.foodType, phone: r.phone, hours: r.hours,
         }
-        await tx.restaurant.upsert({ where: { id: data.id }, create: data, update: data })
+        await tx.restaurant.upsert({ where: { id }, create: { id, ...common, ...geo }, update: common })
       }
 
       for (const d of builder.documents.values()) {
@@ -806,6 +813,7 @@ function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: str
     categoryId: row.categoryId,
     lat: row.lat,
     lng: row.lng,
+    geoAccuracy: row.geoAccuracy,
     foodType: row.foodType,
     phone: row.phone,
     hours: row.hours,
@@ -936,11 +944,12 @@ function buildImportSql(data: {
       'categoryId',
       'lat',
       'lng',
+      'geoAccuracy',
       'foodType',
       'phone',
       'hours',
       'updatedAt',
-    ], ['id'], withUpdatedAt(data.restaurants, updatedAt)),
+    ], ['id'], withUpdatedAt(data.restaurants, updatedAt), ['lat', 'lng', 'geoAccuracy']),
     upsertSql('documents', ['id', 'name', 'category', 'date', 'size', 'ext', 'url', 'updatedAt'], ['id'], withUpdatedAt(data.documents, updatedAt)),
     'COMMIT;',
     '',
@@ -956,11 +965,14 @@ function upsertSql(
   columns: string[],
   conflictColumns: string[],
   rows: Array<Record<string, unknown>>,
+  // Columns written on INSERT but NOT overwritten on conflict — e.g. lat/lng/
+  // geoAccuracy, which are enriched after import and must survive a re-run.
+  preserveColumns: string[] = [],
 ) {
   if (!rows.length) return ''
   const values = rows.map(row => `(${columns.map(column => sqlValue(row[column])).join(', ')})`)
   const updates = columns
-    .filter(column => !conflictColumns.includes(column))
+    .filter(column => !conflictColumns.includes(column) && !preserveColumns.includes(column))
     .map(column => `"${column}" = EXCLUDED."${column}"`)
   // Join tables have no non-key columns to update → DO NOTHING (an empty
   // DO UPDATE SET would be invalid SQL).

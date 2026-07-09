@@ -17,6 +17,7 @@ export interface MapTranslations {
   moreActions: string
   sharePlace: string
   shareCopied: string
+  approxLocation: string
 
   filterTitle: string
   resetAll: string

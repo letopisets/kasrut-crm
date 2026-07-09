@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma'
-import type { FoodType, HechsherType, Prisma } from '../generated/prisma/client'
+import type { FoodType, GeoAccuracy, HechsherType, Prisma } from '../generated/prisma/client'
 
 export interface MapHechsherRow {
   id:        string
@@ -22,6 +22,7 @@ export interface MapRestaurantRow {
   hechsher:     string
   phone:        string | undefined
   hours:        string | undefined
+  geoAccuracy:  GeoAccuracy   // 'approximate' = city-centre guess, not the real address
 }
 
 export interface MapBounds {
@@ -276,6 +277,7 @@ export const mapRepo = {
       select: {
         id: true, name: true, address: true, city: true,
         lat: true, lng: true, foodType: true, phone: true, hours: true,
+        geoAccuracy: true,
         category: { select: { slug: true } },
         hechsher: { select: { name: true, type: true } },
       },
@@ -294,6 +296,7 @@ export const mapRepo = {
       hechsher:     r.hechsher.name,
       phone:        r.phone ?? undefined,
       hours:        r.hours ?? undefined,
+      geoAccuracy:  r.geoAccuracy,
     }
   },
 
@@ -315,6 +318,7 @@ export const mapRepo = {
         foodType: true,
         phone:    true,
         hours:    true,
+        geoAccuracy: true,
         category: { select: { slug: true } },
         hechsher: { select: { name: true, type: true } },
       },
@@ -338,6 +342,7 @@ export const mapRepo = {
       hechsher:     r.hechsher.name,
       phone:        r.phone ?? undefined,
       hours:        r.hours ?? undefined,
+      geoAccuracy:  r.geoAccuracy,
     }))
 
     const total = limited
