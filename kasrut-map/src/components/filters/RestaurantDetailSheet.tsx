@@ -10,6 +10,7 @@ import PhoneIcon       from '@mui/icons-material/Phone'
 import AccessTimeIcon  from '@mui/icons-material/AccessTime'
 import PlaceIcon       from '@mui/icons-material/Place'
 import IosShareIcon    from '@mui/icons-material/IosShare'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { ReviewsPanel } from '@/components/community/ReviewsPanel'
 import type { MapRestaurant, MapUser } from '@/types'
 import { FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_COLOR } from '@/lib/constants'
@@ -83,6 +84,14 @@ export function RestaurantDetailSheet({
                 <PlaceIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
                 <Typography variant="body2" color="text.secondary">{r.address}, {r.city}</Typography>
               </Box>
+              {r.geoAccuracy === 'approximate' && (
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 0.5 }}>
+                  <InfoOutlinedIcon sx={{ fontSize: 13, color: 'warning.main', mt: '2px' }} />
+                  <Typography variant="caption" sx={{ color: 'warning.main', lineHeight: 1.35 }}>
+                    {t.approxLocation}
+                  </Typography>
+                </Box>
+              )}
             </Box>
             <Box sx={{ display: 'flex', gap: 0.5, mt: -0.5, flexShrink: 0 }}>
               <Tooltip title={copied ? t.shareCopied : t.sharePlace}>

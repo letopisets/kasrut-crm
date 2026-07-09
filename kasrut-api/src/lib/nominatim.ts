@@ -77,3 +77,73 @@ export async function geocodeSettlement(
 
   return results
 }
+
+export interface GeocodePoint {
+  lat:         number
+  lng:         number
+  addresstype: string   // 'house' | 'road' | 'amenity' | 'city' | …
+  displayName: string
+}
+
+// City/administrative-level result types — no more precise than the city-centre
+// coordinate we already have, so a re-geocode to one of these is not an upgrade.
+const CITY_LEVEL_TYPES = new Set([
+  'city', 'town', 'village', 'municipality', 'administrative',
+  'state', 'county', 'region', 'country', 'postcode',
+])
+
+/** Geocode a full street address to a point. Returns null when Nominatim has
+ *  no result or only a city-level one (which wouldn't improve on the import's
+ *  city-centre guess). Result is cached (including negatives) for 24h. */
+export async function geocodeAddress(
+  address: string,
+  city: string,
+  countryCode = 'IL',
+): Promise<GeocodePoint | null> {
+  const q = [address, city].map(s => s.trim()).filter(Boolean).join(', ')
+  if (!q) return null
+  const cacheKey = `nominatim:addr:${countryCode}:${q.toLowerCase()}`
+
+  try {
+    const hit = await redis.get(cacheKey)
+    if (hit !== null) return JSON.parse(hit) as GeocodePoint | null
+  } catch { /* Redis unavailable */ }
+
+  await rateLimit()
+
+  const params = new URLSearchParams({
+    q,
+    countrycodes:   countryCode.toLowerCase(),
+    format:         'jsonv2',
+    'accept-language': 'he,ru,en',
+    addressdetails: '0',
+    limit:          '1',
+  })
+
+  let result: GeocodePoint | null = null
+  try {
+    const res = await fetch(`${NOMINATIM_BASE}/search?${params}`, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (res.ok) {
+      const raw = await res.json() as Record<string, unknown>[]
+      const top = raw[0]
+      const addresstype = (top?.['addresstype'] as string) ?? (top?.['type'] as string) ?? ''
+      if (top && !CITY_LEVEL_TYPES.has(addresstype)) {
+        result = {
+          lat:         parseFloat(top['lat'] as string),
+          lng:         parseFloat(top['lon'] as string),
+          addresstype,
+          displayName: top['display_name'] as string,
+        }
+      }
+    }
+  } catch { /* network/timeout — treat as no result */ }
+
+  try {
+    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result))
+  } catch { /* ignore */ }
+
+  return result
+}

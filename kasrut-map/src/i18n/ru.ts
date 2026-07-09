@@ -19,6 +19,7 @@ const ru: MapTranslations = {
   moreActions: 'Ещё',
   sharePlace: 'Поделиться',
   shareCopied: 'Ссылка скопирована',
+  approxLocation: 'Приблизительное местоположение — метка в районе города, а не по точному адресу',
 
   filterTitle: 'Фильтры',
   resetAll: 'Сбросить всё',

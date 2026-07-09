@@ -10,6 +10,7 @@
     "seed": "ts-node-dev --transpile-only prisma/seed.ts",
     "seed:settlements": "ts-node --transpile-only prisma/seed-settlements.ts",
     "import:pdf": "ts-node --transpile-only scripts/import-pdf-data.ts",
+    "regeocode": "ts-node --transpile-only scripts/regeocode.ts",
     "export:pdf": "ts-node --transpile-only scripts/import-pdf-data.ts --source ../docs-kashrut --dry-run --export --out ../docs/kashrut-export",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",

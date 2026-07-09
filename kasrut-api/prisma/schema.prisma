@@ -54,6 +54,14 @@ enum FoodType {
   takeaway
 }
 
+// How trustworthy a restaurant's lat/lng is. Imported rows are placed at the
+// city centre with jitter (approximate); geocoding or a manual map correction
+// upgrades them to exact.
+enum GeoAccuracy {
+  exact
+  approximate
+}
+
 enum MapAuthProvider {
   google
   apple
@@ -226,8 +234,10 @@ model Restaurant {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   // Map fields
-  lat            Float?
-  lng            Float?
+  lat               Float?
+  lng               Float?
+  geoAccuracy       GeoAccuracy @default(approximate)
+  geocodeAttemptedAt DateTime?  // last address-geocode attempt (re-geocode job)
   foodType       FoodType   @default(pareve)
   phone          String?
   hours          String?

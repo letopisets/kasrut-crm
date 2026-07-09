@@ -19,6 +19,7 @@ const en: MapTranslations = {
   moreActions: 'More',
   sharePlace: 'Share',
   shareCopied: 'Link copied',
+  approxLocation: 'Approximate location — pin shown at the city area, not the exact address',
 
   filterTitle: 'Filters',
   resetAll: 'Reset all',

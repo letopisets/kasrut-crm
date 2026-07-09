@@ -19,6 +19,7 @@ const he: MapTranslations = {
   moreActions: 'עוד',
   sharePlace: 'שיתוף',
   shareCopied: 'הקישור הועתק',
+  approxLocation: 'מיקום משוער — הסימון באזור העיר, לא בכתובת המדויקת',
 
   filterTitle: 'סינון',
   resetAll: 'אפס הכל',

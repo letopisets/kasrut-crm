@@ -28,7 +28,11 @@ function RestaurantMarkerComponent({ restaurant: r, selected, onClick }: Props) 
       style={selected ? { zIndex: 2 } : undefined}
     >
       <div
-        className={selected ? 'km-pin km-pin--selected' : 'km-pin'}
+        className={[
+          'km-pin',
+          selected && 'km-pin--selected',
+          r.geoAccuracy === 'approximate' && 'km-pin--approx',
+        ].filter(Boolean).join(' ')}
         style={{ background: FOOD_TYPE_COLOR[r.foodType] }}
       >
         <span className="km-pin-emoji">{FOOD_TYPE_EMOJI[r.foodType]}</span>
