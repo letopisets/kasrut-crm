@@ -269,6 +269,17 @@ export const mapRepo = {
     }
   },
 
+  // Establishment ids + last-modified for the sitemap. Same visibility rule as
+  // the map, so removed/expired places aren't advertised to crawlers.
+  async findSitemapEntries(limit = 45_000): Promise<{ id: string; updatedAt: Date }[]> {
+    return prisma.restaurant.findMany({
+      where: mappableRestaurantWhere(),
+      select: { id: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+    })
+  },
+
   // Single establishment for a shared/deep link. Same visibility rule as the
   // map, so a link to a removed or expired place 404s instead of showing it.
   async findById(id: string): Promise<MapRestaurantRow | null> {

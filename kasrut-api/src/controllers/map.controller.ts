@@ -8,7 +8,22 @@ import type { KashrutLevel, MapBounds, MapFilter, MapPoint } from '../db/map.rep
 
 const HECHSHERIM_CACHE_TTL = 600
 const MAP_OPTIONS_CACHE_TTL = 600
+const SITEMAP_CACHE_TTL = 3600
 const CACHE_TTL = 300
+
+// Public site the crawlable URLs live on (the map SPA, not the API host).
+const MAP_SITE_URL = (process.env.PUBLIC_MAP_URL ?? 'https://mykoshermap.com').replace(/\/$/, '')
+
+function buildSitemapXml(entries: { id: string; updatedAt: Date }[]): string {
+  const url = (loc: string, lastmod: string, priority: string) =>
+    `  <url><loc>${loc}</loc><lastmod>${lastmod}</lastmod><priority>${priority}</priority></url>`
+  const today = new Date().toISOString().slice(0, 10)
+  const rows = [
+    url(`${MAP_SITE_URL}/`, today, '1.0'),
+    ...entries.map(e => url(`${MAP_SITE_URL}/r/${e.id}`, e.updatedAt.toISOString().slice(0, 10), '0.7')),
+  ]
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows.join('\n')}\n</urlset>\n`
+}
 
 const DEFAULT_RESTAURANT_LIMIT = 750
 const MAX_RESTAURANT_LIMIT = 1500
@@ -131,6 +146,14 @@ export const mapController = {
   listOptions: asyncHandler(async (_req, res) => {
     const data = await withCache('map:options', MAP_OPTIONS_CACHE_TTL, () => mapRepo.findMapOptions())
     res.json(data)
+  }),
+
+  getSitemap: asyncHandler(async (_req, res) => {
+    const xml = await withCache('map:sitemap', SITEMAP_CACHE_TTL, async () =>
+      buildSitemapXml(await mapRepo.findSitemapEntries()))
+    res.set('Content-Type', 'application/xml; charset=utf-8')
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.send(xml)
   }),
 
   getRestaurant: asyncHandler(async (req, res) => {
