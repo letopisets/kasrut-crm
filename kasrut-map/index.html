@@ -18,24 +18,48 @@
     <meta property="og:description" content="Поиск кошерных ресторанов рядом с вами: сертификаты, фильтры, список заведений и маршруты." />
     <meta property="og:url" content="https://mykoshermap.com/" />
     <meta property="og:locale" content="ru_RU" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:locale:alternate" content="he_IL" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:image" content="https://mykoshermap.com/og-image.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="KashrutMap — карта кошерных заведений Израиля" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="KashrutMap - карта кошерных ресторанов" />
     <meta name="twitter:description" content="Найдите кошерные рестораны рядом с вами и проверьте данные о кашруте." />
+    <meta name="twitter:image" content="https://mykoshermap.com/og-image.svg" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "KashrutMap",
-        "url": "https://mykoshermap.com/",
-        "applicationCategory": "FoodEstablishmentReservationApplication",
-        "operatingSystem": "Any",
-        "inLanguage": "ru",
-        "description": "KashrutMap помогает найти кошерные рестораны рядом с вами, посмотреть сертификаты кашрута, фильтровать заведения и построить маршрут.",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        }
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://mykoshermap.com/#org",
+            "name": "KashrutMap",
+            "url": "https://mykoshermap.com/",
+            "logo": "https://mykoshermap.com/og-image.svg"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://mykoshermap.com/#website",
+            "name": "KashrutMap",
+            "url": "https://mykoshermap.com/",
+            "publisher": { "@id": "https://mykoshermap.com/#org" },
+            "inLanguage": ["ru", "he", "en"],
+            "description": "Карта кошерных заведений Израиля: сертификаты кашрута, фильтры, список заведений и маршруты."
+          },
+          {
+            "@type": "WebApplication",
+            "name": "KashrutMap",
+            "url": "https://mykoshermap.com/",
+            "applicationCategory": "TravelApplication",
+            "operatingSystem": "Any",
+            "inLanguage": "ru",
+            "description": "KashrutMap помогает найти кошерные рестораны рядом с вами, посмотреть сертификаты кашрута, фильтровать заведения и построить маршрут.",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+          }
+        ]
       }
     </script>
     <title>KashrutMap - карта кошерных ресторанов</title>

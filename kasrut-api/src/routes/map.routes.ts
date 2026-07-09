@@ -22,6 +22,7 @@ const routeRateLimit = rateLimit({
 
 // Public — no auth required
 // GET /api/map/restaurants?city=ירושלים&hechsher=בד"ץ העדה החרדית&foodType=meat,dairy
+router.get('/sitemap.xml', mapController.getSitemap)
 router.get('/hechsherim', mapController.listHechsherim)
 router.get('/options', mapController.listOptions)
 router.get('/geo', mapController.getGeo)

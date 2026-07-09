@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="KashrutMap — карта кошерных заведений Израиля">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111820"/>
+      <stop offset="1" stop-color="#0b0f14"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.28" r="0.6">
+      <stop offset="0" stop-color="#e8a507" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#e8a507" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- faint map grid -->
+  <g stroke="#ffffff" stroke-opacity="0.05" stroke-width="1">
+    <path d="M0 158 H1200 M0 316 H1200 M0 474 H1200"/>
+    <path d="M240 0 V630 M480 0 V630 M720 0 V630 M960 0 V630"/>
+  </g>
+
+  <!-- gold location pin with check -->
+  <g transform="translate(150 250)">
+    <path d="M85 0 C38 0 0 38 0 85 C0 150 85 235 85 235 C85 235 170 150 170 85 C170 38 132 0 85 0 Z" fill="#e8a507"/>
+    <circle cx="85" cy="85" r="52" fill="#0b0f14"/>
+    <path d="M60 88 l18 18 l34 -40" fill="none" stroke="#e8a507" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- wordmark + tagline -->
+  <text x="400" y="300" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="96" font-weight="800" fill="#f4f2ea">Kashrut<tspan fill="#e8a507">Map</tspan></text>
+  <text x="402" y="360" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="38" font-weight="600" fill="#c9cfd6">Карта кошерных заведений Израиля</text>
+  <text x="402" y="410" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="27" fill="#8b949e">Проверено по официальным спискам · עברית · Русский · English</text>
+
+  <!-- footer rule + domain -->
+  <rect x="402" y="452" width="620" height="2" fill="#e8a507" fill-opacity="0.5"/>
+  <text x="402" y="500" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#e8a507">mykoshermap.com</text>
+</svg>
