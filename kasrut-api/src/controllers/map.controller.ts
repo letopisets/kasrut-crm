@@ -4,7 +4,7 @@ import { mapRepo } from '../db/map.repo'
 import { serializeMapRestaurant, serializeMapRestaurantsPage } from '../serializers/map.serializer'
 import { withCache } from '../lib/cache'
 import { asyncHandler } from '../lib/asyncHandler'
-import type { KashrutLevel, MapBounds, MapFilter, MapPoint } from '../db/map.repo'
+import type { KashrutLevel, MapBounds, MapFilter, MapPoint, MapRestaurantRow } from '../db/map.repo'
 
 const HECHSHERIM_CACHE_TTL = 600
 const MAP_OPTIONS_CACHE_TTL = 600
@@ -13,6 +13,67 @@ const CACHE_TTL = 300
 
 // Public site the crawlable URLs live on (the map SPA, not the API host).
 const MAP_SITE_URL = (process.env.PUBLIC_MAP_URL ?? 'https://mykoshermap.com').replace(/\/$/, '')
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, c =>
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;')
+}
+
+const KASHRUT_LEVEL_LABEL: Record<string, string> = {
+  mehadrin: 'Мехадрин', badatz: 'Бадац', regular: 'Рабанут',
+}
+
+// Minimal crawler-facing HTML for /r/:id. nginx routes bot user-agents here so
+// search engines and social scrapers get real per-place title/description/OG and
+// FoodEstablishment structured data; humans keep getting the SPA. See ADR-0004.
+function buildRestaurantPrerenderHtml(r: MapRestaurantRow): string {
+  const url   = `${MAP_SITE_URL}/r/${r.id}`
+  const level = KASHRUT_LEVEL_LABEL[r.kashrutLevel] ?? r.kashrutLevel
+  const title = `${r.name} — ${r.city} | KashrutMap`
+  const desc  = `${r.name}, ${r.address}, ${r.city}. Кошерность: ${r.hechsher} (${level}).`
+  const image = `${MAP_SITE_URL}/og-image.svg`
+
+  const ld: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Restaurant',
+    name: r.name,
+    address: { '@type': 'PostalAddress', streetAddress: r.address, addressLocality: r.city, addressCountry: 'IL' },
+    servesCuisine: 'Kosher',
+    url,
+    additionalProperty: [{ '@type': 'PropertyValue', name: 'Kashrut certification', value: r.hechsher }],
+  }
+  // Only advertise coordinates we actually trust — approximate (city-centre)
+  // points would put a wrong pin in Google's local results.
+  if (r.geoAccuracy === 'exact') {
+    ld.geo = { '@type': 'GeoCoordinates', latitude: r.lat, longitude: r.lng }
+  }
+  const ldJson = JSON.stringify(ld).replace(/<\//g, '<\\/')
+
+  return `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<meta name="description" content="${escapeHtml(desc)}">
+<link rel="canonical" href="${url}">
+<meta property="og:type" content="restaurant.restaurant">
+<meta property="og:title" content="${escapeHtml(title)}">
+<meta property="og:description" content="${escapeHtml(desc)}">
+<meta property="og:url" content="${url}">
+<meta property="og:image" content="${image}">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">${ldJson}</script>
+</head>
+<body>
+<h1>${escapeHtml(r.name)}</h1>
+<p>${escapeHtml(`${r.address}, ${r.city}`)}</p>
+<p>Кошерность: ${escapeHtml(r.hechsher)} (${escapeHtml(level)})</p>
+<p><a href="${url}">Открыть на карте KashrutMap</a></p>
+</body>
+</html>
+`
+}
 
 function buildSitemapXml(entries: { id: string; updatedAt: Date }[]): string {
   const url = (loc: string, lastmod: string, priority: string) =>
@@ -161,6 +222,20 @@ export const mapController = {
     const data = await withCache(`map:restaurant:${id}`, CACHE_TTL, () => mapRepo.findById(id))
     if (!data) { res.status(404).json({ error: 'Not found' }); return }
     res.json(serializeMapRestaurant(data))
+  }),
+
+  // Crawler-facing prerender for /r/:id (nginx routes bots here). Reuses the
+  // cached single-restaurant lookup so it costs no extra DB hit on a warm cache.
+  getRestaurantPrerender: asyncHandler(async (req, res) => {
+    const id = req.params.restaurantId
+    const data = await withCache(`map:restaurant:${id}`, CACHE_TTL, () => mapRepo.findById(id))
+    res.set('Content-Type', 'text/html; charset=utf-8')
+    res.set('Cache-Control', 'public, max-age=3600')
+    if (!data) {
+      res.status(404).send('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Не найдено | KashrutMap</title><meta name="robots" content="noindex"></head><body><p>Заведение не найдено.</p><p><a href="' + MAP_SITE_URL + '/">KashrutMap</a></p></body></html>')
+      return
+    }
+    res.send(buildRestaurantPrerenderHtml(data))
   }),
 
   listRestaurants: asyncHandler(async (req, res) => {

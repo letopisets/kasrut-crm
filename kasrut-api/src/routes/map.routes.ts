@@ -29,6 +29,7 @@ router.get('/geo', mapController.getGeo)
 router.get('/route', routeRateLimit, mapRouteController.getRoute)
 router.get('/restaurants', mapController.listRestaurants)
 router.get('/restaurants/:restaurantId', mapController.getRestaurant)
+router.get('/prerender/:restaurantId', mapController.getRestaurantPrerender)
 router.get('/restaurants/:restaurantId/reviews', mapReviewController.listReviews)
 
 // Community actions — public users authenticated via Google/Apple

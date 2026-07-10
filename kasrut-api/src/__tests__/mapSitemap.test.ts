@@ -30,3 +30,38 @@ describe('GET /api/map/sitemap.xml', () => {
     expect(res.text).toContain('<lastmod>2026-07-01</lastmod>')
   })
 })
+
+const sampleRow = (over: Record<string, unknown> = {}) => ({
+  id: 'r_abc', name: 'Pizza Test', address: 'Herzl 1', city: 'Netanya',
+  lat: 32.3, lng: 34.85, foodType: 'dairy', category: null,
+  kashrutLevel: 'badatz', hechsher: 'Badatz X', phone: undefined, hours: undefined,
+  geoAccuracy: 'exact', ...over,
+}) as never
+
+describe('GET /api/map/prerender/:id', () => {
+  it('renders per-place HTML with title, canonical and Restaurant JSON-LD', async () => {
+    mockMap.findById.mockResolvedValue(sampleRow())
+    const res = await request(app).get('/api/map/prerender/r_abc')
+
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/html')
+    expect(res.text).toContain('<title>Pizza Test — Netanya | KashrutMap</title>')
+    expect(res.text).toContain('<link rel="canonical" href="https://mykoshermap.com/r/r_abc">')
+    expect(res.text).toContain('"@type":"Restaurant"')
+    expect(res.text).toContain('"latitude":32.3')   // exact → geo advertised
+  })
+
+  it('omits geo coordinates when the location is only approximate', async () => {
+    mockMap.findById.mockResolvedValue(sampleRow({ geoAccuracy: 'approximate' }))
+    const res = await request(app).get('/api/map/prerender/r_abc')
+    expect(res.status).toBe(200)
+    expect(res.text).not.toContain('GeoCoordinates')
+  })
+
+  it('404s (noindex) for a missing or hidden establishment', async () => {
+    mockMap.findById.mockResolvedValue(null)
+    const res = await request(app).get('/api/map/prerender/nope')
+    expect(res.status).toBe(404)
+    expect(res.text).toContain('noindex')
+  })
+})
