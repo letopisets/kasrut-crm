@@ -3,7 +3,8 @@ import type { PaletteMode } from '@mui/material'
 
 export type ThemeMode = PaletteMode
 
-export const createKashrutMapTheme = (mode: ThemeMode) => createTheme({
+export const createKashrutMapTheme = (mode: ThemeMode, direction: 'ltr' | 'rtl' = 'ltr') => createTheme({
+  direction,
   palette: {
     mode,
     primary:    { main: '#E8A507', contrastText: '#0F1117' },
