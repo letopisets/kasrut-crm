@@ -2,7 +2,7 @@
   "name": "kasrut-crm",
   "private": true,
   "version": "0.0.0",
-  "type": "module",                                                                             
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -22,7 +22,8 @@
     "react-dom": "^19.2.4",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.13.2",
-    "redux": "^5.0.1"
+    "redux": "^5.0.1",
+    "stylis-plugin-rtl": "^2.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -32,6 +33,7 @@
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/stylis": "^4.2.7",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
