@@ -4,6 +4,7 @@ const ru: Translations = {
   appName: 'KashrutCRM',
   appSub: 'Система управления кашрутом',
   actionFailed: 'Что-то пошло не так. Попробуйте ещё раз.',
+  openingHours: 'Часы работы',
   nav: {
     dashboard:   'Дашборд',
     restaurants: 'Заведения',

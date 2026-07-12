@@ -4,6 +4,7 @@ const en: Translations = {
   appName: 'KashrutCRM',
   appSub: 'Kashrut Management System',
   actionFailed: 'Something went wrong. Please try again.',
+  openingHours: 'Opening hours',
   nav: {
     dashboard:   'Dashboard',
     restaurants: 'Establishments',

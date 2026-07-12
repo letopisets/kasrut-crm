@@ -241,6 +241,7 @@ model Restaurant {
   foodType       FoodType   @default(pareve)
   phone          String?
   hours          String?
+  hoursJson      Json?      // structured weekly hours: { "0".."6": {open,close}|null }
 
   level       KashrutLevel          @relation(fields: [levelId],      references: [id], onDelete: Restrict)
   hechsher    Hechsher              @relation(fields: [hechsherId],   references: [id], onDelete: Restrict)

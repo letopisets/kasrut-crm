@@ -2,6 +2,7 @@ export interface Translations {
   appName: string
   appSub: string
   actionFailed: string
+  openingHours: string
   nav: {
     dashboard: string
     restaurants: string

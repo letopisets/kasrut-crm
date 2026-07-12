@@ -17,7 +17,9 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Switch from '@mui/material/Switch'
-import type { Restaurant, FoodType } from '@/types'
+import Typography from '@mui/material/Typography'
+import { WeeklyHoursEditor } from './WeeklyHoursEditor'
+import type { Restaurant, FoodType, WeeklyHours } from '@/types'
 import type { Hechsher } from '@/types'
 
 function extractApiError(err: unknown, fallback: string): string {
@@ -86,6 +88,8 @@ export function RestaurantForm({ initial, onClose }: Props) {
     rabbanutId:  initial?.rabbanutId  ?? user?.rabbanutId ?? '',
   })
 
+  const [hoursJson, setHoursJson] = useState<WeeklyHours | null>(initial?.hoursJson ?? null)
+
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
@@ -112,6 +116,7 @@ export function RestaurantForm({ initial, onClose }: Props) {
       // JSON PATCH, and the server would keep the OLD settlement link paired
       // with the newly typed city.
       settlementId: settlement?.id ?? null,
+      hoursJson,
     }
     if (isEdit) {
       await updateMutation({ id: initial!.id, patch: payload }).unwrap()
@@ -261,6 +266,11 @@ export function RestaurantForm({ initial, onClose }: Props) {
           helperText={submitted && !form.expires ? t.validation.required : undefined}
         />
         <Input label={t.addRest.notes} value={form.notes} onChange={v => set('notes', v)} placeholder="..." />
+
+        <Box>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 0.75 }}>{t.openingHours}</Typography>
+          <WeeklyHoursEditor value={hoursJson} onChange={setHoursJson} />
+        </Box>
 
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
           <Button

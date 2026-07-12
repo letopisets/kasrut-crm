@@ -22,6 +22,12 @@ export type DocExt             = 'PDF' | 'DOCX' | 'XLSX'
 export type FoodType           = 'meat' | 'dairy' | 'pareve' | 'takeaway'
 export type GeoAccuracy         = 'exact' | 'approximate'
 
+// Structured weekly opening hours. Day key is '0'..'6' (0 = Sunday, matching
+// JS Date.getDay()). A single open/close interval per day; null/absent = closed.
+export interface DayHours { open: string; close: string }   // "HH:MM" 24h
+export type WeekDay = '0' | '1' | '2' | '3' | '4' | '5' | '6'
+export type WeeklyHours = Partial<Record<WeekDay, DayHours | null>>
+
 export interface KashrutLevel {
   id:           string
   name:         string

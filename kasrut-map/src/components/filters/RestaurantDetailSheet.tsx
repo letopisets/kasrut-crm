@@ -14,7 +14,12 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { ReviewsPanel } from '@/components/community/ReviewsPanel'
 import type { MapRestaurant, MapUser } from '@/types'
 import { FOOD_TYPE_COLOR, FOOD_TYPE_EMOJI, KASHRUT_COLOR } from '@/lib/constants'
+import { computeOpenStatus, type OpenStatus } from '@/lib/openNow'
 import { useMapLang } from '@/i18n/useMapLang'
+
+const OPEN_STATUS_COLOR: Record<Exclude<OpenStatus, 'unknown'>, string> = {
+  open: '#2ECC71', closed: '#95A5A6', shabbat: '#9B59B6',
+}
 
 interface Props {
   restaurant:   MapRestaurant | null
@@ -39,6 +44,8 @@ export function RestaurantDetailSheet({
 }: Props) {
   const t = useMapLang()
   const [copied, setCopied] = useState(false)
+  const openStatus = r ? computeOpenStatus(r.hoursJson) : 'unknown'
+  const openLabel = openStatus === 'open' ? t.openNow : openStatus === 'shabbat' ? t.closedShabbat : t.closedNow
 
   const share = async () => {
     if (!r) return
@@ -133,6 +140,18 @@ export function RestaurantDetailSheet({
                 color="primary"
                 variant="outlined"
                 sx={{ fontWeight: 700 }}
+              />
+            )}
+            {openStatus !== 'unknown' && (
+              <Chip
+                label={openLabel}
+                size="small"
+                sx={{
+                  bgcolor: `${OPEN_STATUS_COLOR[openStatus]}22`,
+                  color:   OPEN_STATUS_COLOR[openStatus],
+                  border:  `1px solid ${OPEN_STATUS_COLOR[openStatus]}55`,
+                  fontWeight: 700,
+                }}
               />
             )}
           </Stack>
