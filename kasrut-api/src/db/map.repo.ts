@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import type { FoodType, GeoAccuracy, HechsherType, Prisma } from '../generated/prisma/client'
+import type { WeeklyHours } from '../models/types'
 
 export interface MapHechsherRow {
   id:        string
@@ -22,6 +23,7 @@ export interface MapRestaurantRow {
   hechsher:     string
   phone:        string | undefined
   hours:        string | undefined
+  hoursJson:    WeeklyHours | null
   geoAccuracy:  GeoAccuracy   // 'approximate' = city-centre guess, not the real address
 }
 
@@ -288,7 +290,7 @@ export const mapRepo = {
       select: {
         id: true, name: true, address: true, city: true,
         lat: true, lng: true, foodType: true, phone: true, hours: true,
-        geoAccuracy: true,
+        geoAccuracy: true, hoursJson: true,
         category: { select: { slug: true } },
         hechsher: { select: { name: true, type: true } },
       },
@@ -307,6 +309,7 @@ export const mapRepo = {
       hechsher:     r.hechsher.name,
       phone:        r.phone ?? undefined,
       hours:        r.hours ?? undefined,
+      hoursJson:    (r.hoursJson as WeeklyHours | null) ?? null,
       geoAccuracy:  r.geoAccuracy,
     }
   },
@@ -330,6 +333,7 @@ export const mapRepo = {
         phone:    true,
         hours:    true,
         geoAccuracy: true,
+        hoursJson: true,
         category: { select: { slug: true } },
         hechsher: { select: { name: true, type: true } },
       },
@@ -353,6 +357,7 @@ export const mapRepo = {
       hechsher:     r.hechsher.name,
       phone:        r.phone ?? undefined,
       hours:        r.hours ?? undefined,
+      hoursJson:    (r.hoursJson as WeeklyHours | null) ?? null,
       geoAccuracy:  r.geoAccuracy,
     }))
 

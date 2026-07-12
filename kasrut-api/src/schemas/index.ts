@@ -60,6 +60,13 @@ export const createKashrutLevelSchema = z.object({
 })
 export const updateKashrutLevelSchema = createKashrutLevelSchema.partial()
 
+// Structured weekly hours: day '0'..'6' → { open, close } (HH:MM) | null.
+const timeStr = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be HH:MM')
+const hoursJsonSchema = z.record(
+  z.enum(['0', '1', '2', '3', '4', '5', '6']),
+  z.object({ open: timeStr, close: timeStr }).nullable(),
+)
+
 export const createRestaurantSchema = z.object({
   name:         z.string().min(1).max(200).trim(),
   address:      z.string().min(1).max(500).trim(),
@@ -75,6 +82,7 @@ export const createRestaurantSchema = z.object({
   notes:        z.string().max(2000).trim().optional(),
   settlementId: id.nullable().optional(),
   categoryId:   id.optional(),
+  hoursJson:    hoursJsonSchema.nullable().optional(),
 })
 export const updateRestaurantSchema = createRestaurantSchema.partial()
 

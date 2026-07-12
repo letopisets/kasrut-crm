@@ -1,5 +1,5 @@
-export type { CertStatus, FoodType, KashrutLevel, EstablishmentCategory } from '../../../packages/shared/types'
-import type { CertStatus, FoodType } from '../../../packages/shared/types'
+export type { CertStatus, FoodType, KashrutLevel, EstablishmentCategory, DayHours, WeeklyHours } from '../../../packages/shared/types'
+import type { CertStatus, FoodType, WeeklyHours } from '../../../packages/shared/types'
 
 export interface Restaurant {
   id: string
@@ -19,5 +19,6 @@ export interface Restaurant {
   categoryId?: string
   lastInspection?: string
   settlementId?: string | null
+  hoursJson?: WeeklyHours | null
   createdAt?: string
 }

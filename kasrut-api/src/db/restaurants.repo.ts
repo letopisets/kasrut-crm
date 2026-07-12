@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma'
-import type { Restaurant, CertStatus, FoodType } from '../models/types'
+import type { Restaurant, CertStatus, FoodType, WeeklyHours } from '../models/types'
 import type { FoodType as PrismaFoodType } from '../generated/prisma/client'
 import { Prisma } from '../generated/prisma/client'
 
@@ -30,6 +30,7 @@ type RestaurantWithLatestInspection = {
   foodType: PrismaFoodType; expires: Date; rabbanutId: string
   notes: string | null; lat: number | null; lng: number | null
   phone: string | null; hours: string | null
+  hoursJson: Prisma.JsonValue | null
   settlementId: string | null; categoryId: string | null
   createdAt: Date; deletedAt: Date | null
   inspections?: { date: Date }[]
@@ -60,6 +61,7 @@ function toRestaurant(r: RestaurantWithLatestInspection): Restaurant {
     categoryId:      r.categoryId ?? undefined,
     lastInspection:  latestDate?.toISOString().slice(0, 10),
     settlementId:    r.settlementId ?? undefined,
+    hoursJson:       (r.hoursJson as WeeklyHours | null) ?? null,
     createdAt:       r.createdAt.toISOString(),
   }
 }
@@ -141,6 +143,7 @@ export const restaurantsRepo = {
         ...(input.foodType    ? { foodType: input.foodType as PrismaFoodType } : {}),
         ...(input.settlementId ? { settlementId: input.settlementId } : {}),
         ...(input.categoryId   ? { categoryId:   input.categoryId   } : {}),
+        ...(input.hoursJson    ? { hoursJson: input.hoursJson as Prisma.InputJsonValue } : {}),
         expires,
         rabbanutId:   input.rabbanutId,
         notes:        input.notes,
@@ -152,13 +155,17 @@ export const restaurantsRepo = {
 
   async update(id: string, patch: Partial<Omit<Restaurant, 'id'>>): Promise<Restaurant | null> {
     try {
-      const { expires, lastInspection: _ignored, foodType, level: _levelName, ...rest } = patch
+      const { expires, lastInspection: _ignored, foodType, level: _levelName, hoursJson, ...rest } = patch
       const r = await prisma.restaurant.update({
         where: { id },
         data: {
           ...rest,
           ...(foodType ? { foodType: foodType as PrismaFoodType } : {}),
           ...(expires  ? { expires: new Date(expires) } : {}),
+          // Json field: a plain null is ambiguous to Prisma — DbNull clears it.
+          ...(hoursJson !== undefined
+            ? { hoursJson: hoursJson === null ? Prisma.DbNull : (hoursJson as Prisma.InputJsonValue) }
+            : {}),
         },
         include: includeLatestInspection,
       })

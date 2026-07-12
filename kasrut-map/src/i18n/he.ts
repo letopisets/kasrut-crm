@@ -25,6 +25,10 @@ const he: MapTranslations = {
   geoTimeout: 'איתור המיקום נמשך יותר מדי — מציגים מקומות לפי האזור המשוער.',
   geoUnsupported: 'הדפדפן אינו תומך במיקום. סמנו מיקום ידנית.',
   geoSetManually: 'סימון ידני',
+  openNow: 'פתוח עכשיו',
+  closedNow: 'סגור עכשיו',
+  closedShabbat: 'סגור בשבת',
+  openNowFilter: 'פתוח עכשיו',
 
   filterTitle: 'סינון',
   resetAll: 'אפס הכל',

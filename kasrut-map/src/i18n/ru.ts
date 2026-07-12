@@ -25,6 +25,10 @@ const ru: MapTranslations = {
   geoTimeout: 'Определение местоположения затянулось — показываем заведения по приблизительному району.',
   geoUnsupported: 'Браузер не поддерживает геолокацию. Укажите точку вручную.',
   geoSetManually: 'Указать вручную',
+  openNow: 'Открыто сейчас',
+  closedNow: 'Закрыто',
+  closedShabbat: 'Закрыто на шаббат',
+  openNowFilter: 'Открыто сейчас',
 
   filterTitle: 'Фильтры',
   resetAll: 'Сбросить всё',

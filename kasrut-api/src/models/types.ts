@@ -8,6 +8,9 @@ export type {
   DocumentCategory,
   DocExt,
   FoodType,
+  GeoAccuracy,
+  DayHours,
+  WeeklyHours,
   MapAuthProvider,
   MapSuggestionType,
   MapSuggestionStatus,
@@ -26,6 +29,7 @@ import type {
   DocumentCategory,
   DocExt,
   FoodType,
+  WeeklyHours,
 } from '../../../packages/shared/types'
 
 export interface User {
@@ -106,6 +110,7 @@ export interface Restaurant {
   categoryId?:     string
   lastInspection?: string
   settlementId?:   string | null
+  hoursJson?:      WeeklyHours | null
   createdAt?:      string
 }
 

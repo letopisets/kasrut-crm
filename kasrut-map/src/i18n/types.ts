@@ -23,6 +23,10 @@ export interface MapTranslations {
   geoTimeout: string
   geoUnsupported: string
   geoSetManually: string
+  openNow: string
+  closedNow: string
+  closedShabbat: string
+  openNowFilter: string
 
   filterTitle: string
   resetAll: string

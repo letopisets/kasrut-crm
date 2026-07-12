@@ -25,6 +25,10 @@ const en: MapTranslations = {
   geoTimeout: 'Locating is taking too long — showing places by your approximate area.',
   geoUnsupported: 'This browser doesn’t support location. Set your spot manually.',
   geoSetManually: 'Set manually',
+  openNow: 'Open now',
+  closedNow: 'Closed now',
+  closedShabbat: 'Closed for Shabbat',
+  openNowFilter: 'Open now',
 
   filterTitle: 'Filters',
   resetAll: 'Reset all',

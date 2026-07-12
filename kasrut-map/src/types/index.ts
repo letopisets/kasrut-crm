@@ -1,5 +1,5 @@
-export type { FoodType, GeoAccuracy, MapAuthProvider, MapSuggestionType, MapSuggestionStatus, MapPasswordResetChannel as PasswordResetChannel, Page } from '../../../packages/shared/types'
-import type { FoodType, GeoAccuracy, MapAuthProvider, MapSuggestionType, MapSuggestionStatus } from '../../../packages/shared/types'
+export type { FoodType, GeoAccuracy, DayHours, WeeklyHours, MapAuthProvider, MapSuggestionType, MapSuggestionStatus, MapPasswordResetChannel as PasswordResetChannel, Page } from '../../../packages/shared/types'
+import type { FoodType, GeoAccuracy, WeeklyHours, MapAuthProvider, MapSuggestionType, MapSuggestionStatus } from '../../../packages/shared/types'
 
 export type KashrutLevel = 'mehadrin' | 'badatz' | 'regular'
 
@@ -22,6 +22,7 @@ export interface MapRestaurant {
   hechsher:     string
   phone?:       string
   hours?:       string
+  hoursJson?:   WeeklyHours | null   // structured weekly hours (drives "open now")
   geoAccuracy?: GeoAccuracy   // 'approximate' = placed at the city centre, not the exact address (always sent by the API)
   distance?:    number   // metres, computed at runtime
 }
