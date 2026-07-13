@@ -194,7 +194,9 @@ upgrades them to real address-level points via OSM Nominatim and flips
 `geoAccuracy` to `exact`.
 
 It is rate-limited to 1 request/second (Nominatim policy) and processes a
-bounded batch per run, so it's safe to run against public Nominatim:
+bounded batch per run, so it's safe to run against public Nominatim.
+
+**In a dev / CI checkout** (Node + `node_modules` present):
 
 ```sh
 # from kasrut-api/, with DATABASE_URL set
@@ -202,10 +204,28 @@ npm run regeocode -- --limit 25          # default 25 rows/run
 npm run regeocode -- --limit 50 --retry-days 30
 ```
 
-`--retry-days` avoids re-hitting an un-geocodable address every run (it records
-`geocodeAttemptedAt`). A re-import never overwrites coordinates it has already
-upgraded. Optional nightly cron (small batch to stay well under rate limits):
+**On the prod host there is no Node** — the app runs only in Docker, so
+`npm run regeocode` on the host fails. Run it **inside the api container**, which
+already has the compiled modules, `DATABASE_URL`, and network to Postgres +
+Nominatim. A small runtime runner (`regeocode-runtime.cjs`) that requires the
+compiled `dist/.../lib/{nominatim,geoValidation,mapCache,prisma}` does the same
+work; copy it into the running container and run with `node`:
+
+```sh
+cd /opt/kasrut
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
+docker cp kasrut-api/scripts/regeocode-runtime.cjs kasrut-api-1:/app/kasrut-api/regeocode-runtime.cjs
+$DC exec -T -e RG_LIMIT=40 api node regeocode-runtime.cjs   # RG_LIMIT rows this run
+```
+
+(The file must be re-`docker cp`'d after each image rebuild, since it isn't baked
+into the runtime image — a follow-up is to COPY it in the Dockerfile so the cron
+can call it directly.) `geocodeAttemptedAt` is recorded per row so an
+un-geocodable address isn't retried for 30 days, and a re-import never overwrites
+coordinates already upgraded to `exact`.
+
+Nightly cron (small batch, well under the rate limit):
 
 ```cron
-30 3 * * * cd /opt/kasrut/kasrut-api && npm run regeocode -- --limit 40 >> ../backups/regeocode.log 2>&1
+30 3 * * * cd /opt/kasrut && docker cp kasrut-api/scripts/regeocode-runtime.cjs kasrut-api-1:/app/kasrut-api/regeocode-runtime.cjs && docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml exec -T -e RG_LIMIT=40 api node regeocode-runtime.cjs >> backups/regeocode.log 2>&1
 ```
