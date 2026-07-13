@@ -1,6 +1,7 @@
 import type { Request } from 'express'
 import { createHash } from 'crypto'
 import { mapRepo } from '../db/map.repo'
+import { geocodeAddress } from '../lib/nominatim'
 import { serializeMapRestaurant, serializeMapRestaurantsPage } from '../serializers/map.serializer'
 import { withCache } from '../lib/cache'
 import { asyncHandler } from '../lib/asyncHandler'
@@ -197,6 +198,22 @@ export const mapController = {
     if (!geo) { res.status(204).end(); return }
     res.set('cache-control', 'public, max-age=600')
     res.json(geo)
+  }),
+
+  // Server-side address geocoding for the "suggest a place" flow. The browser
+  // used to call Nominatim directly, which the prod CSP blocks — the fetch
+  // failed silently and the suggestion fell back to the map centre (i.e. wherever
+  // the user was standing), not the typed address. Going through our own API
+  // (same-origin, allowed by CSP) uses the rate-limited, cached geocoder and
+  // returns a real point or 204 when the address can't be resolved.
+  getGeocode: asyncHandler(async (req, res) => {
+    const address = queryString(req.query.address)?.trim() ?? ''
+    const city    = queryString(req.query.city)?.trim() ?? ''
+    if (!address && !city) { res.status(400).json({ error: 'address or city is required' }); return }
+    const point = await geocodeAddress(address, city)
+    if (!point) { res.status(204).end(); return }
+    res.set('Cache-Control', 'public, max-age=86400')
+    res.json({ lat: point.lat, lng: point.lng })
   }),
 
   listHechsherim: asyncHandler(async (_req, res) => {
