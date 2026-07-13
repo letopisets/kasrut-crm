@@ -82,12 +82,6 @@ function PanelFallback() {
   return null
 }
 
-function getViewportCenter(viewport: MapViewport | null): [number, number] | null {
-  if (!viewport) return null
-  const { north, south, east, west } = viewport.bounds
-  return [(north + south) / 2, (east + west) / 2]
-}
-
 // Markers only appear once the map is zoomed in enough — the list (opened
 // via the count badge) is the primary entry point at the default/overview
 // zoom, and markers reveal themselves when the user zooms in to inspect a
@@ -189,7 +183,6 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
     ctrl.viewport && ctrl.viewport.zoom >= MARKER_VISIBILITY_ZOOM
       ? ctrl.mapRestaurants
       : NO_MARKERS
-  const suggestionDefaultPosition = getViewportCenter(ctrl.viewport) ?? ctrl.geo.position ?? ipCenter.value
   const restaurantCountLabel = ctrl.restaurantResultLimited
     ? t.establishmentCountLimited
       .replace('{shown}', String(ctrl.restaurants.length))
@@ -448,7 +441,6 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
           <SuggestionDialog
             open={suggestionOpen}
             restaurant={suggestionRestaurant}
-            defaultPosition={suggestionDefaultPosition}
             isAuthenticated={Boolean(user)}
             onClose={() => setSuggestionOpen(false)}
             onRequireAuth={() => setAuthOpen(true)}

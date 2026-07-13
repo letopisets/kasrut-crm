@@ -1,22 +1,14 @@
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
 
+// Geocode via our own API (same-origin, allowed by the CSP). The browser used to
+// hit Nominatim directly, which the prod CSP blocks — the request failed silently
+// and the caller fell back to the map centre instead of the typed address.
 export async function geocodeRestaurantAddress(address: string, city: string): Promise<[number, number] | null> {
-  const query = `${address}, ${city}, Israel`
-  const params = new URLSearchParams({
-    q: query,
-    format: 'json',
-    limit: '1',
-    countrycodes: 'il',
-  })
+  const params = new URLSearchParams({ address, city })
+  const response = await fetch(`${API_URL}/map/geocode?${params.toString()}`)
+  if (response.status === 204 || !response.ok) return null
 
-  const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`)
-  if (!response.ok) return null
-
-  const results = await response.json() as Array<{ lat?: string; lon?: string }>
-  const first = results[0]
-  if (!first?.lat || !first.lon) return null
-
-  const lat = Number(first.lat)
-  const lng = Number(first.lon)
-  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null
+  const data = await response.json() as { lat?: number; lng?: number }
+  if (typeof data.lat === 'number' && typeof data.lng === 'number') return [data.lat, data.lng]
+  return null
 }

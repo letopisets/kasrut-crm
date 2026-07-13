@@ -20,21 +20,40 @@ const routeRateLimit = rateLimit({
   keyPrefix: 'map:route',
 })
 
+// Geocoding proxies to Nominatim (rate-limited to 1 req/s app-wide); cap per IP
+// so a scraper can't drain that budget.
+const geocodeRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  keyPrefix: 'map:geocode',
+})
+const mapReadRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  keyPrefix: 'map:read',
+})
+const communityWriteRateLimit = rateLimit({
+  windowMs: 60 * 60_000,
+  max: 20,
+  keyPrefix: 'map:community-write',
+})
+
 // Public — no auth required
 // GET /api/map/restaurants?city=ירושלים&hechsher=בד"ץ העדה החרדית&foodType=meat,dairy
 router.get('/sitemap.xml', mapController.getSitemap)
 router.get('/hechsherim', mapController.listHechsherim)
 router.get('/options', mapController.listOptions)
 router.get('/geo', mapController.getGeo)
+router.get('/geocode', geocodeRateLimit, mapController.getGeocode)
 router.get('/route', routeRateLimit, mapRouteController.getRoute)
-router.get('/restaurants', mapController.listRestaurants)
-router.get('/restaurants/:restaurantId', mapController.getRestaurant)
-router.get('/prerender/:restaurantId', mapController.getRestaurantPrerender)
-router.get('/restaurants/:restaurantId/reviews', mapReviewController.listReviews)
+router.get('/restaurants', mapReadRateLimit, mapController.listRestaurants)
+router.get('/restaurants/:restaurantId', mapReadRateLimit, mapController.getRestaurant)
+router.get('/prerender/:restaurantId', mapReadRateLimit, mapController.getRestaurantPrerender)
+router.get('/restaurants/:restaurantId/reviews', mapReadRateLimit, mapReviewController.listReviews)
 
 // Community actions — public users authenticated via Google/Apple
-router.post('/suggestions', authenticateMapJWT, mapSuggestionController.createSuggestion)
-router.post('/restaurants/:restaurantId/reviews', authenticateMapJWT, mapReviewController.upsertReview)
+router.post('/suggestions', communityWriteRateLimit, authenticateMapJWT, mapSuggestionController.createSuggestion)
+router.post('/restaurants/:restaurantId/reviews', communityWriteRateLimit, authenticateMapJWT, mapReviewController.upsertReview)
 
 // Moderation — CRM users (owner / rabbanut) only
 router.get('/suggestions',           authenticateJWT, requireRole('owner', 'rabbanut'), mapSuggestionController.listSuggestions)

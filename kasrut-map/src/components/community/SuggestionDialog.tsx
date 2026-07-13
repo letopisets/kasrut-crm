@@ -15,7 +15,6 @@ import type { FoodType, MapRestaurant, MapSuggestionPayload } from '@/types'
 interface Props {
   open: boolean
   restaurant: MapRestaurant | null
-  defaultPosition?: [number, number] | null
   isAuthenticated: boolean
   onClose: () => void
   onRequireAuth: () => void
@@ -23,7 +22,7 @@ interface Props {
 
 const FOOD_TYPES: FoodType[] = ['meat', 'dairy', 'pareve', 'takeaway']
 
-export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenticated, onClose, onRequireAuth }: Props) {
+export function SuggestionDialog({ open, restaurant, isAuthenticated, onClose, onRequireAuth }: Props) {
   const t = useMapLang()
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
@@ -107,14 +106,17 @@ export function SuggestionDialog({ open, restaurant, defaultPosition, isAuthenti
     setError(null)
     setIsResolvingLocation(mode === 'add')
 
-    const position = restaurant
-      ? [restaurant.lat, restaurant.lng] as [number, number]
-      : await geocodeRestaurantAddress(address.trim(), city.trim())
-        .catch(() => null) ?? defaultPosition
+    const position: [number, number] | null = restaurant
+      ? [restaurant.lat, restaurant.lng]
+      : await geocodeRestaurantAddress(address.trim(), city.trim()).catch(() => null)
 
     setIsResolvingLocation(false)
 
-    if (!position) {
+    // An edit must keep the existing place's location. A new place submits
+    // whatever the address geocoded to — or null. We never fall back to the map
+    // centre, which is wherever the user is standing, not the typed address; a
+    // moderator (or the re-geocode job) resolves a null location from the address.
+    if (mode === 'update' && !position) {
       setError(t.suggestionLocationError)
       return
     }
