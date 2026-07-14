@@ -229,3 +229,31 @@ Nightly cron (small batch, well under the rate limit):
 ```cron
 30 3 * * * cd /opt/kasrut && docker cp kasrut-api/scripts/regeocode-runtime.cjs kasrut-api-1:/app/kasrut-api/regeocode-runtime.cjs && docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml exec -T -e RG_LIMIT=40 api node regeocode-runtime.cjs >> backups/regeocode.log 2>&1
 ```
+
+## GovMap geocoder for Israeli addresses (suggest-a-place)
+
+New-place suggestions geocode the typed address so the pin lands on it. The
+client routes by region: **Israeli addresses** (Hebrew text / Israeli city) go to
+**GovMap** (Survey of Israel — the authoritative Israeli geocoder, client-side
+SDK, returns Israeli TM Grid EPSG:2039 which we project to WGS84); everything
+else goes to **Nominatim** via `/api/map/geocode`. Each falls back to the other,
+so a missing token or a miss still resolves.
+
+To enable GovMap (until then, Israeli addresses just fall back to Nominatim):
+
+1. **Get a token** — register at [govmap.gov.il](https://www.govmap.gov.il/) for
+   an API token.
+2. **Build the map with the token** (Vite embeds it at build time):
+   ```sh
+   VITE_GOVMAP_TOKEN=<your-token> $DC build kasrut-map && $DC up -d --no-deps kasrut-map
+   ```
+   (or add `VITE_GOVMAP_TOKEN=<token>` to `.env.hetzner`).
+3. **Allow GovMap in the prod CSP** — add these hosts to the `mykoshermap.com`
+   server block in `docker/nginx/production.conf` (a server-local-edited file),
+   then recreate nginx (`$DC up -d --force-recreate nginx`):
+   - `script-src`  += `https://www.govmap.gov.il https://*.govmap.gov.il`
+   - `style-src`   += `https://*.govmap.gov.il`
+   - `connect-src` += `https://www.govmap.gov.il https://*.govmap.gov.il`
+   - `img-src` already allows `https:` (GovMap tiles), so no change there.
+
+The dev nginx (`docker/nginx/default.conf`) already carries these CSP entries.
