@@ -14,10 +14,12 @@ function isIsraeliAddress(address: string, city: string): boolean {
   return HEBREW.test(s) || IL_HINTS.test(s)
 }
 
-// Nominatim via our API. Returns null on 204/no-result/error.
-async function geocodeNominatim(address: string, city: string): Promise<[number, number] | null> {
+// Our /map/geocode (LocationIQ → Nominatim server-side). `country` restricts the
+// search (pass 'il' for Israeli addresses). Returns null on 204/no-result/error.
+async function geocodeViaApi(address: string, city: string, country?: string): Promise<[number, number] | null> {
   try {
     const params = new URLSearchParams({ address, city })
+    if (country) params.set('country', country)
     const response = await fetch(`${API_URL}/map/geocode?${params.toString()}`)
     if (response.status === 204 || !response.ok) return null
     const data = await response.json() as { lat?: number; lng?: number }
@@ -34,8 +36,8 @@ export async function geocodeRestaurantAddress(address: string, city: string): P
   if (isIsraeliAddress(addr, cty)) {
     const viaGovmap = await geocodeGovmap([addr, cty].filter(Boolean).join(', '))
     if (viaGovmap) return viaGovmap
-    return geocodeNominatim(addr, cty)          // GovMap unavailable/miss → Nominatim
+    return geocodeViaApi(addr, cty, 'il')       // GovMap unavailable/miss → server (IL-restricted)
   }
 
-  return geocodeNominatim(addr, cty)
+  return geocodeViaApi(addr, cty)               // worldwide
 }

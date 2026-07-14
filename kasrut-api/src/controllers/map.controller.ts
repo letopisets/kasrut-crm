@@ -210,7 +210,11 @@ export const mapController = {
     const address = queryString(req.query.address)?.trim() ?? ''
     const city    = queryString(req.query.city)?.trim() ?? ''
     if (!address && !city) { res.status(400).json({ error: 'address or city is required' }); return }
-    const point = await geocodeAddress(address, city)
+    // Optional ISO country restriction (e.g. 'il') so an Israeli address doesn't
+    // match a same-named street abroad; omit → worldwide.
+    const rawCountry = queryString(req.query.country)?.trim().toLowerCase()
+    const country = rawCountry && /^[a-z]{2}$/.test(rawCountry) ? rawCountry : undefined
+    const point = await geocodeAddress(address, city, country)
     if (!point) { res.status(204).end(); return }
     res.set('Cache-Control', 'public, max-age=86400')
     res.json({ lat: point.lat, lng: point.lng })

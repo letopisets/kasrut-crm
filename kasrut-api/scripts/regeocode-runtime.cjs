@@ -34,7 +34,7 @@ async function main() {
   for (const r of rows) {
     i++
     let p = null
-    try { p = await geocodeAddress(r.address, r.city) } catch (e) { /* treat as no result */ }
+    try { p = await geocodeAddress(r.address, r.city, 'IL') } catch (e) { /* treat as no result */ }
     const now = new Date()
     if (p && isWithinIsrael({ lat: p.lat, lng: p.lng })) {
       await prisma.restaurant.update({

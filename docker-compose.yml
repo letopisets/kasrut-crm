@@ -48,6 +48,10 @@ services:
       ENCRYPTION_KEY:  ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256)}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       APPLE_CLIENT_ID:  ${APPLE_CLIENT_ID:-}
+      # Optional: LocationIQ geocoding (address→coords) — primary geocoder when set,
+      # else Nominatim. Get a key at locationiq.com.
+      LOCATIONIQ_API_KEY: ${LOCATIONIQ_API_KEY:-}
+      LOCATIONIQ_ENDPOINT: ${LOCATIONIQ_ENDPOINT:-}
       CORS_ORIGINS:    ${CORS_ORIGINS:-http://localhost,http://map.localhost,http://crm.localhost}
       RUN_MIGRATIONS:  ${RUN_MIGRATIONS:-true}
       SEED_DB:         ${SEED_DB:-false}

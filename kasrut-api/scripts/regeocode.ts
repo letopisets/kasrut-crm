@@ -55,7 +55,7 @@ async function main() {
 
     for (const r of rows) {
       attempted++
-      const point = await geocodeAddress(r.address, r.city)
+      const point = await geocodeAddress(r.address, r.city, 'IL')
       const now = new Date()
 
       if (point && isWithinIsrael({ lat: point.lat, lng: point.lng })) {

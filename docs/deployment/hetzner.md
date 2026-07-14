@@ -257,3 +257,26 @@ To enable GovMap (until then, Israeli addresses just fall back to Nominatim):
    - `img-src` already allows `https:` (GovMap tiles), so no change there.
 
 The dev nginx (`docker/nginx/default.conf`) already carries these CSP entries.
+
+## LocationIQ geocoder (server-side, primary)
+
+Address→coordinate geocoding (the `/api/map/geocode` endpoint + the re-geocode
+job) uses a provider chain: **LocationIQ** when `LOCATIONIQ_API_KEY` is set, else
+**Nominatim**. LocationIQ is Nominatim-based but with cleaner data and a better
+hit rate, has a self-serve free tier (~5k/day, key issued instantly at
+[locationiq.com](https://locationiq.com/)), and is permissive to use with our
+OpenStreetMap basemap. It runs server-side, so **no CSP change** is needed.
+
+The client routes Israeli addresses to GovMap first (see above); everything else
+— and the Israeli fallback — goes through this endpoint. `country=il` is sent for
+Israeli addresses (so a street name isn't matched abroad); worldwide addresses
+send no restriction.
+
+To enable, put the key in `.env.hetzner` and rebuild the api:
+
+```sh
+# .env.hetzner:  LOCATIONIQ_API_KEY=<your-key>
+$DC build api && $DC up -d --no-deps api
+```
+
+Without a key nothing changes — geocoding stays on Nominatim.
