@@ -51,6 +51,8 @@ services:
       CORS_ORIGINS:    ${CORS_ORIGINS:-http://localhost,http://map.localhost,http://crm.localhost}
       RUN_MIGRATIONS:  ${RUN_MIGRATIONS:-true}
       SEED_DB:         ${SEED_DB:-false}
+      # Required only when SEED_DB=true; the seed validates strength before deleting data.
+      SEED_PASSWORD:   ${SEED_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,6 +72,7 @@ services:
         VITE_API_URL:            /api
         VITE_APPLE_REDIRECT_URI: ${VITE_APPLE_REDIRECT_URI:-http://localhost:8080/}
         VITE_SENTRY_DSN:         ${VITE_SENTRY_DSN:-}
+        VITE_GOVMAP_TOKEN:       ${VITE_GOVMAP_TOKEN:-}
     restart: unless-stopped
     depends_on:
       api:
