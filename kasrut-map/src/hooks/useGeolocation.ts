@@ -9,6 +9,8 @@ interface GeoState {
   error:     string | null          // raw browser message (diagnostics)
   errorCode: GeoErrorCode | null    // localizable category for the UI
   loading:   boolean
+  /** The position was set by hand ("correct my location"); GPS is paused. */
+  manual:    boolean
 }
 
 // GeolocationPositionError.code → our category
@@ -52,70 +54,89 @@ function bearing([lat1, lng1]: [number, number], [lat2, lng2]: [number, number])
 
 export function useGeolocation() {
   const [state, setState] = useState<GeoState>({
-    position: null, accuracy: null, heading: null, error: null, errorCode: null, loading: true,
+    position: null, accuracy: null, heading: null, error: null, errorCode: null, loading: true, manual: false,
   })
   const watchIdRef = useRef<number | null>(null)
   const highFreqRef = useRef(false)
+  // A hand-set position wins over GPS until the user asks for GPS again
+  // (refresh). Without this the next watchPosition fix — every few seconds on a
+  // phone — overwrote the corrected point within a second: a far-away manual
+  // point always passes the jitter filter, and its null accuracy counts as
+  // "improved". A ref, because fixes already queued can still arrive after
+  // clearWatch.
+  const manualRef = useRef(false)
+
+  const stopWatch = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation?.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+  }, [])
 
   const start = useCallback(() => {
+    manualRef.current = false
     if (!navigator.geolocation) {
-      setState({ position: null, accuracy: null, heading: null, error: 'Geolocation not supported', errorCode: 'unsupported', loading: false })
+      setState({ position: null, accuracy: null, heading: null, error: 'Geolocation not supported', errorCode: 'unsupported', loading: false, manual: false })
       return
     }
-    setState(s => ({ ...s, loading: true, error: null, errorCode: null }))
+    setState(s => ({ ...s, loading: true, error: null, errorCode: null, manual: false }))
 
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current)
-    }
+    stopWatch()
 
     watchIdRef.current = navigator.geolocation.watchPosition(
-      (p) => setState(prev => {
-        const position: [number, number] = [p.coords.latitude, p.coords.longitude]
-        const moved = prev.position ? haversine(prev.position, position) : Infinity
-        const accuracyImproved = prev.accuracy !== null
-          ? prev.accuracy - p.coords.accuracy >= MIN_ACCURACY_IMPROVEMENT_METERS
-          : true
-        const threshold = highFreqRef.current ? NAV_MIN_POSITION_UPDATE_METERS : MIN_POSITION_UPDATE_METERS
+      (p) => {
+        if (manualRef.current) return
+        setState(prev => {
+          if (prev.manual) return prev
+          const position: [number, number] = [p.coords.latitude, p.coords.longitude]
+          const moved = prev.position ? haversine(prev.position, position) : Infinity
+          const accuracyImproved = prev.accuracy !== null
+            ? prev.accuracy - p.coords.accuracy >= MIN_ACCURACY_IMPROVEMENT_METERS
+            : true
+          const threshold = highFreqRef.current ? NAV_MIN_POSITION_UPDATE_METERS : MIN_POSITION_UPDATE_METERS
 
-        // GPS noise filter — drop tiny jitter unless we're in nav mode
-        if (prev.position && moved < threshold && !accuracyImproved) {
-          return prev.loading || prev.error
-            ? { ...prev, loading: false, error: null, errorCode: null }
-            : prev
-        }
+          // GPS noise filter — drop tiny jitter unless we're in nav mode
+          if (prev.position && moved < threshold && !accuracyImproved) {
+            return prev.loading || prev.error
+              ? { ...prev, loading: false, error: null, errorCode: null }
+              : prev
+          }
 
-        const computedHeading = prev.position && moved > 1
-          ? bearing(prev.position, position)
-          : prev.heading
-        const headingFromGps = Number.isFinite(p.coords.heading) ? p.coords.heading : null
+          const computedHeading = prev.position && moved > 1
+            ? bearing(prev.position, position)
+            : prev.heading
+          const headingFromGps = Number.isFinite(p.coords.heading) ? p.coords.heading : null
 
-        return {
-          position,
-          accuracy: p.coords.accuracy,
-          heading: headingFromGps ?? computedHeading,
-          error: null,
-          errorCode: null,
-          loading: false,
-        }
-      }),
-      (e) => setState(s => ({ ...s, error: e.message, errorCode: toErrorCode(e.code), loading: false })),
+          return {
+            position,
+            accuracy: p.coords.accuracy,
+            heading: headingFromGps ?? computedHeading,
+            error: null,
+            errorCode: null,
+            loading: false,
+            manual: false,
+          }
+        })
+      },
+      (e) => {
+        if (manualRef.current) return
+        setState(s => (s.manual ? s : { ...s, error: e.message, errorCode: toErrorCode(e.code), loading: false }))
+      },
       GEO_OPTIONS,
     )
-  }, [])
+  }, [stopWatch])
 
   useEffect(() => {
     start()
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current)
-        watchIdRef.current = null
-      }
-    }
-  }, [start])
+    return stopWatch
+  }, [start, stopWatch])
 
+  /** Pin the position by hand and pause GPS until `refresh()`. */
   const setPosition = useCallback((pos: [number, number]) => {
-    setState({ position: pos, accuracy: null, heading: null, error: null, errorCode: null, loading: false })
-  }, [])
+    manualRef.current = true
+    stopWatch()
+    setState({ position: pos, accuracy: null, heading: null, error: null, errorCode: null, loading: false, manual: true })
+  }, [stopWatch])
 
   const setHighFrequency = useCallback((enabled: boolean) => {
     highFreqRef.current = enabled

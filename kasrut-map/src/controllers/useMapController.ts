@@ -299,10 +299,14 @@ export function useMapController({
     setFollowUser(false)
   }, [clearRoute])
 
+  // Turn-by-turn follows the live position: a hand-set point never moves, so
+  // navigation resumes GPS (the route itself stays as planned from that point).
+  const geoManual = geo.manual
   const enterNavigation = useCallback(() => {
+    if (geoManual) refreshGeo()
     setRouteMode('navigate')
     setFollowUser(true)
-  }, [])
+  }, [geoManual, refreshGeo])
 
   const exitNavigation = useCallback(() => {
     setRouteMode('steps')
