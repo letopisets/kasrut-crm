@@ -20,12 +20,20 @@ const routeRateLimit = rateLimit({
   keyPrefix: 'map:route',
 })
 
-// Geocoding proxies to Nominatim (rate-limited to 1 req/s app-wide); cap per IP
-// so a scraper can't drain that budget.
+// Geocoding proxies to GovMap (up to 6 calls per address, a per-IP quota the
+// whole server shares), LocationIQ (daily quota) and Nominatim (1 req/s
+// app-wide); cap per IP so a scraper can't drain those budgets.
 const geocodeRateLimit = rateLimit({
   windowMs: 60_000,
   max: 20,
   keyPrefix: 'map:geocode',
+})
+// Place search is search-as-you-type (one GovMap call per debounced keystroke),
+// so it gets a looser cap of its own.
+const placesRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  keyPrefix: 'map:places',
 })
 const mapReadRateLimit = rateLimit({
   windowMs: 60_000,
@@ -45,6 +53,7 @@ router.get('/hechsherim', mapController.listHechsherim)
 router.get('/options', mapController.listOptions)
 router.get('/geo', mapController.getGeo)
 router.get('/geocode', geocodeRateLimit, mapController.getGeocode)
+router.get('/places', placesRateLimit, mapController.getPlaces)
 router.get('/route', routeRateLimit, mapRouteController.getRoute)
 router.get('/restaurants', mapReadRateLimit, mapController.listRestaurants)
 router.get('/restaurants/:restaurantId', mapReadRateLimit, mapController.getRestaurant)

@@ -1,7 +1,9 @@
 import type { Request } from 'express'
 import { createHash } from 'crypto'
 import { mapRepo } from '../db/map.repo'
-import { geocodeAddress } from '../lib/nominatim'
+import { geocodeAddress, searchNominatimPlaces } from '../lib/nominatim'
+import { govmapConfigured, searchGovmapPlaces, type PlacesLang } from '../lib/govmap'
+import { looksLikeIsraeliAddress } from '../lib/geoValidation'
 import { serializeMapRestaurant, serializeMapRestaurantsPage } from '../serializers/map.serializer'
 import { withCache } from '../lib/cache'
 import { asyncHandler } from '../lib/asyncHandler'
@@ -11,6 +13,10 @@ const HECHSHERIM_CACHE_TTL = 600
 const MAP_OPTIONS_CACHE_TTL = 600
 const SITEMAP_CACHE_TTL = 3600
 const CACHE_TTL = 300
+const MAX_PLACES_QUERY_LENGTH = 200
+const MAX_PLACES_RESULTS = 5
+const MAX_GEOCODE_ADDRESS_LENGTH = 300
+const MAX_GEOCODE_CITY_LENGTH = 100
 
 // Public site the crawlable URLs live on (the map SPA, not the API host).
 const MAP_SITE_URL = (process.env.PUBLIC_MAP_URL ?? 'https://mykoshermap.com').replace(/\/$/, '')
@@ -210,14 +216,61 @@ export const mapController = {
     const address = queryString(req.query.address)?.trim() ?? ''
     const city    = queryString(req.query.city)?.trim() ?? ''
     if (!address && !city) { res.status(400).json({ error: 'address or city is required' }); return }
+    // Real addresses are short; long input only costs upstream calls and CPU.
+    if (address.length > MAX_GEOCODE_ADDRESS_LENGTH || city.length > MAX_GEOCODE_CITY_LENGTH) {
+      res.status(400).json({ error: `address must be ≤${MAX_GEOCODE_ADDRESS_LENGTH} and city ≤${MAX_GEOCODE_CITY_LENGTH} characters` })
+      return
+    }
     // Optional ISO country restriction (e.g. 'il') so an Israeli address doesn't
-    // match a same-named street abroad; omit → worldwide.
+    // match a same-named street abroad. When absent, infer 'il' for Hebrew text
+    // or a well-known Israeli city (which also routes it to GovMap first);
+    // anything else is a worldwide search.
     const rawCountry = queryString(req.query.country)?.trim().toLowerCase()
-    const country = rawCountry && /^[a-z]{2}$/.test(rawCountry) ? rawCountry : undefined
-    const point = await geocodeAddress(address, city, country)
+    const inferredIl = !rawCountry && looksLikeIsraeliAddress(address, city)
+    const country = rawCountry
+      ? (/^[a-z]{2}$/.test(rawCountry) ? rawCountry : undefined)
+      : (inferredIl ? 'il' : undefined)
+    let point = await geocodeAddress(address, city, country)
+    // "Jerusalem Ave 100, Hicksville NY" looks Israeli only by its street: when
+    // the city itself shows no sign of Israel, retry worldwide before giving up.
+    if (!point && inferredIl && city && !looksLikeIsraeliAddress('', city)) {
+      point = await geocodeAddress(address, city)
+    }
     if (!point) { res.status(204).end(); return }
     res.set('Cache-Control', 'public, max-age=86400')
     res.json({ lat: point.lat, lng: point.lng })
+  }),
+
+  // Search-as-you-type for the map's "correct my location" picker. GovMap
+  // (Israeli places, addresses, settlements) when configured; Nominatim
+  // worldwide when GovMap is unconfigured, failing, or has nothing — and for
+  // non-Hebrew text unless GovMap found the settlement itself: its English
+  // index answers "Tel Aviv" with port addresses and "Paris" with a street in
+  // Sderot, so Nominatim's answers come first there.
+  getPlaces: asyncHandler(async (req, res) => {
+    const q = (queryString(req.query.q) ?? '').trim().replace(/\s+/g, ' ')
+    if (q.length < 2 || q.length > MAX_PLACES_QUERY_LENGTH) {
+      res.status(400).json({ error: `q must be 2–${MAX_PLACES_QUERY_LENGTH} characters` }); return
+    }
+    const hebrew = /[֐-׿]/.test(q)
+    const rawLang = queryString(req.query.lang)?.trim().toLowerCase()
+    const lang: PlacesLang = rawLang === 'he' || rawLang === 'en' || rawLang === 'ru'
+      ? rawLang
+      : (hebrew ? 'he' : 'en')
+
+    const viaGovmap = govmapConfigured() ? await searchGovmapPlaces(q, lang) : null
+    const lower = q.toLowerCase()
+    const govmapFoundTown = viaGovmap?.some(p => p.id.startsWith('settlement|') && p.label.toLowerCase().startsWith(lower))
+    let results = viaGovmap ?? []
+    if (!results.length || (!hebrew && !govmapFoundTown)) {
+      const viaNominatim = await searchNominatimPlaces(q, lang, MAX_PLACES_RESULTS)
+      const seen = new Set<string>()
+      results = [...(viaNominatim ?? []), ...results].filter(p => !seen.has(p.id) && !!seen.add(p.id))
+    }
+    const places = results.slice(0, MAX_PLACES_RESULTS)
+    // Let browsers reuse a real answer briefly; never pin an outage-empty list.
+    if (places.length) res.set('Cache-Control', 'public, max-age=3600')
+    res.json({ results: places })
   }),
 
   listHechsherim: asyncHandler(async (_req, res) => {
