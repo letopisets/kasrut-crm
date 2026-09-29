@@ -29,7 +29,12 @@ export const hechsherController = {
       return
     }
 
-    const cacheKey = `hechsherim:list:${rabbanutId ?? 'all'}:${active ?? 'all'}`
+    // Tenant ids live under an `rb:` prefix so an owner's string filter (even
+    // `?rabbanutId=all`) cannot collide with the unscoped 'all' entry, which
+    // only an unfiltered owner reaches: every other role always resolves to
+    // its own rabbanutId above, and non-string query values are dropped there.
+    const scopeKey = rabbanutId !== undefined ? `rb:${rabbanutId}` : 'all'
+    const cacheKey = `hechsherim:list:${scopeKey}:${active ?? 'all'}`
     const data = await withCache(cacheKey, 300, () => hechsherimRepo.findAll({ rabbanutId, active }))
     res.json(serializeHechsherim(data))
   }),

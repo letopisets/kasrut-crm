@@ -17,10 +17,11 @@ function toRabbanut(r: PrismaRabbanut): Rabbanut {
 }
 
 export const rabbanutRepo = {
-  async findAll(filter?: { active?: boolean }): Promise<Rabbanut[]> {
+  async findAll(filter?: { id?: string; active?: boolean }): Promise<Rabbanut[]> {
     const rows = await prisma.rabbanut.findMany({
       where: {
         deletedAt: null,
+        ...(filter?.id     !== undefined ? { id:     filter.id }     : {}),
         ...(filter?.active !== undefined ? { active: filter.active } : {}),
       },
       orderBy: { name: 'asc' },
