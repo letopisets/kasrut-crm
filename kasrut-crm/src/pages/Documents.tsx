@@ -3,6 +3,7 @@ import { useLang } from '@/i18n/useLang'
 import { DocumentList } from '@/components/documents/DocumentList'
 import { DocumentUpload } from '@/components/documents/DocumentUpload'
 import { DOCUMENT_CATEGORY_COLOR } from '@/lib/statusColor'
+import { DOCUMENT_CATEGORIES, documentCategoryLabel } from '@/lib/documents'
 import type { DocumentCategory } from '@/types'
 import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
@@ -11,7 +12,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import AddIcon from '@mui/icons-material/Add'
 
-const CATEGORIES: Array<DocumentCategory | 'all'> = ['all', 'Instructions', 'Forms', 'Regulations', 'Pesach']
+const CATEGORIES: Array<DocumentCategory | 'all'> = ['all', ...DOCUMENT_CATEGORIES]
 
 export default function Documents() {
   const t    = useLang()
@@ -60,7 +61,7 @@ export default function Documents() {
                 textTransform: 'none',
               }}
             >
-              {cat === 'all' ? (t.documents?.all ?? 'All') : cat}
+              {cat === 'all' ? (t.documents?.all ?? 'All') : documentCategoryLabel(t, cat)}
             </Button>
           )
         })}
@@ -73,15 +74,19 @@ export default function Documents() {
       ) : (
         <DocumentList
           documents={ctrl.documents}
-          canEdit={ctrl.canEdit}
+          canDelete={ctrl.canDelete}
+          scopeLabel={ctrl.scopeLabel}
           onDelete={ctrl.deleteDocument}
         />
       )}
 
       {ctrl.showUpload && (
         <DocumentUpload
+          scopeOptions={ctrl.isOwner ? ctrl.scopeOptions : undefined}
           onSave={ctrl.uploadDocument}
           onClose={ctrl.closeUpload}
+          error={ctrl.saveError}
+          saving={ctrl.saving}
         />
       )}
     </Box>

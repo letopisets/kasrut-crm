@@ -104,7 +104,7 @@ interface DocumentDraft {
   date: Date
   size: bigint
   ext: 'PDF'
-  url: string
+  url: null
 }
 
 const DEFAULT_SOURCE_DIR = 'C:\\Users\\Admin\\OneDrive\\IT\\crm-kashrut'
@@ -347,7 +347,10 @@ class ImportBuilder {
       date: documentDate(file.name),
       size: BigInt(file.size),
       ext: 'PDF',
-      url: file.fullPath,
+      // No link: the source is a file on the importing machine. Its local path
+      // is not an https URL anyone can open, and it exposed the operator's
+      // directory layout to every CRM role.
+      url: null,
     })
   }
 

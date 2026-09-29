@@ -1,5 +1,5 @@
 import { baseApi } from './baseApi'
-import type { KashrutDocument, DocumentCategory } from '@/types'
+import type { KashrutDocument, DocumentCategory, CreateDocumentInput } from '@/types'
 
 export const documentsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -14,7 +14,7 @@ export const documentsApi = baseApi.injectEndpoints({
           ? [...result.map(({ id }) => ({ type: 'Document' as const, id })), 'Document']
           : ['Document'],
     }),
-    createDocument: build.mutation<KashrutDocument, Omit<KashrutDocument, 'id'>>({
+    createDocument: build.mutation<KashrutDocument, CreateDocumentInput>({
       query: (body) => ({ url: '/documents', method: 'POST', body }),
       invalidatesTags: ['Document'],
     }),
