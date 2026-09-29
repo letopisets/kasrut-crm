@@ -219,7 +219,7 @@ const en: Translations = {
   validation: {
     required:         'This field is required',
     invalidEmail:     'Invalid email address',
-    passwordTooShort: 'Password must be at least 8 characters',
+    passwordTooShort: 'Password must be at least 12 characters',
     passwordWeak:     'Password must contain letters and digits',
     cityNotInRegistry: 'Not in the registry — will be saved as typed',
   },
@@ -234,6 +234,7 @@ const en: Translations = {
     roleLabel:  'Select role',
     password:   'Password',
     enterBtn:   'Sign In',
+    tooManyAttempts: 'Too many attempts. Try again later.',
     selectRole: 'Select →',
   },
   twoFactor: {

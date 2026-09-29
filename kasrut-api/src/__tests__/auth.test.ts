@@ -13,6 +13,7 @@ import type { User } from '../models/types'
 import { checkTotpAttempt } from '../lib/twoFactorAttempts'
 import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
+import { resetLoginThrottleMemory } from '../lib/loginThrottle'
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 jest.mock('../lib/prisma')
@@ -64,6 +65,7 @@ const app = createApp()
 
 beforeEach(() => {
   jest.clearAllMocks()
+  resetLoginThrottleMemory()
   mockRepo.findAuthById.mockResolvedValue(baseUser)
   mockRepo.verifyPassword.mockResolvedValue(true)
   mockCheckTotpAttempt.mockResolvedValue(true)
@@ -395,4 +397,220 @@ describe('POST /api/auth/2fa/verify-backup', () => {
     expect(res.status).toBe(409)
     expect(res.body).not.toHaveProperty('token')
   })
+})
+
+// ── Per-account throttling ─────────────────────────────────────────────────
+// Every request comes from a fresh address: the lock follows the account, so
+// rotating IPs (which also keeps the IP limiter out of the way) must not help.
+let ipSeq = 0
+const nextIp = () => `198.51.100.${(ipSeq++ % 250) + 1}`
+
+const LOCKED_BODY = { error: 'Too many attempts. Try again later.' }
+// Several requests (and real cost-12 bcrypt compares) per test.
+const SLOW_TEST_MS = 30_000
+
+// Frozen clock: Retry-After values stay exact however slow the run is.
+function freezeClock() {
+  let clock: jest.SpyInstance
+  beforeEach(() => { clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now()) })
+  afterEach(() => { clock.mockRestore() })
+}
+
+function login(email: string, password = 'wrong-password') {
+  return request(app).post('/api/auth/login').set('X-Forwarded-For', nextIp()).send({ email, password })
+}
+
+describe('CRM login throttling', () => {
+  freezeClock()
+
+  it('locks the account after five free failures and stops checking passwords', async () => {
+    mockRepo.findAuthByEmail.mockResolvedValue(baseUser)
+    mockRepo.verifyPassword.mockResolvedValue(false)
+
+    for (let i = 0; i < 6; i += 1) expect((await login('owner@test.il')).status).toBe(401)
+    expect(mockRepo.verifyPassword).toHaveBeenCalledTimes(6)
+
+    jest.clearAllMocks()
+    mockRepo.verifyPassword.mockResolvedValue(true)
+    const locked = await login('Owner@Test.il', 'right-password')
+
+    expect(locked.status).toBe(429)
+    expect(locked.body).toEqual(LOCKED_BODY)
+    expect(locked.headers['retry-after']).toBe('60')
+    expect(mockRepo.findAuthByEmail).not.toHaveBeenCalled()
+    expect(mockRepo.verifyPassword).not.toHaveBeenCalled()
+  }, SLOW_TEST_MS)
+
+  it('answers a locked unknown account exactly like a locked real one', async () => {
+    mockRepo.verifyPassword.mockResolvedValue(false)
+    mockRepo.findAuthByEmail.mockResolvedValue(baseUser)
+    for (let i = 0; i < 6; i += 1) await login('owner@test.il')
+    mockRepo.findAuthByEmail.mockResolvedValue(null)
+    for (let i = 0; i < 6; i += 1) expect((await login('nobody@test.il')).status).toBe(401)
+
+    const real = await login('owner@test.il')
+    const unknown = await login('nobody@test.il')
+
+    expect(real.status).toBe(429)
+    expect(unknown.status).toBe(real.status)
+    expect(unknown.body).toEqual(real.body)
+    expect(unknown.headers['retry-after']).toBe(real.headers['retry-after'])
+  }, SLOW_TEST_MS)
+
+  it('clears the failure count on a successful login', async () => {
+    mockRepo.findAuthByEmail.mockResolvedValue(baseUser)
+    mockRepo.verifyPassword.mockResolvedValue(false)
+    for (let i = 0; i < 5; i += 1) await login('owner@test.il')
+
+    mockRepo.verifyPassword.mockResolvedValue(true)
+    expect((await login('owner@test.il', 'right-password')).status).toBe(200)
+
+    mockRepo.verifyPassword.mockResolvedValue(false)
+    for (let i = 0; i < 6; i += 1) expect((await login('owner@test.il')).status).toBe(401)
+    expect((await login('owner@test.il')).status).toBe(429)
+  }, SLOW_TEST_MS)
+
+  it('lets only the free attempts plus one of a parallel burst reach the password check', async () => {
+    mockRepo.findAuthByEmail.mockResolvedValue(baseUser)
+    // As slow as a real cost-12 compare, so the whole burst is in flight at once.
+    mockRepo.verifyPassword.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(false), 100)))
+
+    const burst = await Promise.all(Array.from({ length: 20 }, () => login('owner@test.il')))
+
+    expect(burst.filter(res => res.status === 401)).toHaveLength(6)
+    expect(burst.filter(res => res.status === 429)).toHaveLength(14)
+    expect(mockRepo.verifyPassword).toHaveBeenCalledTimes(6)
+  }, SLOW_TEST_MS)
+
+  it('counts the /2fa/setup password re-check against the same account budget', async () => {
+    mockRepo.verifyPassword.mockResolvedValue(false)
+    const setup = (password: string) => request(app)
+      .post('/api/auth/2fa/setup')
+      .set('X-Forwarded-For', nextIp())
+      .set('Authorization', `Bearer ${makeToken()}`)
+      .send({ password })
+    for (let i = 0; i < 6; i += 1) expect((await setup('wrong-password')).status).toBe(401)
+
+    mockRepo.verifyPassword.mockClear()
+    mockRepo.verifyPassword.mockResolvedValue(true)
+    const locked = await setup('right-password')
+
+    expect(locked.status).toBe(429)
+    expect(locked.body).toEqual(LOCKED_BODY)
+    expect(mockRepo.verifyPassword).not.toHaveBeenCalled()
+    expect(mockRepo.setTwoFactorSecret).not.toHaveBeenCalled()
+    expect((await login('owner@test.il', 'right-password')).status).toBe(429)
+  }, SLOW_TEST_MS)
+
+  it('spends a real cost-12 bcrypt compare on an unknown account', async () => {
+    mockRepo.findAuthByEmail.mockResolvedValue(null)
+    const compare = jest.spyOn(bcrypt, 'compare')
+
+    try {
+      const res = await login('nobody@test.il', 'guess')
+
+      expect(res.status).toBe(401)
+      expect(res.body).toEqual({ error: 'Invalid credentials' })
+      expect(mockRepo.verifyPassword).not.toHaveBeenCalled()
+      expect(compare).toHaveBeenCalledTimes(1)
+      const [password, hash] = compare.mock.calls[0] as unknown as [string, string]
+      expect(password).toBe('guess')
+      expect(bcrypt.getRounds(hash)).toBe(12)
+      await expect(compare.mock.results[0].value).resolves.toBe(false)
+    } finally {
+      compare.mockRestore()
+    }
+  }, SLOW_TEST_MS)
+})
+
+describe('CRM 2FA throttling per account', () => {
+  freezeClock()
+
+  const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
+
+  // A fresh pending token per call, as an attacker re-running the password
+  // step would get: the per-jti counter alone never trips.
+  function verify(code: string) {
+    return request(app)
+      .post('/api/auth/2fa/verify')
+      .set('X-Forwarded-For', nextIp())
+      .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1' }), code })
+  }
+
+  it('locks both 2FA endpoints for the account and skips the factor check', async () => {
+    mockRepo.findAuthById.mockResolvedValue(tfUser)
+    for (let i = 0; i < 6; i += 1) expect((await verify('000000')).status).toBe(400)
+
+    jest.clearAllMocks()
+    const compare = jest.spyOn(bcrypt, 'compare')
+    try {
+      const totp = await verify('123456')
+      const backup = await request(app)
+        .post('/api/auth/2fa/verify-backup')
+        .set('X-Forwarded-For', nextIp())
+        .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1' }), backupCode: 'A1B2C3D4E5' })
+
+      for (const res of [totp, backup]) {
+        expect(res.status).toBe(429)
+        expect(res.body).toEqual(LOCKED_BODY)
+        expect(res.headers['retry-after']).toBe('60')
+      }
+      expect(mockRepo.findAuthById).not.toHaveBeenCalled()
+      expect(mockCheckTotpAttempt).not.toHaveBeenCalled()
+      expect(compare).not.toHaveBeenCalled()
+      expect(mockConsumeChallenge).not.toHaveBeenCalled()
+    } finally {
+      compare.mockRestore()
+    }
+  }, SLOW_TEST_MS)
+
+  it('lets only the free attempts plus one of a parallel burst reach the code check', async () => {
+    mockRepo.findAuthById.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(tfUser), 50)))
+
+    const burst = await Promise.all(Array.from({ length: 20 }, () => verify('000000')))
+
+    expect(burst.filter(res => res.status === 400)).toHaveLength(6)
+    expect(burst.filter(res => res.status === 429)).toHaveLength(14)
+    expect(mockRepo.findAuthById).toHaveBeenCalledTimes(6)
+  }, SLOW_TEST_MS)
+
+  it('counts /2fa/disable code guesses against the same account budget', async () => {
+    mockRepo.findAuthById.mockResolvedValue(tfUser)
+    const disable = (code: string) => request(app)
+      .post('/api/auth/2fa/disable')
+      .set('X-Forwarded-For', nextIp())
+      .set('Authorization', `Bearer ${makeToken(tfUser)}`)
+      .send({ code })
+    for (let i = 0; i < 6; i += 1) expect((await disable('000000')).status).toBe(400)
+
+    const locked = await disable('123456')
+
+    expect(locked.status).toBe(429)
+    expect(locked.body).toEqual(LOCKED_BODY)
+    expect(mockRepo.disableTwoFactor).not.toHaveBeenCalled()
+    expect((await verify('123456')).status).toBe(429)
+  }, SLOW_TEST_MS)
+
+  it('counts wrong backup codes against the same account budget', async () => {
+    const hash = await bcrypt.hash('A1B2C3D4E5', 4)
+    mockRepo.findAuthById.mockResolvedValue({ ...tfUser, twoFactorBackupCodes: [hash] })
+    for (let i = 0; i < 6; i += 1) {
+      const res = await request(app)
+        .post('/api/auth/2fa/verify-backup')
+        .set('X-Forwarded-For', nextIp())
+        .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1' }), backupCode: 'FFFFFFFFFF' })
+      expect(res.status).toBe(400)
+    }
+
+    expect((await verify('123456')).status).toBe(429)
+  }, SLOW_TEST_MS)
+
+  it('clears the 2FA failure count after a successful verification', async () => {
+    mockRepo.findAuthById.mockResolvedValue(tfUser)
+    for (let i = 0; i < 5; i += 1) await verify('000000')
+    expect((await verify('123456')).status).toBe(200)
+
+    for (let i = 0; i < 6; i += 1) expect((await verify('000000')).status).toBe(400)
+    expect((await verify('000000')).status).toBe(429)
+  }, SLOW_TEST_MS)
 })

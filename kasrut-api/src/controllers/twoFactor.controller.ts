@@ -8,6 +8,7 @@ import { asyncHandler } from '../lib/asyncHandler'
 import { checkTotpAttempt } from '../lib/twoFactorAttempts'
 import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
+import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { verifyTwoFactorPendingToken, type TwoFactorPendingPayload } from '../lib/jwt'
 
 const BACKUP_CODE_COUNT = 8
@@ -71,9 +72,14 @@ export const twoFactorController = {
 
     const user = await usersRepo.findAuthById(req.user.sub)
     if (!user) { res.status(401).json({ error: 'Unauthorized' }); return }
+    // Same per-account budget as POST /auth/login: a stolen session must not
+    // become an unthrottled oracle for the account password.
+    const lock = await reserveAttempt('crm', user.email)
+    if (lock.locked) { sendLoginLocked(res, lock); return }
     if (!await usersRepo.verifyPassword(user, password)) {
       res.status(401).json({ error: 'Invalid credentials' }); return
     }
+    await recordSuccess('crm', user.email)
     if (user.twoFactorEnabled) {
       res.status(409).json({ error: 'Disable current 2FA before setting up a new authenticator' })
       return
@@ -125,7 +131,12 @@ export const twoFactorController = {
     if (!user?.twoFactorEnabled || !user.twoFactorSecret) {
       res.status(400).json({ error: '2FA is not enabled' }); return
     }
+    // Same per-account budget as the login 2FA step, so a stolen session
+    // cannot brute-force the code to switch 2FA off.
+    const lock = await reserveAttempt('crm-2fa', user.id)
+    if (lock.locked) { sendLoginLocked(res, lock); return }
     if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
+    await recordSuccess('crm-2fa', user.id)
 
     const updated = await usersRepo.disableTwoFactor(req.user.sub)
     if (!updated) { res.status(409).json({ error: '2FA state changed' }); return }
@@ -142,6 +153,15 @@ export const twoFactorController = {
     const payload = await verifyPendingToken(tempToken)
     if (!payload) {
       res.status(401).json({ error: 'Invalid or expired token' }); return
+    }
+
+    // Per-account guard: a fresh pending token per password login must not
+    // reset the guessing budget. Reserved up front (counts as a failure until
+    // success clears it); locked means no backup code is compared.
+    const lock = await reserveAttempt('crm-2fa', payload.sub)
+    if (lock.locked) {
+      res.locals.serviceLogMessage = 'CRM 2FA locked after repeated failures'
+      sendLoginLocked(res, lock); return
     }
 
     const ttlSeconds = challengeTtlSeconds(payload)
@@ -174,6 +194,7 @@ export const twoFactorController = {
     if (!codeConsumed) {
       res.status(409).json({ error: 'Backup code state changed; sign in again' }); return
     }
+    await recordSuccess('crm-2fa', user.id)
 
     res.locals.serviceLogActor = { userId: user.id, userEmail: user.email, userRole: user.role, actorType: 'crm_user' }
     res.locals.serviceLogMessage = `CRM backup-code login succeeded; remaining=${remaining.length}`
@@ -188,6 +209,14 @@ export const twoFactorController = {
     const payload = await verifyPendingToken(tempToken)
     if (!payload) {
       res.status(401).json({ error: 'Invalid or expired token' }); return
+    }
+
+    // Per-account guard across pending tokens, reserved up front (counts as a
+    // failure until success clears it); locked means no code is checked.
+    const lock = await reserveAttempt('crm-2fa', payload.sub)
+    if (lock.locked) {
+      res.locals.serviceLogMessage = 'CRM 2FA locked after repeated failures'
+      sendLoginLocked(res, lock); return
     }
 
     // Per-token brute-force guard: max 5 attempts per tempToken JTI.
@@ -212,6 +241,7 @@ export const twoFactorController = {
       res.status(401).json({ error: 'Token has already been used' }); return
     }
 
+    await recordSuccess('crm-2fa', user.id)
     res.locals.serviceLogActor = { userId: user.id, userEmail: user.email, userRole: user.role, actorType: 'crm_user' }
     res.locals.serviceLogMessage = 'CRM 2FA login succeeded'
     const token = signFullToken(user)

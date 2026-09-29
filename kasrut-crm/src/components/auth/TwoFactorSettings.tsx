@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuthController } from '@/controllers/useAuthController'
 import { useLang } from '@/i18n/useLang'
+import { isTooManyAttempts } from '@/lib/isTooManyAttempts'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
@@ -67,6 +68,7 @@ function OtpInput({
 export function TwoFactorSettings({ onClose }: Props) {
   const t  = useLang()
   const tf = t.twoFactor
+  const tooManyAttempts = t.login?.tooManyAttempts ?? 'Too many attempts. Try again later.'
   const { user, setup2fa, setupLoading, enable2fa, enableLoading, disable2fa, disableLoading } = useAuthController()
 
   const [step, setStep]           = useState<Step>('status')
@@ -75,18 +77,23 @@ export function TwoFactorSettings({ onClose }: Props) {
   const [code, setCode]           = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [codeError, setCodeError] = useState('')
+  const [setupError, setSetupError] = useState('')
   const [success, setSuccess]     = useState(false)
 
   const isEnabled = user?.twoFactorEnabled ?? false
 
   const handleSetup = async () => {
     try {
+      setSetupError('')
       const data = await setup2fa(currentPassword)
       setQrDataUrl(data.qrDataUrl)
       setSecret(data.secret)
       setCode(''); setCodeError('')
       setStep('setup')
-    } catch { /* handled by RTK */ }
+    } catch (err) {
+      // The password re-check shares the sign-in lockout.
+      if (isTooManyAttempts(err)) setSetupError(tooManyAttempts)
+    }
   }
 
   const handleEnable = async () => {
@@ -106,7 +113,9 @@ export function TwoFactorSettings({ onClose }: Props) {
       await disable2fa(code)
       setSuccess(true)
       setTimeout(onClose, 1200)
-    } catch { setCodeError(tf?.codeMustBe6 ?? 'Invalid code') }
+    } catch (err) {
+      setCodeError(isTooManyAttempts(err) ? tooManyAttempts : (tf?.codeMustBe6 ?? 'Invalid code'))
+    }
   }
 
   if (success) {
@@ -223,6 +232,7 @@ export function TwoFactorSettings({ onClose }: Props) {
               label={t.login?.password ?? 'Current password'}
               autoComplete="current-password"
             />
+            {setupError && <Alert severity="error" sx={{ fontSize: 12 }}>{setupError}</Alert>}
             <Button
               variant="contained"
               onClick={() => void handleSetup()}

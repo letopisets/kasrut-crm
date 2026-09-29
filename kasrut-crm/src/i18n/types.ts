@@ -225,6 +225,7 @@ export interface Translations {
     password:   string
     enterBtn:   string
     selectRole: string
+    tooManyAttempts: string
   }
   twoFactor?: {
     title: string

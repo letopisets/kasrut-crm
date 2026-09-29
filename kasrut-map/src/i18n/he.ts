@@ -128,6 +128,7 @@ const he: MapTranslations = {
   resetTab: 'איפוס',
   oauthError: 'לא ניתן להיכנס. בדוק הגדרות OAuth ונסה שוב.',
   wrongCredentials: 'אימייל או סיסמה שגויים.',
+  tooManyAttempts: 'יותר מדי ניסיונות. נסה שוב מאוחר יותר.',
   registerError: 'לא ניתן להירשם. הסיסמה חייבת להכיל לפחות 8 תווים, אותיות ומספרים.',
   resetRequestError: 'לא ניתן ליצור בקשת איפוס סיסמה.',
   resetConfirmError: 'קוד האיפוס אינו חוקי או פג תוקף. הסיסמה חייבת להכיל לפחות 8 תווים, אותיות ומספרים.',

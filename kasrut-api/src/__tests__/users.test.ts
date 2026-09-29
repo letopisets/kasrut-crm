@@ -146,7 +146,7 @@ describe('POST /api/users', () => {
       .post('/api/users')
       .set('Authorization', `Bearer ${ownerToken()}`)
       .send({
-        name: 'New User', email: 'new@test.il', password: 'password123',
+        name: 'New User', email: 'new@test.il', password: 'password1234',
         role: 'rabbanut', rabbanutId: 'rb1',
       })
 
@@ -160,7 +160,7 @@ describe('POST /api/users', () => {
       const res = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${ownerToken()}`)
-        .send({ name: 'Tenant User', email: `${role}@test.il`, password: 'password123', role })
+        .send({ name: 'Tenant User', email: `${role}@test.il`, password: 'password1234', role })
 
       expect(res.status).toBe(400)
       expect(mockRepo.create).not.toHaveBeenCalled()
@@ -172,7 +172,7 @@ describe('POST /api/users', () => {
       .post('/api/users')
       .set('Authorization', `Bearer ${ownerToken()}`)
       .send({
-        name: 'Owner Two', email: 'owner2@test.il', password: 'password123',
+        name: 'Owner Two', email: 'owner2@test.il', password: 'password1234',
         role: 'owner', rabbanutId: null,
       })
 

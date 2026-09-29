@@ -20,6 +20,7 @@ import {
 } from '../services/mapPassword.service'
 import { asyncHandler } from '../lib/asyncHandler'
 import { blacklistToken } from '../lib/tokenBlacklist'
+import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { signMapAccessToken } from '../lib/jwt'
 import { sendMapPasswordResetToken } from '../lib/mailer'
 import { logger } from '../lib/logger'
@@ -130,18 +131,24 @@ export const mapAuthController = {
 
     const email = normalizeEmail(parsed.data.email)
     res.locals.serviceLogActor = { userEmail: email, userRole: 'auth_attempt', actorType: 'auth_attempt' }
+    // Reserved before the lookup: same answer for existing and unknown
+    // accounts, a locked identifier never gets a password check, and the
+    // attempt already counts as a failure so parallel guesses cannot race it.
+    const lock = await reserveAttempt('map', email)
+    if (lock.locked) {
+      res.locals.serviceLogMessage = 'Map login locked after repeated failures'
+      sendLoginLocked(res, lock); return
+    }
+
     const user = await mapCommunityRepo.findAuthUserByEmail(email)
-    if (!user?.passwordHash) {
+    // Unknown and password-less (OAuth-only) accounts still pay one bcrypt compare.
+    const passwordOk = await verifyPassword(parsed.data.password, user?.passwordHash)
+    if (!user || !passwordOk) {
       res.locals.serviceLogMessage = 'Map login failed'
       res.status(401).json({ error: 'Invalid email or password' }); return
     }
 
-    const passwordOk = await verifyPassword(parsed.data.password, user.passwordHash)
-    if (!passwordOk) {
-      res.locals.serviceLogMessage = 'Map login failed'
-      res.status(401).json({ error: 'Invalid email or password' }); return
-    }
-
+    await recordSuccess('map', email)
     setMapServiceLogActor(res, user)
     res.locals.serviceLogMessage = 'Map login succeeded'
     res.json({ user: serializeMapUser(user), token: signMapToken(user) })
@@ -244,6 +251,8 @@ export const mapAuthController = {
       res.status(400).json({ error: 'Invalid or expired reset token' }); return
     }
 
+    // The reset proves control of the account: lift any login lock on it.
+    await recordSuccess('map', user.email)
     setMapServiceLogActor(res, user)
     res.locals.serviceLogMessage = 'Map password reset completed'
     res.json({ user: serializeMapUser(user), token: signMapToken(user) })

@@ -4,6 +4,7 @@ import { useAuthController } from '@/controllers/useAuthController'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { setLang as setLangAction, type Lang } from '@/store/langSlice'
 import { useLang } from '@/i18n/useLang'
+import { isTooManyAttempts } from '@/lib/isTooManyAttempts'
 import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
@@ -16,8 +17,9 @@ import CircularProgress from '@mui/material/CircularProgress'
 const LANGS: Lang[] = ['en', 'ru', 'he']
 const PRIMARY = '#E8C96D'
 
-function extractError(err: unknown): string | null {
+function extractError(err: unknown, tooManyAttempts: string): string | null {
   if (!err) return null
+  if (isTooManyAttempts(err)) return tooManyAttempts
   if (typeof err === 'object' && err !== null) {
     if ('data' in err) {
       const d = (err as { data: unknown }).data
@@ -102,6 +104,7 @@ export default function Login() {
   const setLang  = (l: Lang) => dispatch(setLangAction(l))
   const t        = useLang()
   const tf      = t.twoFactor
+  const tooManyAttempts = t.login?.tooManyAttempts ?? 'Too many attempts. Try again later.'
 
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -127,13 +130,13 @@ export default function Login() {
     try {
       setTotpError('')
       await verify2fa(totpCode)
-    } catch {
-      setTotpError(tf?.codeMustBe6 ?? 'Invalid code')
+    } catch (err) {
+      setTotpError(isTooManyAttempts(err) ? tooManyAttempts : (tf?.codeMustBe6 ?? 'Invalid code'))
     }
   }
 
   const isRtl  = lang === 'he'
-  const errMsg = extractError(error)
+  const errMsg = extractError(error, tooManyAttempts)
   const rc     = PRIMARY
 
   // ── 2FA step ─────────────────────────────────────────────────

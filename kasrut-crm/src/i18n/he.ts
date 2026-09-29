@@ -219,7 +219,7 @@ const he: Translations = {
   validation: {
     required:         'שדה חובה',
     invalidEmail:     'כתובת דוא"ל לא תקינה',
-    passwordTooShort: 'הסיסמה חייבת להכיל לפחות 8 תווים',
+    passwordTooShort: 'הסיסמה חייבת להכיל לפחות 12 תווים',
     passwordWeak:     'הסיסמה חייבת להכיל אותיות וספרות',
     cityNotInRegistry: 'לא נמצא במאגר — יישמר כפי שהוקלד',
   },
@@ -234,6 +234,7 @@ const he: Translations = {
     roleLabel:  'בחר תפקיד',
     password:   'סיסמה',
     enterBtn:   'כניסה',
+    tooManyAttempts: 'יותר מדי ניסיונות. נסו שוב מאוחר יותר.',
     selectRole: '← בחר',
   },
   twoFactor: {

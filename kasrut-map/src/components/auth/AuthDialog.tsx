@@ -32,6 +32,12 @@ interface Props {
 
 type AuthMode = 'login' | 'register' | 'reset'
 
+// 429: the IP limiter or the per-account lockout after repeated failures.
+function isTooManyAttempts(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'status' in err &&
+    (err as { status: unknown }).status === 429
+}
+
 export function AuthDialog({ open, onClose }: Props) {
   const dispatch = useAppDispatch()
   const t = useMapLang()
@@ -83,8 +89,8 @@ export function AuthDialog({ open, onClose }: Props) {
     setError(null)
     try {
       finishAuth(await loginWithPassword({ email, password }).unwrap())
-    } catch {
-      setError(t.wrongCredentials)
+    } catch (err) {
+      setError(isTooManyAttempts(err) ? t.tooManyAttempts : t.wrongCredentials)
     }
   }
 

@@ -121,6 +121,7 @@ export interface MapTranslations {
   resetTab: string
   oauthError: string
   wrongCredentials: string
+  tooManyAttempts: string
   registerError: string
   resetRequestError: string
   resetConfirmError: string

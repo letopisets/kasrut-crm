@@ -219,7 +219,7 @@ const ru: Translations = {
   validation: {
     required:         'Поле обязательно для заполнения',
     invalidEmail:     'Некорректный адрес электронной почты',
-    passwordTooShort: 'Пароль должен содержать минимум 8 символов',
+    passwordTooShort: 'Пароль должен содержать минимум 12 символов',
     passwordWeak:     'Пароль должен содержать буквы и цифры',
     cityNotInRegistry: 'Нет в справочнике — будет сохранено как введено',
   },
@@ -234,6 +234,7 @@ const ru: Translations = {
     roleLabel:  'Выберите роль',
     password:   'Пароль',
     enterBtn:   'Войти',
+    tooManyAttempts: 'Слишком много попыток. Повторите позже.',
     selectRole: 'Выбрать →',
   },
   twoFactor: {

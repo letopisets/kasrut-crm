@@ -1,6 +1,7 @@
 import {
   paginationSchema,
   loginSchema,
+  createUserSchema,
   createRestaurantSchema,
   createInspectionSchema,
   createRabbanutSchema,
@@ -46,6 +47,27 @@ describe('loginSchema', () => {
 
   it('rejects invalid email format', () => {
     expect(loginSchema.safeParse({ email: 'not-email', password: 'x' }).success).toBe(false)
+  })
+
+  it('keeps accepting short passwords so existing accounts can still sign in', () => {
+    expect(loginSchema.safeParse({ email: 'a@b.il', password: 'short' }).success).toBe(true)
+  })
+})
+
+describe('createUserSchema password policy', () => {
+  const owner = { name: 'Owner', email: 'o@b.il', role: 'owner' }
+
+  it('rejects passwords shorter than 12 characters', () => {
+    expect(createUserSchema.safeParse({ ...owner, password: 'a'.repeat(11) }).success).toBe(false)
+  })
+
+  it('accepts 12 to 128 characters', () => {
+    expect(createUserSchema.safeParse({ ...owner, password: 'a'.repeat(12) }).success).toBe(true)
+    expect(createUserSchema.safeParse({ ...owner, password: 'a'.repeat(128) }).success).toBe(true)
+  })
+
+  it('rejects passwords longer than 128 characters', () => {
+    expect(createUserSchema.safeParse({ ...owner, password: 'a'.repeat(129) }).success).toBe(false)
   })
 })
 

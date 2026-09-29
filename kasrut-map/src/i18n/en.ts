@@ -128,6 +128,7 @@ const en: MapTranslations = {
   resetTab: 'Reset',
   oauthError: 'Failed to sign in. Check OAuth settings and try again.',
   wrongCredentials: 'Incorrect email or password.',
+  tooManyAttempts: 'Too many attempts. Try again later.',
   registerError: 'Failed to register. Password must be at least 8 characters with letters and numbers.',
   resetRequestError: 'Failed to create password reset request.',
   resetConfirmError: 'Reset code is invalid or expired. Password must be at least 8 characters with letters and numbers.',

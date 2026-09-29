@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import Login from '@/pages/Login'
@@ -40,6 +40,8 @@ vi.mock('@/i18n/useLang', () => ({
       title:    'Authorization',
       password: 'Password',
       enterBtn: 'Sign in',
+      // Unlike the API's error text, so the tests prove the key is read.
+      tooManyAttempts: 'Locked out (i18n)',
     },
     twoFactor: {
       title:           'Two-Factor Authentication',
@@ -105,6 +107,12 @@ describe('Login page — email/password form', () => {
     expect(mockLogin).toHaveBeenCalledWith('admin@jer.il', 'secret')
   })
 
+  it('shows the lockout message when the API answers 429', () => {
+    ctrl.error = { status: 429, data: { error: 'Too many attempts. Try again later.' } }
+    renderLogin()
+    expect(screen.getByText('Locked out (i18n)')).toBeDefined()
+  })
+
   it('does not call login while loading', () => {
     ctrl.isLoading = true
     renderLogin()
@@ -163,5 +171,16 @@ describe('Login page — 2FA step', () => {
     fireEvent.change(screen.getByPlaceholderText('000000'), { target: { value: '123' } })
     fireEvent.click(screen.getByText('Verify'))
     expect(mockVerify2fa).not.toHaveBeenCalled()
+  })
+})
+
+describe('Login page — 2FA lockout', () => {
+  it('shows the lockout message instead of the code hint on 429', async () => {
+    ctrl.twoFactorPending = true
+    mockVerify2fa.mockRejectedValueOnce({ status: 429, data: { error: 'Too many attempts. Try again later.' } })
+    renderLogin()
+    fireEvent.change(screen.getByPlaceholderText('000000'), { target: { value: '123456' } })
+    fireEvent.click(screen.getByText('Verify'))
+    await waitFor(() => expect(screen.getByText('Locked out (i18n)')).toBeDefined())
   })
 })
