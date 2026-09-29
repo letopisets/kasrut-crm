@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { assertPlausibleCoordinates } from '../lib/geoValidation'
+import { ForbiddenScopeError } from '../lib/rabbanutScope'
 import { publicRestaurantVisibilityWhere } from './map.repo'
 import type { FoodType, MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
 import type {
@@ -20,6 +21,7 @@ export interface MapUserRow {
   lastName: string | null
   name: string
   avatarUrl: string | null
+  sessionVersion: number
 }
 
 export interface MapAuthUserRow extends MapUserRow {
@@ -63,6 +65,7 @@ const mapUserSelect = {
   lastName: true,
   name: true,
   avatarUrl: true,
+  sessionVersion: true,
 } as const
 
 const mapAuthUserSelect = {
@@ -176,6 +179,9 @@ async function resolveHechsher(
   if (requestedName) {
     const existing = await tx.hechsher.findFirst({
       where: {
+        // Tenant reviewers must never resolve a same-named hechsher from a
+        // peer rabbanut and thereby move a restaurant across tenants.
+        ...(input.reviewerRabbanutId ? { rabbanutId: input.reviewerRabbanutId } : {}),
         OR: [
           { name: { equals: requestedName, mode: 'insensitive' } },
           { shortName: { equals: requestedName, mode: 'insensitive' } },
@@ -268,6 +274,14 @@ export const mapCommunityRepo = {
     })
   },
 
+  async revokeUserSessions(id: string): Promise<boolean> {
+    const result = await prisma.mapUser.updateMany({
+      where: { id },
+      data: { sessionVersion: { increment: 1 } },
+    })
+    return result.count === 1
+  },
+
   async findUserByResetIdentifier(channel: MapPasswordResetChannel, identifier: string): Promise<MapUserRow | null> {
     return prisma.mapUser.findFirst({
       where: channel === 'email' ? { email: identifier } : { phone: identifier },
@@ -287,13 +301,6 @@ export const mapCommunityRepo = {
         passwordHash: input.passwordHash,
       },
       select: mapUserSelect,
-    })
-  },
-
-  async setPassword(mapUserId: string, passwordHash: string): Promise<void> {
-    await prisma.mapUser.update({
-      where: { id: mapUserId },
-      data: { passwordHash },
     })
   },
 
@@ -323,11 +330,23 @@ export const mapCommunityRepo = {
 
       const userByEmail = await tx.mapUser.findUnique({ where: { email: profile.email } })
       if (userByEmail) {
+        // The provider has cryptographically verified this email. Claim an
+        // existing password-only row, but remove every pre-existing recovery
+        // credential and revoke its sessions. This prevents both account
+        // pre-hijacking (attacker keeps the password) and account-squatting DoS
+        // (victim can never use OAuth because their email was pre-registered).
+        await tx.mapPasswordResetToken.updateMany({
+          where: { mapUserId: userByEmail.id, usedAt: null },
+          data: { usedAt: new Date() },
+        })
         return tx.mapUser.update({
           where: { id: userByEmail.id },
           data: {
             name: profile.name,
             avatarUrl: profile.avatarUrl ?? userByEmail.avatarUrl,
+            passwordHash: null,
+            phone: null,
+            sessionVersion: { increment: 1 },
             identities: {
               create: {
                 provider,
@@ -362,65 +381,126 @@ export const mapCommunityRepo = {
     tokenHash: string
     expiresAt: Date
   }) {
-    await prisma.mapPasswordResetToken.updateMany({
-      where: { mapUserId: input.mapUserId, usedAt: null },
-      data: { usedAt: new Date() },
-    })
+    return prisma.$transaction(async tx => {
+      await tx.mapPasswordResetToken.updateMany({
+        where: { mapUserId: input.mapUserId, usedAt: null },
+        data: { usedAt: new Date() },
+      })
 
-    return prisma.mapPasswordResetToken.create({
-      data: {
-        mapUserId: input.mapUserId,
-        channel: input.channel as PrismaMapPasswordResetChannel,
-        tokenHash: input.tokenHash,
-        expiresAt: input.expiresAt,
-      },
-    })
+      return tx.mapPasswordResetToken.create({
+        data: {
+          mapUserId: input.mapUserId,
+          channel: input.channel as PrismaMapPasswordResetChannel,
+          tokenHash: input.tokenHash,
+          expiresAt: input.expiresAt,
+        },
+      })
+    }, { isolationLevel: 'Serializable' })
   },
 
-  async findValidPasswordResetToken(tokenHash: string) {
-    return prisma.mapPasswordResetToken.findFirst({
+  async hasValidPasswordResetToken(tokenHash: string): Promise<boolean> {
+    const token = await prisma.mapPasswordResetToken.findFirst({
       where: {
         tokenHash,
         usedAt: null,
         expiresAt: { gt: new Date() },
       },
-      include: {
-        mapUser: { select: mapUserSelect },
-      },
+      select: { id: true },
+    })
+    return Boolean(token)
+  },
+
+  async consumePasswordResetToken(input: {
+    tokenHash: string
+    passwordHash: string
+  }): Promise<MapUserRow | null> {
+    return prisma.$transaction(async tx => {
+      const now = new Date()
+      const reset = await tx.mapPasswordResetToken.findUnique({
+        where: { tokenHash: input.tokenHash },
+        select: { id: true, mapUserId: true, usedAt: true, expiresAt: true },
+      })
+      if (!reset || reset.usedAt !== null || reset.expiresAt <= now) return null
+
+      // Conditional claim closes the concurrent-use window: exactly one
+      // transaction can move an unused, unexpired token to used.
+      const claimed = await tx.mapPasswordResetToken.updateMany({
+        where: { id: reset.id, usedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      })
+      if (claimed.count !== 1) return null
+
+      return tx.mapUser.update({
+        where: { id: reset.mapUserId },
+        data: {
+          passwordHash: input.passwordHash,
+          sessionVersion: { increment: 1 },
+        },
+        select: mapUserSelect,
+      })
+    }, { isolationLevel: 'Serializable' })
+  },
+
+  async createSuggestionWithinQuota(
+    mapUserId: string,
+    input: CreateSuggestionInput,
+    maxPending: number,
+  ) {
+    return prisma.$transaction(async tx => {
+      // Serialize quota checks per map user. A plain COUNT followed by CREATE
+      // lets parallel requests all observe the same count and exceed the cap.
+      // The transaction-scoped advisory lock is released automatically.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`map-suggestion:${mapUserId}`}, 0))`
+
+      const pending = await tx.mapRestaurantSuggestion.count({
+        where: { mapUserId, status: 'pending' },
+      })
+      if (pending >= maxPending) return null
+
+      return tx.mapRestaurantSuggestion.create({
+        data: {
+          mapUserId,
+          type: input.type as PrismaMapSuggestionType,
+          restaurantId: input.restaurantId || undefined,
+          proposedName: input.proposedName || undefined,
+          proposedAddress: input.proposedAddress || undefined,
+          proposedCity: input.proposedCity || undefined,
+          proposedHechsher: input.proposedHechsher || undefined,
+          proposedKashrutStatus: input.proposedKashrutStatus || undefined,
+          proposedFoodType: input.proposedFoodType ? input.proposedFoodType as PrismaFoodType : undefined,
+          proposedCategory: input.proposedCategory || undefined,
+          proposedImageUrl: input.proposedImageUrl || undefined,
+          proposedLat: input.proposedLat ?? undefined,
+          proposedLng: input.proposedLng ?? undefined,
+          notes: input.notes || undefined,
+        },
+      })
     })
   },
 
-  async markPasswordResetTokenUsed(id: string): Promise<void> {
-    await prisma.mapPasswordResetToken.update({
-      where: { id },
-      data: { usedAt: new Date() },
-    })
-  },
+  async listSuggestions(filter: {
+    status?: MapSuggestionStatus
+    reviewerRole: 'owner' | 'rabbanut'
+    reviewerRabbanutId?: string
+  }) {
+    if (filter.reviewerRole === 'rabbanut' && !filter.reviewerRabbanutId) {
+      throw new ForbiddenScopeError()
+    }
 
-  async createSuggestion(mapUserId: string, input: CreateSuggestionInput) {
-    return prisma.mapRestaurantSuggestion.create({
-      data: {
-        mapUserId,
-        type: input.type as PrismaMapSuggestionType,
-        restaurantId: input.restaurantId || undefined,
-        proposedName: input.proposedName || undefined,
-        proposedAddress: input.proposedAddress || undefined,
-        proposedCity: input.proposedCity || undefined,
-        proposedHechsher: input.proposedHechsher || undefined,
-        proposedKashrutStatus: input.proposedKashrutStatus || undefined,
-        proposedFoodType: input.proposedFoodType ? input.proposedFoodType as PrismaFoodType : undefined,
-        proposedCategory: input.proposedCategory || undefined,
-        proposedImageUrl: input.proposedImageUrl || undefined,
-        proposedLat: input.proposedLat ?? undefined,
-        proposedLng: input.proposedLng ?? undefined,
-        notes: input.notes || undefined,
-      },
-    })
-  },
+    const where: Prisma.MapRestaurantSuggestionWhereInput = {
+      ...(filter.status ? { status: filter.status as PrismaMapSuggestionStatus } : {}),
+      ...(filter.reviewerRole === 'rabbanut'
+        ? {
+            // Add suggestions are deliberately owner-only. A rabbanut can
+            // moderate only updates whose current target belongs to it.
+            type: 'update' as PrismaMapSuggestionType,
+            restaurant: { is: { rabbanutId: filter.reviewerRabbanutId! } },
+          }
+        : {}),
+    }
 
-  async listSuggestions(filter: { status?: MapSuggestionStatus }) {
     return prisma.mapRestaurantSuggestion.findMany({
-      where: filter.status ? { status: filter.status as PrismaMapSuggestionStatus } : undefined,
+      where,
       include: {
         mapUser: { select: { id: true, name: true, email: true } },
       },
@@ -431,11 +511,33 @@ export const mapCommunityRepo = {
   async reviewSuggestion(id: string, data: {
     status: 'approved' | 'rejected'
     reviewerNote?: string | null
+    reviewerRole: 'owner' | 'rabbanut'
     reviewerRabbanutId?: string | null
   }) {
     return prisma.$transaction(async tx => {
       const suggestion = await tx.mapRestaurantSuggestion.findUnique({ where: { id } })
       if (!suggestion || suggestion.status !== 'pending') return null
+
+      const reviewerRabbanutId = data.reviewerRole === 'rabbanut'
+        ? data.reviewerRabbanutId
+        : undefined
+
+      if (data.reviewerRole === 'rabbanut') {
+        if (!reviewerRabbanutId || suggestion.type !== 'update' || !suggestion.restaurantId) {
+          throw new ForbiddenScopeError()
+        }
+
+        // This check intentionally lives inside the same transaction as the
+        // mutation. The final UPDATE below repeats the predicate so a tenant
+        // move racing this review also fails closed at write time.
+        const target = await tx.restaurant.findUnique({
+          where: { id: suggestion.restaurantId },
+          select: { rabbanutId: true },
+        })
+        if (!target || target.rabbanutId !== reviewerRabbanutId) {
+          throw new ForbiddenScopeError()
+        }
+      }
 
       let linkedRestaurantId: string | undefined
 
@@ -466,7 +568,7 @@ export const mapCommunityRepo = {
             name: suggestion.proposedHechsher,
             city: suggestion.proposedCity ?? '',
             kashrutStatus: suggestion.proposedKashrutStatus,
-            reviewerRabbanutId: data.reviewerRabbanutId,
+            reviewerRabbanutId,
           })
           patch.hechsher = { connect: { id: hechsher.id } }
           patch.rabbanut = { connect: { id: hechsher.rabbanutId } }
@@ -477,7 +579,13 @@ export const mapCommunityRepo = {
           patch.expires = expiresForStatus(certStatus)
         }
         if (Object.keys(patch).length > 0) {
-          await tx.restaurant.update({ where: { id: suggestion.restaurantId }, data: patch })
+          await tx.restaurant.update({
+            where: {
+              id: suggestion.restaurantId,
+              ...(reviewerRabbanutId ? { rabbanutId: reviewerRabbanutId } : {}),
+            },
+            data: patch,
+          })
         }
       }
 
@@ -494,7 +602,7 @@ export const mapCommunityRepo = {
           name: suggestion.proposedHechsher,
           city: suggestion.proposedCity,
           kashrutStatus: suggestion.proposedKashrutStatus,
-          reviewerRabbanutId: data.reviewerRabbanutId,
+          reviewerRabbanutId,
         })
         const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
         const categoryId = await resolveCategoryId(tx, suggestion.proposedCategory)
@@ -521,7 +629,16 @@ export const mapCommunityRepo = {
       }
 
       return tx.mapRestaurantSuggestion.update({
-        where: { id },
+        where: {
+          id,
+          status: 'pending' as PrismaMapSuggestionStatus,
+          ...(data.reviewerRole === 'rabbanut'
+            ? {
+                type: 'update' as PrismaMapSuggestionType,
+                restaurant: { is: { rabbanutId: reviewerRabbanutId! } },
+              }
+            : {}),
+        },
         data: {
           status: data.status as PrismaMapSuggestionStatus,
           ...(linkedRestaurantId ? { restaurantId: linkedRestaurantId } : {}),

@@ -2,6 +2,7 @@ import request from 'supertest'
 import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
 import { restaurantsRepo } from '../db/restaurants.repo'
+import { usersRepo } from '../db/users.repo'
 import { env } from '../config/env'
 import { withCache } from '../lib/cache'
 import type { Restaurant } from '../models/types'
@@ -24,10 +25,27 @@ jest.mock('otplib', () => ({
 jest.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,qr' }))
 
 const mockRepo = restaurantsRepo as jest.Mocked<typeof restaurantsRepo>
+const mockUsersRepo = usersRepo as jest.Mocked<typeof usersRepo>
 const mockWithCache = withCache as jest.MockedFunction<typeof withCache>
+
+const ownerUser = {
+  id: 'u1',
+  role: 'owner' as const,
+  name: 'Owner',
+  email: 'o@test.il',
+  passwordHash: 'hash',
+  twoFactorEnabled: false,
+  twoFactorBackupCodes: [],
+}
 
 const ownerToken = jwt.sign(
   { sub: 'u1', role: 'owner', name: 'Owner', email: 'o@test.il' },
+  env.JWT_SECRET,
+  { expiresIn: '1h' } as object,
+)
+
+const unscopedRabbanutToken = jwt.sign(
+  { sub: 'u2', role: 'rabbanut', name: 'Broken tenant user', email: 'r@test.il' },
   env.JWT_SECRET,
   { expiresIn: '1h' } as object,
 )
@@ -44,6 +62,7 @@ const app = createApp()
 describe('GET /api/restaurants pagination', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockUsersRepo.findAuthById.mockImplementation(async (id) => id === ownerUser.id ? ownerUser : null)
   })
 
   it('returns plain array when no limit (back-compat)', async () => {
@@ -127,5 +146,15 @@ describe('GET /api/restaurants pagination', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
 
     expect(res.status).toBe(400)
+  })
+
+  it('fails closed instead of returning all tenants for rabbanut without rabbanutId', async () => {
+    const res = await request(app)
+      .get('/api/restaurants')
+      .set('Authorization', `Bearer ${unscopedRabbanutToken}`)
+
+    expect(res.status).toBe(401)
+    expect(mockRepo.findAll).not.toHaveBeenCalled()
+    expect(mockRepo.findPage).not.toHaveBeenCalled()
   })
 })

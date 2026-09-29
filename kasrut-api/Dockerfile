@@ -23,6 +23,8 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app/kasrut-api
 
+ENV NODE_ENV=production
+
 COPY kasrut-api/package*.json   ./
 COPY kasrut-api/prisma          ./prisma
 COPY kasrut-api/prisma.config.ts ./

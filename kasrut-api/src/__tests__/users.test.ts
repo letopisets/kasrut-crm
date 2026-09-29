@@ -54,7 +54,13 @@ function ownerToken() {
 
 function rabbanutToken() {
   return jwt.sign(
-    { sub: rabbanutUser.id, role: rabbanutUser.role, name: rabbanutUser.name, email: rabbanutUser.email },
+    {
+      sub: rabbanutUser.id,
+      role: rabbanutUser.role,
+      name: rabbanutUser.name,
+      email: rabbanutUser.email,
+      rabbanutId: rabbanutUser.rabbanutId,
+    },
     env.JWT_SECRET,
     { expiresIn: '1h' } as object,
   )
@@ -64,6 +70,15 @@ function rabbanutToken() {
 const app = createApp()
 
 // ── Tests ──────────────────────────────────────────────────────────────────
+beforeEach(() => {
+  mockRepo.validateTenantAssignment.mockResolvedValue(true)
+  mockRepo.findAuthById.mockImplementation(async id => {
+    if (id === ownerUser.id) return ownerUser
+    if (id === rabbanutUser.id) return rabbanutUser
+    return null
+  })
+})
+
 describe('GET /api/users', () => {
   it('returns all users for owner', async () => {
     mockRepo.findAll.mockResolvedValue([ownerUser, rabbanutUser])
@@ -122,11 +137,27 @@ describe('POST /api/users', () => {
     const res = await request(app)
       .post('/api/users')
       .set('Authorization', `Bearer ${ownerToken()}`)
-      .send({ name: 'New User', email: 'new@test.il', password: 'password123', role: 'rabbanut' })
+      .send({
+        name: 'New User', email: 'new@test.il', password: 'password123',
+        role: 'rabbanut', rabbanutId: 'rb1',
+      })
 
     expect(res.status).toBe(201)
     expect(res.body.email).toBe('new@test.il')
   })
+
+  it.each(['rabbanut', 'mashgiach'] as const)(
+    'rejects a %s user without rabbanutId',
+    async role => {
+      const res = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${ownerToken()}`)
+        .send({ name: 'Tenant User', email: `${role}@test.il`, password: 'password123', role })
+
+      expect(res.status).toBe(400)
+      expect(mockRepo.create).not.toHaveBeenCalled()
+    },
+  )
 
   it('returns 403 for non-owner', async () => {
     const res = await request(app)
@@ -141,6 +172,7 @@ describe('POST /api/users', () => {
 describe('PATCH /api/users/:id', () => {
   it('updates a user', async () => {
     const updated: User = { ...ownerUser, name: 'Updated Name' }
+    mockRepo.findById.mockResolvedValue(ownerUser)
     mockRepo.update.mockResolvedValue(updated)
 
     const res = await request(app)
@@ -153,7 +185,7 @@ describe('PATCH /api/users/:id', () => {
   })
 
   it('returns 404 when user not found', async () => {
-    mockRepo.update.mockResolvedValue(null)
+    mockRepo.findById.mockResolvedValue(null)
 
     const res = await request(app)
       .patch('/api/users/nope')
@@ -161,6 +193,35 @@ describe('PATCH /api/users/:id', () => {
       .send({ name: 'X' })
 
     expect(res.status).toBe(404)
+    expect(mockRepo.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects conversion to a tenant role without a resulting rabbanutId', async () => {
+    mockRepo.findById.mockResolvedValue(ownerUser)
+
+    const res = await request(app)
+      .patch('/api/users/u1')
+      .set('Authorization', `Bearer ${ownerToken()}`)
+      .send({ role: 'rabbanut' })
+
+    expect(res.status).toBe(400)
+    expect(mockRepo.update).not.toHaveBeenCalled()
+  })
+
+  it('allows conversion to a tenant role with an explicit rabbanutId', async () => {
+    const updated: User = { ...ownerUser, role: 'rabbanut', rabbanutId: 'rb1' }
+    mockRepo.findById.mockResolvedValue(ownerUser)
+    mockRepo.update.mockResolvedValue(updated)
+
+    const res = await request(app)
+      .patch('/api/users/u1')
+      .set('Authorization', `Bearer ${ownerToken()}`)
+      .send({ role: 'rabbanut', rabbanutId: 'rb1' })
+
+    expect(res.status).toBe(200)
+    expect(mockRepo.update).toHaveBeenCalledWith(
+      'u1', expect.objectContaining({ role: 'rabbanut', rabbanutId: 'rb1' }),
+    )
   })
 })
 

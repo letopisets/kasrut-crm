@@ -66,7 +66,7 @@ export function createApp() {
   })
 
   // OpenAPI / Swagger UI — exposed in non-production only
-  if (process.env.NODE_ENV !== 'production') {
+  if (env.NODE_ENV !== 'production') {
     app.get('/api/openapi.json', (_req, res) => res.json(swaggerSpec))
     app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
   }

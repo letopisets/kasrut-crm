@@ -7,6 +7,7 @@ import { createRestaurantSchema, updateRestaurantSchema, listRestaurantQuerySche
 import {
   applyWriteScope,
   assertOwnsRabbanut,
+  ForbiddenScopeError,
   resolveScopeRabbanutId,
 } from '../lib/rabbanutScope'
 import { asyncHandler } from '../lib/asyncHandler'
@@ -20,13 +21,14 @@ export const restaurantController = {
   list: asyncHandler(async (req, res) => {
     const q           = validate(listRestaurantQuerySchema, req.query)
     const rabbanutId  = resolveScopeRabbanutId(req, q.rabbanutId)
-    const mashgiachId = req.user?.role === 'mashgiach' ? req.user.sub : undefined
+    const mashgiachId = req.user?.role === 'mashgiach' ? req.user.mashgiachId : undefined
 
-    if (mashgiachId) {
+    if (req.user?.role === 'mashgiach') {
+      if (!mashgiachId || !req.user.rabbanutId) throw new ForbiddenScopeError()
       const data = await withCache(
-        restaurantsCacheKey({ mashgiachId }),
+        restaurantsCacheKey({ mashgiachId, rabbanutId: req.user.rabbanutId }),
         RESTAURANTS_CACHE_TTL,
-        async () => serializeRestaurants(await restaurantsRepo.findByMashgiach(mashgiachId)),
+        async () => serializeRestaurants(await restaurantsRepo.findByMashgiach(mashgiachId, req.user!.rabbanutId!)),
       )
       res.json(data)
       return
@@ -58,6 +60,15 @@ export const restaurantController = {
     const r = await restaurantsRepo.findById(req.params.id)
     if (!r) { res.status(404).json({ error: 'Not found' }); return }
     assertOwnsRabbanut(req, r)
+
+    if (req.user?.role === 'mashgiach') {
+      if (
+        !req.user.mashgiachId ||
+        !req.user.rabbanutId ||
+        r.mashgiachId !== req.user.mashgiachId ||
+        r.rabbanutId !== req.user.rabbanutId
+      ) throw new ForbiddenScopeError()
+    }
     res.json(serializeRestaurant(r))
   }),
 

@@ -23,6 +23,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { clearCredentials } from '@/store/mapAuthSlice'
 import { setMapLang, type MapLang } from '@/store/mapLangSlice'
 import { useMapLang } from '@/i18n/useMapLang'
+import { useLogoutMapMutation } from '@/store/api/mapCommunityApi'
 import type { ThemeMode } from '@/theme'
 
 const LANGS: MapLang[] = ['en', 'ru', 'he']
@@ -83,10 +84,15 @@ export function MapAppBar({
   const lang      = useAppSelector(state => state.mapLang.lang)
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null)
   const [moreAnchor, setMoreAnchor]       = useState<HTMLElement | null>(null)
+  const [logoutMap] = useLogoutMapMutation()
 
-  const logout = () => {
-    dispatch(clearCredentials())
-    setAccountAnchor(null)
+  const logout = async () => {
+    try {
+      await logoutMap().unwrap()
+    } finally {
+      dispatch(clearCredentials())
+      setAccountAnchor(null)
+    }
   }
 
   // Secondary actions: inline on desktop, collapsed into an overflow menu on

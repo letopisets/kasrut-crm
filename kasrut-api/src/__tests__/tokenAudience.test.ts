@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
 import { env } from '../config/env'
 import { mashgichimRepo } from '../db/mashgichim.repo'
+import { usersRepo } from '../db/users.repo'
+import type { User } from '../models/types'
 
 // A public map-user token and a pre-2FA temp token are signed with the SAME
 // secret as CRM tokens. They must NEVER authenticate a CRM endpoint — otherwise
@@ -15,6 +17,7 @@ jest.mock('../db/mashgichim.repo')
 jest.mock('../db/hechsherim.repo')
 jest.mock('../db/rabbanuts.repo')
 jest.mock('../db/documents.repo')
+jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('otplib', () => ({
   generateSecret: () => 'MOCKSECRET32',
   generateURI:    () => 'otpauth://totp/test',
@@ -22,7 +25,22 @@ jest.mock('otplib', () => ({
 }))
 
 const mockRepo = mashgichimRepo as jest.Mocked<typeof mashgichimRepo>
+const mockUsersRepo = usersRepo as jest.Mocked<typeof usersRepo>
 const app = createApp()
+
+const currentOwner: User = {
+  id: 'u1',
+  name: 'Owner',
+  email: 'o@crm.il',
+  passwordHash: 'hash',
+  role: 'owner',
+  twoFactorEnabled: false,
+  twoFactorBackupCodes: [],
+}
+
+beforeEach(() => {
+  mockUsersRepo.findAuthById.mockResolvedValue(currentOwner)
+})
 
 const CRM = '/api/mashgichim' // representative CRM endpoint (authenticateJWT only)
 
@@ -70,5 +88,35 @@ describe('CRM endpoints reject non-CRM token audiences', () => {
     )
     const res = await request(app).get(CRM).set('Authorization', `Bearer ${legacy}`)
     expect(res.status).toBe(200)
+  })
+
+  it('rejects a token after the current user role changes', async () => {
+    mockUsersRepo.findAuthById.mockResolvedValue({
+      ...currentOwner,
+      role: 'rabbanut',
+      rabbanutId: 'rb1',
+    })
+    const staleOwner = jwt.sign(
+      { sub: 'u1', role: 'owner', typ: 'crm', name: 'Owner', email: 'o@crm.il' },
+      env.JWT_SECRET, { expiresIn: '1h' } as object,
+    )
+
+    const res = await request(app).get(CRM).set('Authorization', `Bearer ${staleOwner}`)
+
+    expect(res.status).toBe(401)
+    expect(mockRepo.findAll).not.toHaveBeenCalled()
+  })
+
+  it('rejects a token when the current account or tenant is inactive', async () => {
+    mockUsersRepo.findAuthById.mockResolvedValue(null)
+    const token = jwt.sign(
+      { sub: 'u1', role: 'owner', typ: 'crm', name: 'Owner', email: 'o@crm.il' },
+      env.JWT_SECRET, { expiresIn: '1h' } as object,
+    )
+
+    const res = await request(app).get(CRM).set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(401)
+    expect(mockRepo.findAll).not.toHaveBeenCalled()
   })
 })

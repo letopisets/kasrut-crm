@@ -16,7 +16,9 @@ function signFullToken(user: User) {
     name:  user.name, email: user.email,
     typ:   'crm' as const,
     jti:   randomUUID(),
+    ver:   user.sessionVersion ?? 0,
     ...(user.rabbanutId ? { rabbanutId: user.rabbanutId } : {}),
+    ...(user.mashgiachId ? { mashgiachId: user.mashgiachId } : {}),
   }
   return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN })
 }
@@ -38,9 +40,10 @@ export const authController = {
       userRole: 'auth_attempt',
       actorType: 'auth_attempt',
     }
-    const user = await usersRepo.findByEmail(email)
+    const user = await usersRepo.findAuthByEmail(email)
 
-    if (!user || !usersRepo.verifyPassword(user, password)) {
+    const passwordOk = user ? await usersRepo.verifyPassword(user, password) : false
+    if (!user || !passwordOk) {
       res.locals.serviceLogMessage = 'CRM login failed'
       res.status(401).json({ error: 'Invalid credentials' }); return
     }
@@ -61,12 +64,16 @@ export const authController = {
 
   me: asyncHandler(async (req, res) => {
     if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
-    const user = await usersRepo.findById(req.user.sub)
+    const user = await usersRepo.findAuthById(req.user.sub)
     if (!user) { res.status(404).json({ error: 'User not found' }); return }
     res.json(serializeUser(user))
   }),
 
   logout: asyncHandler(async (req, res) => {
+    if (!req.user || !await usersRepo.revokeSessions(req.user.sub)) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
     if (req.user?.jti) {
       const remainingTtl = Math.floor((req.user.exp - Date.now() / 1000))
       await blacklistToken(req.user.jti, remainingTtl)

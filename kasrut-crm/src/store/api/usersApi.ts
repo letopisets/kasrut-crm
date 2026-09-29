@@ -14,7 +14,7 @@ export const usersApi = baseApi.injectEndpoints({
           ? [...result.map(({ id }) => ({ type: 'User' as const, id })), 'User']
           : ['User'],
     }),
-    createUser: build.mutation<User, { name: string; email: string; password: string; role: Role; rabbanutId?: string }>({
+    createUser: build.mutation<User, { name: string; email: string; password: string; role: Role; rabbanutId?: string; mashgiachId?: string }>({
       query: (body) => ({ url: '/users', method: 'POST', body }),
       invalidatesTags: ['User'],
     }),

@@ -13,6 +13,7 @@ import {
   useSetup2faMutation,
   useEnable2faMutation,
   useDisable2faMutation,
+  useLogoutMutation,
 } from '@/store/api/authApi'
 import { PERMISSIONS } from '@/lib/permissions'
 
@@ -32,6 +33,7 @@ export function useAuthController() {
   const [setup2faMut, { isLoading: setupLoading,   error: setupError   }] = useSetup2faMutation()
   const [enable2faMut,{ isLoading: enableLoading,  error: enableError  }] = useEnable2faMutation()
   const [disable2faMut,{isLoading: disableLoading, error: disableError }] = useDisable2faMutation()
+  const [logoutMut] = useLogoutMutation()
 
   const isLoading = loginLoading || verifyLoading
 
@@ -57,29 +59,28 @@ export function useAuthController() {
     dispatch(clearTwoFactorPending())
   }
 
-  const setup2fa = () => setup2faMut().unwrap()
+  const setup2fa = (password: string) => setup2faMut({ password }).unwrap()
 
-  const enable2fa = async (code: string): Promise<import('@/types').User> => {
+  const enable2fa = async (code: string) => {
     const result = await enable2faMut({ code }).unwrap()
-    // update user in store with twoFactorEnabled: true
-    if (token) {
-      dispatch(setUser({ user: result.user, token }))
-    }
-    return result.user
+    dispatch(setUser({ user: result.user, token: result.token }))
+    return result
   }
 
   const disable2fa = async (code: string): Promise<import('@/types').User> => {
     const result = await disable2faMut({ code }).unwrap()
-    if (token) {
-      dispatch(setUser({ user: result.user, token }))
-    }
+    dispatch(setUser({ user: result.user, token: result.token }))
     return result.user
   }
 
-  const logout = () => {
-    dispatch(logoutAction())
-    clearPersistedAuth()
-    navigate('/login', { replace: true })
+  const logout = async () => {
+    try {
+      if (token) await logoutMut().unwrap()
+    } finally {
+      dispatch(logoutAction())
+      clearPersistedAuth()
+      navigate('/login', { replace: true })
+    }
   }
 
   return {

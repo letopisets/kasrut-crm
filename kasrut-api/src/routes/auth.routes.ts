@@ -14,9 +14,9 @@ router.get('/me',      authenticateJWT, authController.me)
 router.post('/logout', authenticateJWT, authController.logout)
 
 // Two-factor authentication
-router.post('/2fa/setup',   authenticateJWT, twoFactorController.setup)   // generate secret + QR
-router.post('/2fa/enable',  authenticateJWT, twoFactorController.enable)  // verify first code → activate
-router.post('/2fa/disable', authenticateJWT, twoFactorController.disable) // verify code → deactivate
+router.post('/2fa/setup',   twoFactorLimiter, authenticateJWT, twoFactorController.setup)   // re-auth + QR
+router.post('/2fa/enable',  twoFactorLimiter, authenticateJWT, twoFactorController.enable)  // verify first code → activate
+router.post('/2fa/disable', twoFactorLimiter, authenticateJWT, twoFactorController.disable) // verify code → deactivate
 router.post('/2fa/verify',         twoFactorLimiter, twoFactorController.verify)        // verify TOTP at login (public)
 router.post('/2fa/verify-backup',  twoFactorLimiter, twoFactorController.verifyBackup)  // backup code at login (public)
 

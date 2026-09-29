@@ -6,7 +6,43 @@ import { PrismaPg }     from '@prisma/adapter-pg'
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma  = new PrismaClient({ adapter })
 
-const HASH = bcrypt.hashSync('password', 12)
+function requireSeedPassword(name: string): string {
+  const password = process.env[name]
+  const strongEnough = password !== undefined &&
+    password.length >= 16 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+
+  if (!strongEnough) {
+    throw new Error(
+      `${name} must be explicitly set and contain at least 16 characters, including upper/lowercase letters, a digit, and a symbol.`,
+    )
+  }
+  return password
+}
+
+// Validate before main() can execute any destructive deleteMany call.
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'true') {
+  throw new Error('Refusing to run the destructive seed in production without ALLOW_PRODUCTION_SEED=true.')
+}
+
+const seedPasswords = {
+  owner:          requireSeedPassword('SEED_OWNER_PASSWORD'),
+  secondOwner:    requireSeedPassword('SEED_SECOND_OWNER_PASSWORD'),
+  rabbanut:       requireSeedPassword('SEED_RABBANUT_PASSWORD'),
+  mashgiach:      requireSeedPassword('SEED_MASHGIACH_PASSWORD'),
+}
+if (new Set(Object.values(seedPasswords)).size !== Object.keys(seedPasswords).length) {
+  throw new Error('Every seeded account must use a different password.')
+}
+const HASH = {
+  owner:       bcrypt.hashSync(seedPasswords.owner, 12),
+  secondOwner: bcrypt.hashSync(seedPasswords.secondOwner, 12),
+  rabbanut:    bcrypt.hashSync(seedPasswords.rabbanut, 12),
+  mashgiach:   bcrypt.hashSync(seedPasswords.mashgiach, 12),
+}
 
 async function main() {
   // ── Wipe in dependency order ───────────────────────────────────────────────
@@ -34,10 +70,10 @@ async function main() {
 
   // ── Users ──────────────────────────────────────────────────────────────────
   await prisma.user.createMany({ data: [
-    { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH, role: 'owner' },
-    { id: 'u4', name: 'Авнер',           email: 'avner@kashrut.il', passwordHash: HASH, role: 'owner' },
-    { id: 'u2', name: 'Admin Jerusalem', email: 'admin@jer.il',     passwordHash: HASH, role: 'rabbanut',  rabbanutId: rb1.id },
-    { id: 'u3', name: 'Р. Коэн',         email: 'cohen@jer.il',     passwordHash: HASH, role: 'mashgiach', rabbanutId: rb1.id },
+    { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH.owner,       role: 'owner' },
+    { id: 'u4', name: 'Авнер',           email: 'avner@kashrut.il', passwordHash: HASH.secondOwner, role: 'owner' },
+    { id: 'u2', name: 'Admin Jerusalem', email: 'admin@jer.il',     passwordHash: HASH.rabbanut,    role: 'rabbanut',  rabbanutId: rb1.id },
+    { id: 'u3', name: 'Р. Коэн',         email: 'cohen@jer.il',     passwordHash: HASH.mashgiach,   role: 'mashgiach', rabbanutId: rb1.id },
   ] })
 
   // ── Hechsherim ─────────────────────────────────────────────────────────────
@@ -53,16 +89,17 @@ async function main() {
   const [m1, m2, m3, m4] = await Promise.all([
     prisma.mashgiach.create({ data: { id: 'm1', name: 'Р. Коэн',    phone: '050-1234567', email: 'cohen@rabbanut.il', area: 'Jerusalem Center', active: true,  rabbanutId: rb1.id, hechsherim: { create: [{ hechsherId: 'h1' }, { hechsherId: 'h5' }] } } }),
     prisma.mashgiach.create({ data: { id: 'm2', name: 'Р. Леви',    phone: '052-9876543', email: 'levi@rabbanut.il',  area: 'Jerusalem North',  active: true,  rabbanutId: rb1.id, hechsherim: { create: [{ hechsherId: 'h1' }] } } }),
-    prisma.mashgiach.create({ data: { id: 'm3', name: 'Р. Фридман', phone: '054-5551234', email: 'fridman@haifa.il',  area: 'Haifa',            active: true,  rabbanutId: rb2.id, hechsherim: { create: [{ hechsherId: 'h3' }, { hechsherId: 'h4' }] } } }),
+    prisma.mashgiach.create({ data: { id: 'm3', name: 'Р. Фридман', phone: '054-5551234', email: 'fridman@haifa.il',  area: 'Haifa',            active: true,  rabbanutId: rb2.id, hechsherim: { create: [{ hechsherId: 'h3' }] } } }),
     prisma.mashgiach.create({ data: { id: 'm4', name: 'Р. Берг',    phone: '058-7774321', email: 'berg@jer.il',       area: 'North District',   active: false, rabbanutId: rb1.id, hechsherim: { create: [{ hechsherId: 'h2' }] } } }),
   ])
+  await prisma.user.update({ where: { id: 'u3' }, data: { mashgiachId: m1.id } })
 
   // ── Restaurants ────────────────────────────────────────────────────────────
   await prisma.restaurant.createMany({ data: [
     { id: 'r1', name: 'מסעדת הגורמה',     address: "רח' יפו 42",      city: 'Jerusalem', levelId: 'kl_mehadrin',    hechsherId: 'h1', mashgiachId: m1.id, kitniyot: false, expires: new Date('2026-03-15'), notes: '',                   rabbanutId: rb1.id, lat: 31.7834, lng: 35.2137, foodType: 'meat',     phone: '02-623-1111', hours: 'א׳–ה׳ 12:00–22:00' },
     { id: 'r2', name: 'בית האוכל המרכזי', address: "רח' בן יהודה 18", city: 'Jerusalem', levelId: 'kl_regular',     hechsherId: 'h2', mashgiachId: m2.id, kitniyot: true,  expires: new Date('2026-06-30'), notes: '',                   rabbanutId: rb1.id, lat: 31.7820, lng: 35.2145, foodType: 'pareve',   phone: '02-624-2222', hours: 'א׳–ה׳ 9:00–21:00, ו׳ 9:00–14:00' },
-    { id: 'r3', name: 'מסעדת צפון',       address: "שד' הרצל 55",     city: 'Haifa',     levelId: 'kl_mehadrin',    hechsherId: 'h4', mashgiachId: m3.id, kitniyot: false, expires: new Date('2026-02-28'), notes: 'Requires attention', rabbanutId: rb2.id, lat: 32.8156, lng: 34.9893, foodType: 'meat',     phone: '04-855-3333', hours: 'א׳–ה׳ 12:00–23:00' },
-    { id: 'r4', name: 'פיצה שמש',         address: "רח' גאולה 31",    city: 'Haifa',     levelId: 'kl_lo_mehadrin', hechsherId: 'h3', mashgiachId: m1.id, kitniyot: true,  expires: new Date('2026-08-10'), notes: '',                   rabbanutId: rb2.id, lat: 32.8073, lng: 34.9942, foodType: 'dairy',    phone: '04-851-4444', hours: 'א׳–ה׳ 11:00–23:00' },
+    { id: 'r3', name: 'מסעדת צפון',       address: "שד' הרצל 55",     city: 'Haifa',     levelId: 'kl_mehadrin',    hechsherId: 'h3', mashgiachId: m3.id, kitniyot: false, expires: new Date('2026-02-28'), notes: 'Requires attention', rabbanutId: rb2.id, lat: 32.8156, lng: 34.9893, foodType: 'meat',     phone: '04-855-3333', hours: 'א׳–ה׳ 12:00–23:00' },
+    { id: 'r4', name: 'פיצה שמש',         address: "רח' גאולה 31",    city: 'Haifa',     levelId: 'kl_lo_mehadrin', hechsherId: 'h3', mashgiachId: m3.id, kitniyot: true,  expires: new Date('2026-08-10'), notes: '',                   rabbanutId: rb2.id, lat: 32.8073, lng: 34.9942, foodType: 'dairy',    phone: '04-851-4444', hours: 'א׳–ה׳ 11:00–23:00' },
     { id: 'r5', name: 'המאפייה העתיקה',   address: "רח' ירושלים 17",  city: 'Tzfat',     levelId: 'kl_mehadrin',    hechsherId: 'h5', mashgiachId: m4.id, kitniyot: false, expires: new Date('2026-04-01'), notes: '',                   rabbanutId: rb1.id, lat: 32.9641, lng: 35.4956, foodType: 'dairy',    phone: '04-697-5555', hours: 'א׳–ה׳ 8:00–21:00, ו׳ 8:00–14:00' },
     { id: 'r6', name: 'מלון כנרות',       address: "רח' זיידל 9",     city: 'Tiberias',  levelId: 'kl_regular',     hechsherId: 'h1', mashgiachId: m2.id, kitniyot: false, expires: new Date('2026-09-20'), notes: '',                   rabbanutId: rb1.id, lat: 32.7944, lng: 35.5271, foodType: 'takeaway', phone: '04-672-6666', hours: 'כל יום 7:00–22:00' },
   ] })

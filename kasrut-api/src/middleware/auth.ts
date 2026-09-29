@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { env } from '../config/env'
 import type { JWTPayload } from '../models/types'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
+import { usersRepo } from '../db/users.repo'
 
 declare global {
   namespace Express {
@@ -41,7 +42,47 @@ export async function authenticateJWT(req: Request, res: Response, next: NextFun
       return
     }
 
-    req.user = payload
+    // Authorization claims are only a snapshot. Resolve the current account
+    // on every request so deletion, role changes, tenant moves and tenant
+    // suspension take effect immediately rather than when a 7-day JWT expires.
+    const currentUser = await usersRepo.findAuthById(payload.sub)
+    if (!currentUser) {
+      res.status(401).json({ error: 'Account is inactive or unavailable' })
+      return
+    }
+
+    const tokenRabbanutId = payload.rabbanutId ?? null
+    const currentRabbanutId = currentUser.rabbanutId ?? null
+    const tokenMashgiachId = payload.mashgiachId ?? null
+    const currentMashgiachId = currentUser.mashgiachId ?? null
+    const tokenVersion = payload.ver === undefined ? 0 : payload.ver
+    const currentVersion = currentUser.sessionVersion ?? 0
+    if (
+      typeof tokenVersion !== 'number' ||
+      !Number.isInteger(tokenVersion) ||
+      tokenVersion < 0 ||
+      tokenVersion !== currentVersion ||
+      payload.role !== currentUser.role ||
+      tokenRabbanutId !== currentRabbanutId ||
+      tokenMashgiachId !== currentMashgiachId
+    ) {
+      res.status(401).json({ error: 'Authorization has changed; sign in again' })
+      return
+    }
+
+    const currentPayload: JWTPayload = {
+      ...payload,
+      sub: currentUser.id,
+      role: currentUser.role,
+      name: currentUser.name,
+      email: currentUser.email,
+    }
+    if (currentUser.rabbanutId) currentPayload.rabbanutId = currentUser.rabbanutId
+    else delete currentPayload.rabbanutId
+    if (currentUser.mashgiachId) currentPayload.mashgiachId = currentUser.mashgiachId
+    else delete currentPayload.mashgiachId
+
+    req.user = currentPayload
     req.tokenRaw = token
     next()
   } catch {

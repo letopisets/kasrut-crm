@@ -1,5 +1,17 @@
 import nodemailer from 'nodemailer'
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, character => {
+    switch (character) {
+      case '&': return '&amp;'
+      case '<': return '&lt;'
+      case '>': return '&gt;'
+      case '"': return '&quot;'
+      default:  return '&#39;'
+    }
+  })
+}
+
 function createTransport() {
   return nodemailer.createTransport({
     host:   process.env.SMTP_HOST   ?? 'localhost',
@@ -8,6 +20,36 @@ function createTransport() {
     auth:   process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
       : undefined,
+    // No mail path in this application needs to read local files or fetch
+    // remote content. Keep these disabled even if a future template changes.
+    disableFileAccess: true,
+    disableUrlAccess: true,
+  })
+}
+
+export async function sendMapPasswordResetToken(payload: {
+  recipientEmail: string
+  recipientName: string
+  token: string
+}): Promise<void> {
+  const transporter = createTransport()
+  const recipientName = escapeHtml(payload.recipientName)
+  const token = escapeHtml(payload.token)
+
+  await transporter.sendMail({
+    from: `"Kosher Map" <${process.env.SMTP_USER ?? 'noreply@kashrut.local'}>`,
+    to: payload.recipientEmail,
+    subject: 'Kosher Map password reset code',
+    text: `Your Kosher Map password reset code is: ${payload.token}\n\nIt expires in 30 minutes. If you did not request this, ignore this message.`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Kosher Map password reset</h2>
+        <p>Hello ${recipientName},</p>
+        <p>Enter this code in the password reset form:</p>
+        <p style="font-family:monospace;font-size:18px;font-weight:bold;word-break:break-all">${token}</p>
+        <p>The code expires in 30 minutes. If you did not request this, ignore this message.</p>
+      </div>
+    `,
   })
 }
 
@@ -22,16 +64,21 @@ export interface ExpiryMailPayload {
 export async function sendExpiryWarning(payload: ExpiryMailPayload): Promise<void> {
   const transporter = createTransport()
 
-  const subject = `⚠️ Kashrut certificate expiring in ${payload.daysLeft} days — ${payload.restaurantName}`
+  const subjectRestaurantName = payload.restaurantName.replace(/[\r\n]+/g, ' ').trim()
+  const subject = `⚠️ Kashrut certificate expiring in ${payload.daysLeft} days — ${subjectRestaurantName}`
+  const recipientName = escapeHtml(payload.recipientName)
+  const restaurantName = escapeHtml(payload.restaurantName)
+  const daysLeft = escapeHtml(String(payload.daysLeft))
+  const expires = escapeHtml(payload.expires)
 
   const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
       <h2 style="color:#E8C96D">Kashrut Certificate Expiry Notice</h2>
-      <p>Dear ${payload.recipientName},</p>
+      <p>Dear ${recipientName},</p>
       <p>
-        The kashrut certificate for <strong>${payload.restaurantName}</strong>
-        is expiring in <strong>${payload.daysLeft} days</strong>
-        (on <strong>${payload.expires}</strong>).
+        The kashrut certificate for <strong>${restaurantName}</strong>
+        is expiring in <strong>${daysLeft} days</strong>
+        (on <strong>${expires}</strong>).
       </p>
       <p>Please arrange renewal before the expiry date to avoid any service interruption.</p>
       <hr style="border:none;border-top:1px solid #333;margin:24px 0">

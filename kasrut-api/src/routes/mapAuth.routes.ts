@@ -14,5 +14,6 @@ router.post('/oauth', authLimiter, mapAuthController.oauth)
 router.post('/password-reset/request', resetLimiter, mapAuthController.requestPasswordReset)
 router.post('/password-reset/confirm', resetLimiter, mapAuthController.confirmPasswordReset)
 router.get('/me', authenticateMapJWT, mapAuthController.me)
+router.post('/logout', authenticateMapJWT, mapAuthController.logout)
 
 export default router

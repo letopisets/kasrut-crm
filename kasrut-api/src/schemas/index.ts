@@ -39,14 +39,56 @@ export const loginSchema = z.object({
 })
 
 // User
-export const createUserSchema = z.object({
+const userFieldsSchema = z.object({
   name:       z.string().min(1).max(100).trim(),
   email,
   password:   z.string().min(8).max(128),
   role,
   rabbanutId: id.optional(),
+  mashgiachId: id.optional(),
 })
-export const updateUserSchema = createUserSchema.omit({ password: true }).partial()
+
+function requireTenantAssignment(
+  value: { role: z.infer<typeof role>; rabbanutId?: string; mashgiachId?: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.role === 'owner' && value.rabbanutId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rabbanutId'],
+      message: 'rabbanutId is not valid for the owner role',
+    })
+  }
+  if (value.role !== 'owner' && !value.rabbanutId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rabbanutId'],
+      message: 'rabbanutId is required for tenant roles',
+    })
+  }
+  if (value.role === 'mashgiach' && !value.mashgiachId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['mashgiachId'],
+      message: 'mashgiachId is required for the mashgiach role',
+    })
+  }
+  if (value.role !== 'mashgiach' && value.mashgiachId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['mashgiachId'],
+      message: 'mashgiachId is only valid for the mashgiach role',
+    })
+  }
+}
+
+export const createUserSchema = userFieldsSchema.superRefine(requireTenantAssignment)
+export const updateUserSchema = userFieldsSchema.omit({ password: true }).partial()
+export const userTenantAssignmentSchema = z.object({
+  role,
+  rabbanutId: id.optional(),
+  mashgiachId: id.optional(),
+}).superRefine(requireTenantAssignment)
 
 // Restaurant
 // `status` is computed from `expires` server-side; it is accepted in input for

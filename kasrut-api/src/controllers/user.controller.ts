@@ -1,7 +1,12 @@
 import { usersRepo } from '../db/users.repo'
 import { serializeUser, serializeUsers } from '../serializers/user.serializer'
 import { validate } from '../lib/validate'
-import { createUserSchema, updateUserSchema, paginationSchema } from '../schemas'
+import {
+  createUserSchema,
+  updateUserSchema,
+  paginationSchema,
+  userTenantAssignmentSchema,
+} from '../schemas'
 import type { Role } from '../models/types'
 import { asyncHandler } from '../lib/asyncHandler'
 
@@ -26,12 +31,32 @@ export const userController = {
 
   create: asyncHandler(async (req, res) => {
     const body = validate(createUserSchema, req.body)
+    if (!await usersRepo.validateTenantAssignment(body)) {
+      res.status(400).json({ error: 'Role must reference an active profile in the same active rabbanut' })
+      return
+    }
     const u = await usersRepo.create(body)
     res.status(201).json(serializeUser(u))
   }),
 
   update: asyncHandler(async (req, res) => {
     const body = validate(updateUserSchema, req.body)
+    const existing = await usersRepo.findById(req.params.id)
+    if (!existing) { res.status(404).json({ error: 'Not found' }); return }
+
+    // PATCH validation must use the resulting role/tenant pair. Validating the
+    // partial body alone would allow an owner account without a rabbanutId to
+    // be converted into a tenant role and then read every tenant fail-open.
+    const assignment = validate(userTenantAssignmentSchema, {
+      role: body.role ?? existing.role,
+      rabbanutId: body.rabbanutId ?? existing.rabbanutId,
+      mashgiachId: body.mashgiachId ?? existing.mashgiachId,
+    })
+    if (!await usersRepo.validateTenantAssignment(assignment)) {
+      res.status(400).json({ error: 'Role must reference an active profile in the same active rabbanut' })
+      return
+    }
+
     const u = await usersRepo.update(req.params.id, body)
     if (!u) { res.status(404).json({ error: 'Not found' }); return }
     res.json(serializeUser(u))

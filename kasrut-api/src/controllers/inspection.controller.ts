@@ -18,6 +18,10 @@ async function resolveInspectionScope(
     if (!userRabbanutId) throw new ForbiddenScopeError()
     return userRabbanutId
   }
+  if (role === 'mashgiach') {
+    if (!userRabbanutId) throw new ForbiddenScopeError()
+    return userRabbanutId
+  }
   const ownerId = await inspectionsRepo.findRabbanutIdByRestaurant(restaurantId)
   if (!ownerId) throw new ForbiddenScopeError('Restaurant not found')
   return ownerId
@@ -26,8 +30,13 @@ async function resolveInspectionScope(
 export const inspectionController = {
   list: asyncHandler(async (req, res) => {
     const q           = req.query as Record<string, string>
-    const mashgiachId = req.user?.role === 'mashgiach' ? req.user.sub : q.mashgiachId
-    const rabbanutId  = req.user?.role === 'rabbanut'  ? req.user.rabbanutId : undefined
+    const mashgiachId = req.user?.role === 'mashgiach' ? req.user.mashgiachId : q.mashgiachId
+    const rabbanutId  = req.user?.role === 'rabbanut' || req.user?.role === 'mashgiach'
+      ? req.user.rabbanutId
+      : undefined
+    if (req.user?.role === 'mashgiach' && (!mashgiachId || !rabbanutId)) {
+      throw new ForbiddenScopeError()
+    }
     const pageInput   = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
 
     if (pageInput.limit) {
@@ -59,8 +68,12 @@ export const inspectionController = {
     if (!i) { res.status(404).json({ error: 'Not found' }); return }
 
     // Mashgichim only see inspections they are assigned to.
-    if (req.user?.role === 'mashgiach' && i.mashgiachId !== req.user.sub) {
-      throw new ForbiddenScopeError()
+    if (req.user?.role === 'mashgiach') {
+      if (!req.user.mashgiachId || !req.user.rabbanutId || i.mashgiachId !== req.user.mashgiachId) {
+        throw new ForbiddenScopeError()
+      }
+      const ownerId = await inspectionsRepo.findRabbanutIdByRestaurant(i.restaurantId)
+      if (ownerId !== req.user.rabbanutId) throw new ForbiddenScopeError()
     }
     // Rabbanut users are blocked from inspections that live in another rabbanut.
     if (req.user?.role === 'rabbanut') {
@@ -99,7 +112,11 @@ export const inspectionController = {
     // Mashgichim may only flip their own inspection's result/notes — never
     // reassign restaurant, mashgiach, date, or type to bypass scope.
     if (req.user?.role === 'mashgiach') {
-      if (existing.mashgiachId !== req.user.sub) throw new ForbiddenScopeError()
+      if (!req.user.mashgiachId || !req.user.rabbanutId || existing.mashgiachId !== req.user.mashgiachId) {
+        throw new ForbiddenScopeError()
+      }
+      const existingOwner = await inspectionsRepo.findRabbanutIdByRestaurant(existing.restaurantId)
+      if (existingOwner !== req.user.rabbanutId) throw new ForbiddenScopeError()
       const forbidden = ['restaurantId', 'mashgiachId', 'date', 'type'] as const
       if (forbidden.some(k => body[k] !== undefined)) throw new ForbiddenScopeError()
     }

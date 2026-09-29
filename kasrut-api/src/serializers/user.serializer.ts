@@ -8,6 +8,7 @@ export const serializeUser = (u: User) => ({
   role:             u.role,
   twoFactorEnabled: u.twoFactorEnabled,
   ...(u.rabbanutId ? { rabbanutId: u.rabbanutId } : {}),
+  ...(u.mashgiachId ? { mashgiachId: u.mashgiachId } : {}),
 })
 
 export const serializeUsers = (us: User[]) => us.map(serializeUser)

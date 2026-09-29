@@ -6,6 +6,7 @@ export interface User {
   name: string
   role: Role
   rabbanutId?: string   // только для rabbanut и mashgiach
+  mashgiachId?: string
   email: string
   twoFactorEnabled: boolean
 }

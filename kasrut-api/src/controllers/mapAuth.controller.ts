@@ -1,5 +1,6 @@
 import type { Response } from 'express'
 import jwt from 'jsonwebtoken'
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { env } from '../config/env'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
@@ -20,6 +21,9 @@ import {
   verifyPassword,
 } from '../services/mapPassword.service'
 import { asyncHandler } from '../lib/asyncHandler'
+import { blacklistToken } from '../lib/tokenBlacklist'
+import { sendMapPasswordResetToken } from '../lib/mailer'
+import { logger } from '../lib/logger'
 
 const oauthSchema = z.object({
   provider: z.enum(['google', 'apple']),
@@ -56,9 +60,16 @@ const passwordResetConfirmSchema = z.object({
   password: passwordSchema,
 })
 
-function signMapToken(user: { id: string; name: string; email: string }): string {
+function signMapToken(user: { id: string; name: string; email: string; sessionVersion: number }): string {
   return jwt.sign(
-    { sub: user.id, typ: 'map_user', name: user.name, email: user.email },
+    {
+      sub: user.id,
+      typ: 'map_user',
+      name: user.name,
+      email: user.email,
+      ver: user.sessionVersion,
+      jti: randomUUID(),
+    },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN },
   )
@@ -77,7 +88,9 @@ function genericResetResponse(devResetToken?: string) {
   return {
     ok: true,
     message: 'If an account exists, reset instructions were sent.',
-    ...(process.env.NODE_ENV !== 'production' && devResetToken ? { devResetToken } : {}),
+    ...(env.NODE_ENV === 'development' && env.EXPOSE_DEV_RESET_TOKEN && devResetToken
+      ? { devResetToken }
+      : {}),
   }
 }
 
@@ -203,6 +216,16 @@ export const mapAuthController = {
 
     setMapServiceLogActor(res, user)
     res.locals.serviceLogMessage = 'Map password reset requested'
+    // Do not await SMTP: response timing stays close to the nonexistent-user
+    // path, reducing account enumeration. Delivery failures are logged without
+    // ever logging the reset token itself.
+    void sendMapPasswordResetToken({
+      recipientEmail: user.email,
+      recipientName: user.name,
+      token,
+    }).catch(err => {
+      logger.error({ err, mapUserId: user.id }, 'Map password reset email delivery failed')
+    })
     res.json(genericResetResponse(token))
   }),
 
@@ -212,18 +235,37 @@ export const mapAuthController = {
       res.status(400).json({ error: 'Valid token and new password are required' }); return
     }
 
-    const reset = await mapCommunityRepo.findValidPasswordResetToken(hashPasswordResetToken(parsed.data.token))
-    if (!reset) {
+    const tokenHash = hashPasswordResetToken(parsed.data.token)
+    if (!await mapCommunityRepo.hasValidPasswordResetToken(tokenHash)) {
       res.locals.serviceLogMessage = 'Map password reset failed'
       res.status(400).json({ error: 'Invalid or expired reset token' }); return
     }
 
     const passwordHash = await hashPassword(parsed.data.password)
-    await mapCommunityRepo.setPassword(reset.mapUserId, passwordHash)
-    await mapCommunityRepo.markPasswordResetTokenUsed(reset.id)
+    const user = await mapCommunityRepo.consumePasswordResetToken({
+      tokenHash,
+      passwordHash,
+    })
+    if (!user) {
+      res.locals.serviceLogMessage = 'Map password reset failed'
+      res.status(400).json({ error: 'Invalid or expired reset token' }); return
+    }
 
-    setMapServiceLogActor(res, reset.mapUser)
+    setMapServiceLogActor(res, user)
     res.locals.serviceLogMessage = 'Map password reset completed'
-    res.json({ user: serializeMapUser(reset.mapUser), token: signMapToken(reset.mapUser) })
+    res.json({ user: serializeMapUser(user), token: signMapToken(user) })
+  }),
+
+  logout: asyncHandler(async (req, res) => {
+    if (!req.mapUser || !await mapCommunityRepo.revokeUserSessions(req.mapUser.sub)) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
+    if (req.mapUser?.jti) {
+      const remainingTtl = Math.floor(req.mapUser.exp - Date.now() / 1000)
+      await blacklistToken(req.mapUser.jti, remainingTtl)
+    }
+    res.locals.serviceLogMessage = 'Map logout succeeded'
+    res.status(204).send()
   }),
 }

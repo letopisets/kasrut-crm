@@ -27,7 +27,13 @@ export function resolveScopeRabbanutId(
   req: Request,
   fallback?: string,
 ): string | undefined {
-  if (req.user?.role === 'rabbanut') return req.user.rabbanutId
+  if (req.user?.role === 'rabbanut') {
+    // A tenant role without a tenant assignment must fail closed. Returning
+    // undefined here is interpreted by repositories as "no filter", which
+    // would turn a malformed rabbanut account into a global reader.
+    if (!req.user.rabbanutId) throw new ForbiddenScopeError()
+    return req.user.rabbanutId
+  }
   return fallback
 }
 
@@ -39,10 +45,12 @@ export function applyWriteScope<T extends { rabbanutId?: string }>(
 ): T & { rabbanutId?: string } {
   if (req.user?.role !== 'rabbanut') return body
 
+  if (!req.user.rabbanutId) throw new ForbiddenScopeError()
+
   if (body.rabbanutId !== undefined && body.rabbanutId !== req.user.rabbanutId) {
     throw new ForbiddenScopeError()
   }
-  return { ...body, rabbanutId: req.user.rabbanutId! }
+  return { ...body, rabbanutId: req.user.rabbanutId }
 }
 
 /** Throw if a rabbanut user is acting on an entity owned by another rabbanut.
@@ -52,7 +60,9 @@ export function assertOwnsRabbanut(
   entity: { rabbanutId: string } | null | undefined,
 ): void {
   if (!entity) return
-  if (req.user?.role === 'rabbanut' && entity.rabbanutId !== req.user.rabbanutId) {
-    throw new ForbiddenScopeError()
+  if (req.user?.role === 'rabbanut') {
+    if (!req.user.rabbanutId || entity.rabbanutId !== req.user.rabbanutId) {
+      throw new ForbiddenScopeError()
+    }
   }
 }

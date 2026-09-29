@@ -8,6 +8,8 @@ import { serializeUser } from '../serializers/user.serializer'
 import { signFullToken } from './auth.controller'
 import { asyncHandler } from '../lib/asyncHandler'
 import { checkTotpAttempt } from '../lib/twoFactorAttempts'
+import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
+import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 
 const BACKUP_CODE_COUNT = 8
 const BACKUP_CODE_BYTES = 5
@@ -18,8 +20,8 @@ function generateBackupCodes(): string[] {
   )
 }
 
-function hashBackupCodes(codes: string[]): string[] {
-  return codes.map(c => bcrypt.hashSync(c, 10))
+function hashBackupCodes(codes: string[]): Promise<string[]> {
+  return Promise.all(codes.map(c => bcrypt.hash(c, 10)))
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -38,15 +40,74 @@ function verifyCode(code: string, secret: string): boolean {
   } catch { return false }
 }
 
+interface PendingTwoFactorPayload {
+  sub: string
+  typ: '2fa_pending'
+  jti: string
+  exp: number
+}
+
+async function verifyPendingToken(token: string): Promise<PendingTwoFactorPayload | null> {
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET)
+    if (typeof payload === 'string') return null
+    if (
+      payload.typ !== '2fa_pending' ||
+      typeof payload.sub !== 'string' || !payload.sub ||
+      typeof payload.jti !== 'string' || !payload.jti ||
+      typeof payload.exp !== 'number'
+    ) return null
+    if (await isTokenBlacklisted(payload.jti)) return null
+    return {
+      sub: payload.sub,
+      typ: '2fa_pending',
+      jti: payload.jti,
+      exp: payload.exp,
+    }
+  } catch {
+    return null
+  }
+}
+
+function challengeTtlSeconds(payload: PendingTwoFactorPayload): number {
+  return Math.max(1, Math.ceil(payload.exp - Date.now() / 1000))
+}
+
+async function findBackupCodeIndex(code: string, hashes: string[]): Promise<number> {
+  for (let i = 0; i < hashes.length; i += 1) {
+    if (await bcrypt.compare(code, hashes[i])) return i
+  }
+  return -1
+}
+
 export const twoFactorController = {
   setup: asyncHandler(async (req, res) => {
     if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
+
+    const { password } = req.body as { password?: string }
+    if (typeof password !== 'string' || password.length < 1 || password.length > 128) {
+      res.status(400).json({ error: 'Current password is required' }); return
+    }
+
+    const user = await usersRepo.findAuthById(req.user.sub)
+    if (!user) { res.status(401).json({ error: 'Unauthorized' }); return }
+    if (!await usersRepo.verifyPassword(user, password)) {
+      res.status(401).json({ error: 'Invalid credentials' }); return
+    }
+    if (user.twoFactorEnabled) {
+      res.status(409).json({ error: 'Disable current 2FA before setting up a new authenticator' })
+      return
+    }
 
     const secret    = generateSecret()
     const otpauth   = generateURI({ strategy: 'totp', issuer: APP_NAME, label: req.user.email, secret })
     const qrDataUrl = await qrcode.toDataURL(otpauth)
 
-    await usersRepo.setTwoFactorSecret(req.user.sub, secret)
+    const updated = await usersRepo.setTwoFactorSecret(req.user.sub, secret)
+    if (!updated) {
+      res.status(409).json({ error: '2FA state changed; try again' })
+      return
+    }
     res.json({ secret, qrDataUrl })
   }),
 
@@ -56,16 +117,22 @@ export const twoFactorController = {
     const { code } = req.body as { code?: string }
     if (!code) { res.status(400).json({ error: 'Code required' }); return }
 
-    const user = await usersRepo.findById(req.user.sub)
+    const user = await usersRepo.findAuthById(req.user.sub)
     if (!user?.twoFactorSecret) { res.status(400).json({ error: 'Call /2fa/setup first' }); return }
     if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
 
     const plainCodes  = generateBackupCodes()
-    const hashedCodes = hashBackupCodes(plainCodes)
-    await usersRepo.setBackupCodes(req.user.sub, hashedCodes)
-    const updated = await usersRepo.enableTwoFactor(req.user.sub)
+    const hashedCodes = await hashBackupCodes(plainCodes)
+    const updated = await usersRepo.enableTwoFactor(
+      req.user.sub,
+      user.twoFactorSecret,
+      hashedCodes,
+    )
+    if (!updated) {
+      res.status(409).json({ error: '2FA state changed; start setup again' }); return
+    }
     res.locals.serviceLogMessage = '2FA enabled'
-    res.json({ user: serializeUser(updated!), backupCodes: plainCodes })
+    res.json({ user: serializeUser(updated), token: signFullToken(updated), backupCodes: plainCodes })
   }),
 
   disable: asyncHandler(async (req, res) => {
@@ -74,15 +141,16 @@ export const twoFactorController = {
     const { code } = req.body as { code?: string }
     if (!code) { res.status(400).json({ error: 'Code required' }); return }
 
-    const user = await usersRepo.findById(req.user.sub)
+    const user = await usersRepo.findAuthById(req.user.sub)
     if (!user?.twoFactorEnabled || !user.twoFactorSecret) {
       res.status(400).json({ error: '2FA is not enabled' }); return
     }
     if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
 
     const updated = await usersRepo.disableTwoFactor(req.user.sub)
+    if (!updated) { res.status(409).json({ error: '2FA state changed' }); return }
     res.locals.serviceLogMessage = '2FA disabled'
-    res.json({ user: serializeUser(updated!) })
+    res.json({ user: serializeUser(updated), token: signFullToken(updated) })
   }),
 
   verifyBackup: asyncHandler(async (req, res) => {
@@ -91,22 +159,41 @@ export const twoFactorController = {
       res.status(400).json({ error: 'tempToken and backupCode required' }); return
     }
 
-    let payload: { sub: string }
-    try {
-      payload = jwt.verify(tempToken, env.JWT_SECRET) as { sub: string }
-    } catch {
+    const payload = await verifyPendingToken(tempToken)
+    if (!payload) {
       res.status(401).json({ error: 'Invalid or expired token' }); return
     }
 
-    const user = await usersRepo.findById(payload.sub)
+    const ttlSeconds = challengeTtlSeconds(payload)
+    const allowed = await checkTotpAttempt(payload.jti, ttlSeconds)
+    if (!allowed) {
+      res.status(429).json({ error: 'Too many attempts' }); return
+    }
+
+    const user = await usersRepo.findAuthById(payload.sub)
     if (!user || !user.twoFactorEnabled) { res.status(401).json({ error: 'Unauthorized' }); return }
 
     const normalised = backupCode.trim().toUpperCase()
-    const matchIndex = user.twoFactorBackupCodes.findIndex(h => bcrypt.compareSync(normalised, h))
+    const matchIndex = await findBackupCodeIndex(normalised, user.twoFactorBackupCodes)
     if (matchIndex === -1) { res.status(400).json({ error: 'Invalid backup code' }); return }
 
+    const challengeResult = await consumeTwoFactorChallenge(payload.jti, ttlSeconds)
+    if (challengeResult === 'unavailable') {
+      res.status(503).json({ error: 'Authentication service temporarily unavailable' }); return
+    }
+    if (challengeResult === 'already_used') {
+      res.status(401).json({ error: 'Token has already been used' }); return
+    }
+
     const remaining = user.twoFactorBackupCodes.filter((_, i) => i !== matchIndex)
-    await usersRepo.consumeBackupCode(user.id, remaining)
+    const codeConsumed = await usersRepo.consumeBackupCode(
+      user.id,
+      user.twoFactorBackupCodes,
+      remaining,
+    )
+    if (!codeConsumed) {
+      res.status(409).json({ error: 'Backup code state changed; sign in again' }); return
+    }
 
     res.locals.serviceLogActor = { userId: user.id, userEmail: user.email, userRole: user.role, actorType: 'crm_user' }
     res.locals.serviceLogMessage = `CRM backup-code login succeeded; remaining=${remaining.length}`
@@ -118,26 +205,32 @@ export const twoFactorController = {
     const { tempToken, code } = req.body as { tempToken?: string; code?: string }
     if (!tempToken || !code) { res.status(400).json({ error: 'tempToken and code required' }); return }
 
-    let payload: { sub: string; jti?: string; exp?: number }
-    try {
-      payload = jwt.verify(tempToken, env.JWT_SECRET) as { sub: string; jti?: string; exp?: number }
-    } catch {
+    const payload = await verifyPendingToken(tempToken)
+    if (!payload) {
       res.status(401).json({ error: 'Invalid or expired token' }); return
     }
 
     // Per-token brute-force guard: max 5 attempts per tempToken JTI.
     // TTL matches the token's remaining lifetime so the counter self-expires.
-    const ttlSeconds = payload.exp ? Math.floor(payload.exp - Date.now() / 1000) : 300
-    const allowed = await checkTotpAttempt(payload.jti ?? payload.sub, ttlSeconds)
+    const ttlSeconds = challengeTtlSeconds(payload)
+    const allowed = await checkTotpAttempt(payload.jti, ttlSeconds)
     if (!allowed) {
       res.status(429).json({ error: 'Too many attempts' }); return
     }
 
-    const user = await usersRepo.findById(payload.sub)
+    const user = await usersRepo.findAuthById(payload.sub)
     if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
       res.status(401).json({ error: 'Unauthorized' }); return
     }
     if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
+
+    const challengeResult = await consumeTwoFactorChallenge(payload.jti, ttlSeconds)
+    if (challengeResult === 'unavailable') {
+      res.status(503).json({ error: 'Authentication service temporarily unavailable' }); return
+    }
+    if (challengeResult === 'already_used') {
+      res.status(401).json({ error: 'Token has already been used' }); return
+    }
 
     res.locals.serviceLogActor = { userId: user.id, userEmail: user.email, userRole: user.role, actorType: 'crm_user' }
     res.locals.serviceLogMessage = 'CRM 2FA login succeeded'

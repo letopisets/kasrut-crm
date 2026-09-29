@@ -123,6 +123,7 @@ export default function Users() {
       {ctrl.showForm && (
         <UserForm
           rabbanutOptions={ctrl.rabbanutOptions}
+          mashgiachOptions={ctrl.mashgiachOptions}
           onSave={ctrl.createUser}
           onClose={ctrl.closeForm}
         />

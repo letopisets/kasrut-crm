@@ -2,6 +2,7 @@ import request from 'supertest'
 import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
 import { inspectionsRepo } from '../db/inspections.repo'
+import { usersRepo } from '../db/users.repo'
 import { env } from '../config/env'
 import type { Inspection } from '../models/types'
 
@@ -19,6 +20,17 @@ jest.mock('otplib', () => ({
 jest.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,qr' }))
 
 const mockRepo = inspectionsRepo as jest.Mocked<typeof inspectionsRepo>
+const mockUsersRepo = usersRepo as jest.Mocked<typeof usersRepo>
+
+const ownerUser = {
+  id: 'u1',
+  role: 'owner' as const,
+  name: 'Owner',
+  email: 'o@test.il',
+  passwordHash: 'hash',
+  twoFactorEnabled: false,
+  twoFactorBackupCodes: [],
+}
 
 const ownerToken = jwt.sign(
   { sub: 'u1', role: 'owner', name: 'Owner', email: 'o@test.il' },
@@ -39,6 +51,11 @@ const sample = (id: string): Inspection => ({
 const app = createApp()
 
 describe('GET /api/inspections pagination', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockUsersRepo.findAuthById.mockResolvedValue(ownerUser)
+  })
+
   it('returns plain array when no limit (back-compat)', async () => {
     mockRepo.findAll.mockResolvedValue([sample('i1'), sample('i2')])
 

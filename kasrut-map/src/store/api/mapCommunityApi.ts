@@ -95,6 +95,10 @@ export const mapCommunityApi = baseApi.injectEndpoints({
       query: () => '/map-auth/me',
       providesTags: ['MapAuth'],
     }),
+    logoutMap: build.mutation<void, void>({
+      query: () => ({ url: '/map-auth/logout', method: 'POST' }),
+      invalidatesTags: ['MapAuth'],
+    }),
     getRestaurantReviews: build.query<MapReviewsPayload, string>({
       query: (restaurantId) => `/map/restaurants/${restaurantId}/reviews`,
       providesTags: (_result, _error, restaurantId) => [{ type: 'Review', id: restaurantId }],
@@ -126,6 +130,7 @@ export const {
   useRequestPasswordResetMutation,
   useConfirmPasswordResetMutation,
   useGetMapMeQuery,
+  useLogoutMapMutation,
   useGetRestaurantReviewsQuery,
   useSubmitRestaurantReviewMutation,
   useSubmitSuggestionMutation,

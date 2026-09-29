@@ -102,14 +102,17 @@ model User {
   passwordHash         String
   role                 Role
   rabbanutId           String?
+  mashgiachId          String?   @unique
   twoFactorSecret      String?
   twoFactorEnabled     Boolean   @default(false)
   twoFactorBackupCodes String[]  @default([])
+  sessionVersion       Int       @default(0)
   passwordChangedAt    DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
   rabbanut Rabbanut? @relation(fields: [rabbanutId], references: [id], onDelete: SetNull)
+  mashgiach Mashgiach? @relation("UserMashgiach", fields: [mashgiachId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -177,6 +180,7 @@ model Mashgiach {
   hechsherim  MashgiachHechsher[]
   restaurants Restaurant[]
   inspections Inspection[]
+  user        User?               @relation("UserMashgiach")
 
   @@map("mashgichim")
 }
@@ -364,6 +368,7 @@ model MapUser {
   name         String
   avatarUrl    String?
   passwordHash String?
+  sessionVersion Int    @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

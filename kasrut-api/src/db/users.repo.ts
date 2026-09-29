@@ -21,10 +21,39 @@ function toUser(u: PrismaUser): User {
     role:                 u.role as Role,
     twoFactorEnabled:     u.twoFactorEnabled,
     twoFactorBackupCodes: u.twoFactorBackupCodes ?? [],
+    sessionVersion:       u.sessionVersion,
     ...(u.rabbanutId    ? { rabbanutId: u.rabbanutId } : {}),
+    ...(u.mashgiachId   ? { mashgiachId: u.mashgiachId } : {}),
     ...(twoFactorSecret ? { twoFactorSecret }          : {}),
   }
 }
+
+function hasActiveTenant(u: {
+  role: string
+  rabbanutId: string | null
+  mashgiachId: string | null
+  rabbanut: { active: boolean; deletedAt: Date | null } | null
+  mashgiach: { active: boolean; rabbanutId: string } | null
+}): boolean {
+  if (u.role === 'owner') return true
+  if (!u.rabbanutId || !u.rabbanut?.active || u.rabbanut.deletedAt !== null) return false
+  if (u.role === 'mashgiach' && (
+    !u.mashgiachId ||
+    !u.mashgiach?.active ||
+    u.mashgiach.rabbanutId !== u.rabbanutId
+  )) return false
+  return true
+}
+
+const authTenantSelect = {
+  active: true,
+  deletedAt: true,
+} as const
+
+const authMashgiachSelect = {
+  active: true,
+  rabbanutId: true,
+} as const
 
 export const usersRepo = {
   async findAll(filter?: { role?: Role }): Promise<User[]> {
@@ -56,18 +85,74 @@ export const usersRepo = {
     return u ? toUser(u) : null
   },
 
-  verifyPassword(user: User, password: string): boolean {
-    return bcrypt.compareSync(password, user.passwordHash)
+  /**
+   * Authentication lookups deliberately include the current tenant state.
+   * Non-owner accounts must belong to a live, active rabbanut; otherwise both
+   * fresh login and already-issued JWTs are rejected.
+   */
+  async findAuthById(id: string): Promise<User | null> {
+    const u = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        rabbanut: { select: authTenantSelect },
+        mashgiach: { select: authMashgiachSelect },
+      },
+    })
+    return u && hasActiveTenant(u) ? toUser(u) : null
   },
 
-  async create(input: { name: string; email: string; password: string; role: Role; rabbanutId?: string }): Promise<User> {
+  async findAuthByEmail(email: string): Promise<User | null> {
+    const u = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: {
+        rabbanut: { select: authTenantSelect },
+        mashgiach: { select: authMashgiachSelect },
+      },
+    })
+    return u && hasActiveTenant(u) ? toUser(u) : null
+  },
+
+  verifyPassword(user: User, password: string): Promise<boolean> {
+    return bcrypt.compare(password, user.passwordHash)
+  },
+
+  async validateTenantAssignment(input: {
+    role: Role
+    rabbanutId?: string
+    mashgiachId?: string
+  }): Promise<boolean> {
+    if (input.role === 'owner') return !input.rabbanutId && !input.mashgiachId
+    if (!input.rabbanutId) return false
+
+    const rabbanut = await prisma.rabbanut.findFirst({
+      where: { id: input.rabbanutId, active: true, deletedAt: null },
+      select: { id: true },
+    })
+    if (!rabbanut) return false
+    if (input.role === 'rabbanut') return !input.mashgiachId
+    if (!input.mashgiachId) return false
+
+    const mashgiach = await prisma.mashgiach.findFirst({
+      where: {
+        id: input.mashgiachId,
+        rabbanutId: input.rabbanutId,
+        active: true,
+      },
+      select: { id: true },
+    })
+    return Boolean(mashgiach)
+  },
+
+  async create(input: { name: string; email: string; password: string; role: Role; rabbanutId?: string; mashgiachId?: string }): Promise<User> {
+    const passwordHash = await bcrypt.hash(input.password, 12)
     const u = await prisma.user.create({
       data: {
         name:         input.name,
         email:        input.email.toLowerCase(),
-        passwordHash: bcrypt.hashSync(input.password, 12),
+        passwordHash,
         role:         input.role,
         rabbanutId:   input.rabbanutId,
+        mashgiachId:  input.mashgiachId,
       },
     })
     return toUser(u)
@@ -95,22 +180,41 @@ export const usersRepo = {
 
   async setTwoFactorSecret(id: string, secret: string): Promise<User | null> {
     try {
-      const u = await prisma.user.update({
-        where: { id },
-        data: { twoFactorSecret: encrypt(secret), twoFactorEnabled: false },
-      })
-      return toUser(u)
+      return await prisma.$transaction(async tx => {
+        const current = await tx.user.findUnique({ where: { id } })
+        if (!current || current.twoFactorEnabled) return null
+        const updated = await tx.user.update({
+          where: { id },
+          data: { twoFactorSecret: encrypt(secret), twoFactorBackupCodes: [] },
+        })
+        return toUser(updated)
+      }, { isolationLevel: 'Serializable' })
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') return null
       throw e
     }
   },
 
-  async enableTwoFactor(id: string): Promise<User | null> {
+  async enableTwoFactor(id: string, expectedSecret: string, hashedCodes: string[]): Promise<User | null> {
     try {
-      const u = await prisma.user.update({ where: { id }, data: { twoFactorEnabled: true } })
-      return toUser(u)
+      return await prisma.$transaction(async tx => {
+        const current = await tx.user.findUnique({ where: { id } })
+        if (!current || current.twoFactorEnabled || !current.twoFactorSecret) return null
+        const storedSecret = decrypt(current.twoFactorSecret) ?? current.twoFactorSecret
+        if (storedSecret !== expectedSecret) return null
+
+        const updated = await tx.user.update({
+          where: { id },
+          data: {
+            twoFactorEnabled: true,
+            twoFactorBackupCodes: hashedCodes,
+            sessionVersion: { increment: 1 },
+          },
+        })
+        return toUser(updated)
+      }, { isolationLevel: 'Serializable' })
     } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') return null
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
       throw e
     }
@@ -120,7 +224,12 @@ export const usersRepo = {
     try {
       const u = await prisma.user.update({
         where: { id },
-        data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [] },
+        data: {
+          twoFactorEnabled: false,
+          twoFactorSecret: null,
+          twoFactorBackupCodes: [],
+          sessionVersion: { increment: 1 },
+        },
       })
       return toUser(u)
     } catch (e) {
@@ -129,11 +238,22 @@ export const usersRepo = {
     }
   },
 
-  async setBackupCodes(id: string, hashedCodes: string[]): Promise<void> {
-    await prisma.user.update({ where: { id }, data: { twoFactorBackupCodes: hashedCodes } })
+  async revokeSessions(id: string): Promise<boolean> {
+    const result = await prisma.user.updateMany({
+      where: { id },
+      data: { sessionVersion: { increment: 1 } },
+    })
+    return result.count === 1
   },
 
-  async consumeBackupCode(id: string, remainingCodes: string[]): Promise<void> {
-    await prisma.user.update({ where: { id }, data: { twoFactorBackupCodes: remainingCodes } })
+  async consumeBackupCode(id: string, currentCodes: string[], remainingCodes: string[]): Promise<boolean> {
+    const result = await prisma.user.updateMany({
+      where: {
+        id,
+        twoFactorBackupCodes: { equals: currentCodes },
+      },
+      data: { twoFactorBackupCodes: remainingCodes },
+    })
+    return result.count === 1
   },
 }

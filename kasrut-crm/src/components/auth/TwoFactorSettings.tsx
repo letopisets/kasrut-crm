@@ -73,6 +73,7 @@ export function TwoFactorSettings({ onClose }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [secret, setSecret]       = useState('')
   const [code, setCode]           = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [codeError, setCodeError] = useState('')
   const [success, setSuccess]     = useState(false)
 
@@ -80,7 +81,7 @@ export function TwoFactorSettings({ onClose }: Props) {
 
   const handleSetup = async () => {
     try {
-      const data = await setup2fa()
+      const data = await setup2fa(currentPassword)
       setQrDataUrl(data.qrDataUrl)
       setSecret(data.secret)
       setCode(''); setCodeError('')
@@ -213,13 +214,23 @@ export function TwoFactorSettings({ onClose }: Props) {
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {!isEnabled && (
-          <Button
-            variant="contained"
-            onClick={() => void handleSetup()}
-            disabled={setupLoading}
-          >
-            {setupLoading ? <CircularProgress size={16} color="inherit" /> : (tf?.enableBtn ?? 'Enable 2FA')}
-          </Button>
+          <>
+            <TextField
+              fullWidth
+              type="password"
+              value={currentPassword}
+              onChange={event => setCurrentPassword(event.target.value)}
+              label={t.login?.password ?? 'Current password'}
+              autoComplete="current-password"
+            />
+            <Button
+              variant="contained"
+              onClick={() => void handleSetup()}
+              disabled={setupLoading || currentPassword.length === 0}
+            >
+              {setupLoading ? <CircularProgress size={16} color="inherit" /> : (tf?.enableBtn ?? 'Enable 2FA')}
+            </Button>
+          </>
         )}
         {isEnabled && (
           <Button

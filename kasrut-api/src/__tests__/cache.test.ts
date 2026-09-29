@@ -63,6 +63,55 @@ describe('withCache', () => {
 
     expect(data).toBe('fresh')
   })
+
+  it('coalesces concurrent misses for the same key', async () => {
+    mockedRedis.get.mockResolvedValue(null)
+    mockedRedis.setex.mockResolvedValue('OK')
+
+    let resolveLoader!: (value: { a: number }) => void
+    const loader = jest.fn(() => new Promise<{ a: number }>(resolve => {
+      resolveLoader = resolve
+    }))
+
+    const first = withCache('shared', 60, loader)
+    const second = withCache('shared', 60, loader)
+
+    await Promise.resolve()
+    resolveLoader({ a: 3 })
+
+    await expect(Promise.all([first, second])).resolves.toEqual([{ a: 3 }, { a: 3 }])
+    expect(loader).toHaveBeenCalledTimes(1)
+    expect(mockedRedis.setex).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes a rejected load so a later request can retry', async () => {
+    mockedRedis.get.mockResolvedValue(null)
+    const loader = jest.fn()
+      .mockRejectedValueOnce(new Error('loader failed'))
+      .mockResolvedValueOnce('recovered')
+
+    await expect(withCache('retry', 60, loader)).rejects.toThrow('loader failed')
+    await expect(withCache('retry', 60, loader)).resolves.toBe('recovered')
+    expect(loader).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not repopulate stale data when invalidated during a load', async () => {
+    mockedRedis.get.mockResolvedValueOnce(null)
+    mockedRedis.scan.mockResolvedValueOnce(['0', []])
+
+    let resolveLoader!: (value: string) => void
+    const loader = jest.fn(() => new Promise<string>(resolve => {
+      resolveLoader = resolve
+    }))
+
+    const pending = withCache('restaurants:list', 300, loader)
+    await Promise.resolve()
+    await invalidatePattern('restaurants:*')
+    resolveLoader('stale snapshot')
+
+    await expect(pending).resolves.toBe('stale snapshot')
+    expect(mockedRedis.setex).not.toHaveBeenCalled()
+  })
 })
 
 describe('invalidatePattern', () => {

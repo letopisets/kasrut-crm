@@ -6,9 +6,30 @@ import {
 } from '../serializers/mapCommunity.serializer'
 import { invalidateMapCache } from '../lib/mapCache'
 import { asyncHandler } from '../lib/asyncHandler'
+import { ForbiddenScopeError, resolveScopeRabbanutId } from '../lib/rabbanutScope'
 
-const MAX_SUGGESTION_IMAGE_BYTES = 1_400_000
+const MAX_SUGGESTION_IMAGE_BYTES = 512 * 1024
+const MAX_PENDING_SUGGESTIONS_PER_USER = 5
 const SUGGESTION_IMAGE_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/
+
+function isAllowedImageDataUrl(value: string): boolean {
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(value)
+  if (!match) return false
+
+  const [, kind, encoded] = match
+  const bytes = Buffer.from(encoded, 'base64')
+  if (bytes.length === 0 || bytes.length > MAX_SUGGESTION_IMAGE_BYTES) return false
+
+  if (kind === 'jpeg') {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+  }
+  if (kind === 'png') {
+    return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  }
+  return bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.subarray(8, 12).toString('ascii') === 'WEBP'
+}
 
 const suggestionSchema = z.object({
   type: z.enum(['add', 'update']),
@@ -21,8 +42,9 @@ const suggestionSchema = z.object({
   proposedFoodType: z.enum(['meat', 'dairy', 'pareve', 'takeaway']).optional().nullable(),
   proposedCategory: z.string().trim().min(1).max(40).optional().nullable(),
   proposedImageUrl: z.string()
-    .max(MAX_SUGGESTION_IMAGE_BYTES, 'Image is too large')
+    .max(Math.ceil(MAX_SUGGESTION_IMAGE_BYTES * 4 / 3) + 64, 'Image is too large')
     .regex(SUGGESTION_IMAGE_PATTERN, 'Image must be a JPEG, PNG or WebP data URL')
+    .refine(isAllowedImageDataUrl, 'Image content is invalid or too large')
     .optional()
     .nullable(),
   proposedLat: z.number().finite().optional().nullable(),
@@ -60,19 +82,44 @@ export const mapSuggestionController = {
       if (!exists) { res.status(404).json({ error: 'Restaurant not found' }); return }
     }
 
-    const suggestion = await mapCommunityRepo.createSuggestion(req.mapUser.sub, parsed.data)
+    const suggestion = await mapCommunityRepo.createSuggestionWithinQuota(
+      req.mapUser.sub,
+      parsed.data,
+      MAX_PENDING_SUGGESTIONS_PER_USER,
+    )
+    if (!suggestion) {
+      res.status(429).json({ error: 'Resolve existing pending suggestions before submitting another.' })
+      return
+    }
+
     res.status(201).json(serializeMapSuggestion(suggestion))
   }),
 
   listSuggestions: asyncHandler(async (req, res) => {
+    const reviewerRole = req.user?.role
+    if (reviewerRole !== 'owner' && reviewerRole !== 'rabbanut') {
+      throw new ForbiddenScopeError()
+    }
+
     const status  = req.query.status as string | undefined
     const allowed = ['pending', 'approved', 'rejected']
-    const filter  = allowed.includes(status ?? '') ? { status: status as 'pending' | 'approved' | 'rejected' } : {}
-    const suggestions = await mapCommunityRepo.listSuggestions(filter)
+    const statusFilter = allowed.includes(status ?? '')
+      ? status as 'pending' | 'approved' | 'rejected'
+      : undefined
+    const suggestions = await mapCommunityRepo.listSuggestions({
+      ...(statusFilter ? { status: statusFilter } : {}),
+      reviewerRole,
+      reviewerRabbanutId: resolveScopeRabbanutId(req),
+    })
     res.json(suggestions.map(serializeMapSuggestionFull))
   }),
 
   reviewSuggestion: asyncHandler(async (req, res) => {
+    const reviewerRole = req.user?.role
+    if (reviewerRole !== 'owner' && reviewerRole !== 'rabbanut') {
+      throw new ForbiddenScopeError()
+    }
+
     const id = req.params.id
     const { status, reviewerNote } = req.body as { status?: unknown; reviewerNote?: unknown }
     if (status !== 'approved' && status !== 'rejected') {
@@ -83,7 +130,8 @@ export const mapSuggestionController = {
       const result = await mapCommunityRepo.reviewSuggestion(id, {
         status,
         reviewerNote: note,
-        reviewerRabbanutId: req.user?.rabbanutId,
+        reviewerRole,
+        reviewerRabbanutId: resolveScopeRabbanutId(req),
       })
       if (!result) { res.status(404).json({ error: 'Suggestion not found or already reviewed' }); return }
       if (status === 'approved') await invalidateMapCache()

@@ -19,13 +19,13 @@ export const authApi = baseApi.injectEndpoints({
     verify2fa: build.mutation<{ user: User; token: string }, { tempToken: string; code: string }>({
       query: (body) => ({ url: '/auth/2fa/verify', method: 'POST', body }),
     }),
-    setup2fa: build.mutation<{ secret: string; qrDataUrl: string }, void>({
-      query: () => ({ url: '/auth/2fa/setup', method: 'POST' }),
+    setup2fa: build.mutation<{ secret: string; qrDataUrl: string }, { password: string }>({
+      query: (body) => ({ url: '/auth/2fa/setup', method: 'POST', body }),
     }),
-    enable2fa: build.mutation<{ user: User }, { code: string }>({
+    enable2fa: build.mutation<{ user: User; token: string; backupCodes: string[] }, { code: string }>({
       query: (body) => ({ url: '/auth/2fa/enable', method: 'POST', body }),
     }),
-    disable2fa: build.mutation<{ user: User }, { code: string }>({
+    disable2fa: build.mutation<{ user: User; token: string }, { code: string }>({
       query: (body) => ({ url: '/auth/2fa/disable', method: 'POST', body }),
     }),
   }),

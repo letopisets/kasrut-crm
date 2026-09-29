@@ -52,6 +52,10 @@ function stringClaim(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+function verifiedEmailClaim(value: unknown): boolean {
+  return value === true || value === 'true'
+}
+
 export async function verifyOAuthIdToken(provider: MapAuthProvider, idToken: string): Promise<OAuthProfile> {
   const clientId = getClientId(provider)
   if (!clientId) {
@@ -66,9 +70,9 @@ export async function verifyOAuthIdToken(provider: MapAuthProvider, idToken: str
     })
 
     const providerUserId = stringClaim(payload.sub)
-    const email = stringClaim(payload.email)
-    if (!providerUserId || !email) {
-      throw new OAuthTokenError('OAuth token does not contain required user claims')
+    const email = stringClaim(payload.email)?.toLowerCase()
+    if (!providerUserId || !email || !verifiedEmailClaim(payload.email_verified)) {
+      throw new OAuthTokenError('OAuth token does not contain a verified email identity')
     }
 
     const name = stringClaim(payload.name) ?? email.split('@')[0]

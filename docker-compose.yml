@@ -60,8 +60,12 @@ services:
       CORS_ORIGINS:    ${CORS_ORIGINS:-http://localhost,http://map.localhost,http://crm.localhost}
       RUN_MIGRATIONS:  ${RUN_MIGRATIONS:-true}
       SEED_DB:         ${SEED_DB:-false}
-      # Required only when SEED_DB=true; the seed validates strength before deleting data.
-      SEED_PASSWORD:   ${SEED_PASSWORD:-}
+      # Required only when SEED_DB=true. Passwords must be strong and unique.
+      SEED_OWNER_PASSWORD:       ${SEED_OWNER_PASSWORD:-}
+      SEED_SECOND_OWNER_PASSWORD: ${SEED_SECOND_OWNER_PASSWORD:-}
+      SEED_RABBANUT_PASSWORD:    ${SEED_RABBANUT_PASSWORD:-}
+      SEED_MASHGIACH_PASSWORD:   ${SEED_MASHGIACH_PASSWORD:-}
+      ALLOW_PRODUCTION_SEED:     ${ALLOW_PRODUCTION_SEED:-false}
     depends_on:
       postgres:
         condition: service_healthy

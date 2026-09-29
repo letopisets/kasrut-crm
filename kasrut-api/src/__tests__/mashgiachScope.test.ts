@@ -4,7 +4,8 @@ import { createApp } from '../app'
 import { env } from '../config/env'
 import { mashgichimRepo } from '../db/mashgichim.repo'
 import { restaurantsRepo } from '../db/restaurants.repo'
-import type { Mashgiach } from '../models/types'
+import { usersRepo } from '../db/users.repo'
+import type { Mashgiach, User } from '../models/types'
 
 // The mashgiach controller used to skip rabbanut-scoping entirely, so a rabbanut
 // user could read/modify/assign another tenant's mashgichim by guessing an id.
@@ -24,6 +25,7 @@ jest.mock('otplib', () => ({
 
 const mockM = mashgichimRepo as jest.Mocked<typeof mashgichimRepo>
 const mockR = restaurantsRepo as jest.Mocked<typeof restaurantsRepo>
+const mockUsers = usersRepo as jest.Mocked<typeof usersRepo>
 const app = createApp()
 
 const mashgiach = (rabbanutId: string): Mashgiach => ({
@@ -32,8 +34,29 @@ const mashgiach = (rabbanutId: string): Mashgiach => ({
 })
 
 function token(role: 'owner' | 'rabbanut' | 'mashgiach', rabbanutId?: string) {
+  const currentUser: User = {
+    id: 'u1',
+    name: 'U',
+    email: 'u@crm.il',
+    passwordHash: 'hash',
+    role,
+    ...(rabbanutId ? { rabbanutId } : {}),
+    ...(role === 'mashgiach' ? { mashgiachId: 'm_mine' } : {}),
+    twoFactorEnabled: false,
+    twoFactorBackupCodes: [],
+  }
+  mockUsers.findAuthById.mockResolvedValue(currentUser)
+
   return jwt.sign(
-    { sub: 'u1', role, typ: 'crm', name: 'U', email: 'u@crm.il', ...(rabbanutId ? { rabbanutId } : {}) },
+    {
+      sub: 'u1',
+      role,
+      typ: 'crm',
+      name: 'U',
+      email: 'u@crm.il',
+      ...(rabbanutId ? { rabbanutId } : {}),
+      ...(role === 'mashgiach' ? { mashgiachId: 'm_mine' } : {}),
+    },
     env.JWT_SECRET, { expiresIn: '1h' } as object,
   )
 }
@@ -94,5 +117,33 @@ describe('POST /api/mashgichim/:id/assign tenant scoping', () => {
       .send({ restaurantId: 'r1' })
     expect(res.status).toBe(400)
     expect(mockM.assignRestaurant).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/restaurants/:id mashgiach assignment scoping', () => {
+  const restaurant = (mashgiachId: string) => ({
+    id: 'r1', name: 'Restaurant', address: 'A', city: 'Jerusalem',
+    levelId: 'kl_regular', level: 'Regular', hechsherId: 'h1', mashgiachId,
+    kitniyot: false, foodType: 'pareve', expires: '2030-01-01', status: 'ok',
+    rabbanutId: 'rb_mine', notes: 'internal',
+  }) as never
+
+  it('403 when a mashgiach opens a restaurant not assigned to their mashgiach profile', async () => {
+    mockR.findById.mockResolvedValue(restaurant('m_other'))
+
+    const res = await request(app).get('/api/restaurants/r1')
+      .set('Authorization', `Bearer ${token('mashgiach', 'rb_mine')}`)
+
+    expect(res.status).toBe(403)
+  })
+
+  it('200 only when the restaurant is assigned to the current mashgiach profile', async () => {
+    mockR.findById.mockResolvedValue(restaurant('m_mine'))
+
+    const res = await request(app).get('/api/restaurants/r1')
+      .set('Authorization', `Bearer ${token('mashgiach', 'rb_mine')}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.id).toBe('r1')
   })
 })

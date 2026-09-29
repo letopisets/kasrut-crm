@@ -17,15 +17,17 @@ interface UserInput {
   password: string
   role: Role
   rabbanutId?: string
+  mashgiachId?: string
 }
 
 interface Props {
   rabbanutOptions: SelectOption[]
+  mashgiachOptions: Array<SelectOption & { rabbanutId: string }>
   onSave:  (data: UserInput) => void
   onClose: () => void
 }
 
-export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
+export function UserForm({ rabbanutOptions, mashgiachOptions, onSave, onClose }: Props) {
   const t = useLang()
 
   const [form, setForm] = useState({
@@ -34,12 +36,15 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
     password:   '',
     role:       'rabbanut' as Role,
     rabbanutId: rabbanutOptions[0]?.value ?? '',
+    mashgiachId: '',
   })
 
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
     setForm(p => ({ ...p, [k]: v }))
 
   const needsRabbanut = form.role === 'rabbanut' || form.role === 'mashgiach'
+  const needsMashgiach = form.role === 'mashgiach'
+  const availableMashgichim = mashgiachOptions.filter(option => option.rabbanutId === form.rabbanutId)
 
   const [submitted, setSubmitted] = useState(false)
 
@@ -50,7 +55,9 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
     : form.password.length < 8                       ? t.validation.passwordTooShort
     : !/[a-zA-Zа-яА-ЯёЁ]/.test(form.password) || !/\d/.test(form.password) ? t.validation.passwordWeak
     : undefined
-  const canSave = !form.name || !!emailError || !!passwordError
+  const canSave = !form.name || !!emailError || !!passwordError ||
+    (needsRabbanut && !form.rabbanutId) ||
+    (needsMashgiach && !form.mashgiachId)
 
   const handleSave = () => {
     setSubmitted(true)
@@ -61,6 +68,7 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
       password:  form.password,
       role:      form.role,
       ...(needsRabbanut && form.rabbanutId ? { rabbanutId: form.rabbanutId } : {}),
+      ...(needsMashgiach && form.mashgiachId ? { mashgiachId: form.mashgiachId } : {}),
     })
   }
 
@@ -97,15 +105,41 @@ export function UserForm({ rabbanutOptions, onSave, onClose }: Props) {
       <Input
         label={t.users?.role ?? 'Role'}
         value={form.role}
-        onChange={v => set('role', v as Role)}
+        onChange={v => {
+          const nextRole = v as Role
+          setForm(current => ({
+            ...current,
+            role: nextRole,
+            mashgiachId: nextRole === 'mashgiach'
+              ? (mashgiachOptions.find(option => option.rabbanutId === current.rabbanutId)?.value ?? '')
+              : '',
+          }))
+        }}
         options={roleOptions}
       />
       {needsRabbanut && rabbanutOptions.length > 0 && (
         <Input
           label={t.users?.org ?? 'Organization'}
           value={form.rabbanutId}
-          onChange={v => set('rabbanutId', v)}
+          onChange={v => setForm(current => ({
+            ...current,
+            rabbanutId: v,
+            mashgiachId: current.role === 'mashgiach'
+              ? (mashgiachOptions.find(option => option.rabbanutId === v)?.value ?? '')
+              : '',
+          }))}
           options={rabbanutOptions}
+        />
+      )}
+      {needsMashgiach && availableMashgichim.length > 0 && (
+        <Input
+          label="Mashgiach profile"
+          value={form.mashgiachId}
+          onChange={v => set('mashgiachId', v)}
+          options={availableMashgichim}
+          required
+          error={submitted && !form.mashgiachId}
+          helperText={submitted && !form.mashgiachId ? t.validation.required : undefined}
         />
       )}
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>

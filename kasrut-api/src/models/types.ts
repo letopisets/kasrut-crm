@@ -39,9 +39,11 @@ export interface User {
   passwordHash:         string
   role:                 Role
   rabbanutId?:          string
+  mashgiachId?:         string
   twoFactorSecret?:     string
   twoFactorEnabled:     boolean
   twoFactorBackupCodes: string[]
+  sessionVersion?:      number
   passwordChangedAt?:   string
   createdAt?:           string
 }
@@ -142,6 +144,8 @@ export interface JWTPayload {
   email:      string
   typ?:       'crm'    // audience marker — CRM tokens only (map/2FA-pending tokens are rejected)
   rabbanutId?:string
+  mashgiachId?:string
+  ver?:       number   // server-side session generation; legacy tokens imply 0
   jti?:       string   // unique token ID — used for blacklisting on logout
   iat:        number
   exp:        number
@@ -152,6 +156,8 @@ export interface MapJWTPayload {
   typ:   'map_user'
   name:  string
   email: string
+  ver:   number   // server-side session generation; changes revoke old JWTs
+  jti:   string
   iat:   number
   exp:   number
 }
