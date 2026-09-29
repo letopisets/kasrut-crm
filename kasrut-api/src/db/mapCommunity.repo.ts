@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
-import { assertPlausibleCoordinates } from '../lib/geoValidation'
+import { assertPlausibleCoordinates, looksLikeIsraeliAddress } from '../lib/geoValidation'
+import { geocodeAddressDetailed, isAddressLevel } from '../lib/nominatim'
 import { ForbiddenScopeError } from '../lib/rabbanutScope'
 import { publicRestaurantVisibilityWhere } from './map.repo'
 import type { FoodType, MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
@@ -92,6 +93,69 @@ function makeShortName(name: string): string {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
+}
+
+/** A server-geocoded point for a suggested address, and how far to trust it. */
+interface SuggestedPoint {
+  lat: number
+  lng: number
+  /** A house/building/named place (isAddressLevel) from a settled lookup —
+   *  the same test scripts/regeocode.ts applies before it marks a row 'exact'
+   *  (the prerender publishes 'exact' rows as schema.org geo). A street
+   *  midpoint or an area moves the pin but stays 'approximate'. */
+  exact: boolean
+  /** False for a fallback point taken while GovMap was down: stored as
+   *  'approximate' and unstamped, so the re-geocode job asks GovMap again. */
+  settled: boolean
+}
+
+// Geocode a suggested address server-side, routing Israeli-looking addresses to
+// an IL-restricted search (same region routing as the map SPA). Returns null on
+// a miss or an implausible point — the caller then defers to the re-geocode job.
+async function geocodeSuggestedAddress(address: string, city: string): Promise<SuggestedPoint | null> {
+  if (!address.trim() && !city.trim()) return null
+  const country = looksLikeIsraeliAddress(address, city) ? 'IL' : undefined
+  const outcome = await geocodeAddressDetailed(address, city, country).catch(() => null)
+  const point = outcome?.point
+  if (!point) return null
+  try {
+    assertPlausibleCoordinates(point)
+  } catch {
+    return null
+  }
+  const settled = !(outcome.govmapTransient && point.provider !== 'govmap')
+  return {
+    lat: Number(point.lat.toFixed(6)),
+    lng: Number(point.lng.toFixed(6)),
+    exact: settled && isAddressLevel(point),
+    settled,
+  }
+}
+
+/** Restaurant coordinate fields for a server-geocoded point. */
+function geocodedFields(p: SuggestedPoint) {
+  return {
+    lat: p.lat,
+    lng: p.lng,
+    geoAccuracy: p.exact ? 'exact' as const : 'approximate' as const,
+    geocodeAttemptedAt: p.settled ? new Date() : null,
+  }
+}
+
+// A client-proposed point (proposedLat/Lng) carries no accuracy: the map's
+// "suggest a place" sends whatever /map/geocode answered — a house, a street
+// midpoint or a fallback guess, it can't tell — and any API client can send a
+// hand-placed pin. So at approval the address, which a new place always has,
+// is re-geocoded server-side (usually a cache hit: the map asked for the same
+// address) and that point wins, 'exact' only when isAddressLevel says so. Only
+// when the server finds nothing is the proposed point kept, as 'approximate'
+// and unstamped, so the prerender never publishes it and the re-geocode job
+// retries the address.
+const SAME_PIN_DEG = 0.00001   // ~1 m: the edit form echoes the stored pin back
+
+function isSamePin(a: { lat: number | null; lng: number | null } | null, lat: number, lng: number): boolean {
+  return !!a && isFiniteNumber(a.lat) && isFiniteNumber(a.lng)
+    && Math.abs(a.lat - lat) < SAME_PIN_DEG && Math.abs(a.lng - lng) < SAME_PIN_DEG
 }
 
 function toCertStatus(value: string | null): 'ok' | 'warning' | 'critical' {
@@ -514,6 +578,45 @@ export const mapCommunityRepo = {
     reviewerRole: 'owner' | 'rabbanut'
     reviewerRabbanutId?: string | null
   }) {
+    // Geocoding is a network call (GovMap ≤5 s, then LocationIQ / Nominatim up
+    // to 8 s each) and must not hold the transaction open, so resolve
+    // coordinates BEFORE the transaction. The
+    // transaction re-reads the suggestion and re-checks status, so a racing
+    // review at worst wastes this lookup.
+    let resolvedPoint: SuggestedPoint | null = null
+    let addressChanged = false
+    let pinMoved = false
+    let currentExact = false
+    if (data.status === 'approved') {
+      const peek = await prisma.mapRestaurantSuggestion.findUnique({
+        where: { id },
+        select: {
+          status: true, type: true, restaurantId: true,
+          proposedAddress: true, proposedCity: true, proposedLat: true, proposedLng: true,
+        },
+      })
+      const hasPin = isFiniteNumber(peek?.proposedLat) && isFiniteNumber(peek?.proposedLng)
+      if (peek?.status === 'pending') {
+        if (peek.type === 'add') {
+          // Always, even with a proposed point (see the rule above).
+          resolvedPoint = await geocodeSuggestedAddress(peek.proposedAddress ?? '', peek.proposedCity ?? '')
+        } else if (peek.type === 'update' && peek.restaurantId && (peek.proposedAddress || peek.proposedCity || hasPin)) {
+          const current = await prisma.restaurant.findUnique({
+            where: { id: peek.restaurantId },
+            select: { address: true, city: true, lat: true, lng: true, geoAccuracy: true },
+          })
+          currentExact = current?.geoAccuracy === 'exact'
+          const nextAddress = peek.proposedAddress ?? current?.address ?? ''
+          const nextCity    = peek.proposedCity ?? current?.city ?? ''
+          addressChanged = Boolean(current) && (nextAddress !== current!.address || nextCity !== current!.city)
+          // The edit form sends the stored pin back; anything else is a moved pin.
+          pinMoved = !addressChanged && Boolean(current) && hasPin
+            && !isSamePin(current, peek.proposedLat as number, peek.proposedLng as number)
+          if (addressChanged || pinMoved) resolvedPoint = await geocodeSuggestedAddress(nextAddress, nextCity)
+        }
+      }
+    }
+
     return prisma.$transaction(async tx => {
       const suggestion = await tx.mapRestaurantSuggestion.findUnique({ where: { id } })
       if (!suggestion || suggestion.status !== 'pending') return null
@@ -555,13 +658,37 @@ export const mapCommunityRepo = {
           const categoryId = await resolveCategoryId(tx, suggestion.proposedCategory)
           if (categoryId) patch.category = { connect: { id: categoryId } }
         }
-        if (
+        if (addressChanged) {
+          // The address itself changed — the old pin no longer applies. Use the
+          // freshly geocoded point, or keep the old pin flagged for the
+          // background re-geocode job when the lookup missed.
+          if (resolvedPoint) {
+            Object.assign(patch, geocodedFields(resolvedPoint))
+          } else {
+            patch.geoAccuracy = 'approximate'
+            patch.geocodeAttemptedAt = null
+          }
+        } else if (
+          pinMoved &&
           isFiniteNumber(suggestion.proposedLat) &&
           isFiniteNumber(suggestion.proposedLng)
         ) {
-          assertPlausibleCoordinates({ lat: suggestion.proposedLat, lng: suggestion.proposedLng })
-          patch.lat = suggestion.proposedLat
-          patch.lng = suggestion.proposedLng
+          // A moved pin on an unchanged address: the server's point for the
+          // address wins; the pin itself only as 'approximate' (rule above).
+          // An 'exact' pin (a GovMap house, or one an operator placed in the
+          // CRM) is only ever replaced by another address-level point: neither
+          // a street midpoint nor a pin without accuracy is better evidence.
+          if (currentExact && !resolvedPoint?.exact) {
+            // keep the stored pin
+          } else if (resolvedPoint) {
+            Object.assign(patch, geocodedFields(resolvedPoint))
+          } else {
+            assertPlausibleCoordinates({ lat: suggestion.proposedLat, lng: suggestion.proposedLng })
+            patch.lat = suggestion.proposedLat
+            patch.lng = suggestion.proposedLng
+            patch.geoAccuracy = 'approximate'
+            patch.geocodeAttemptedAt = null
+          }
         }
         if (suggestion.proposedHechsher) {
           const hechsher = await resolveHechsher(tx, {
@@ -593,10 +720,19 @@ export const mapCommunityRepo = {
         if (!suggestion.proposedName || !suggestion.proposedAddress || !suggestion.proposedCity) {
           throw new Error('Cannot approve suggestion: name, address and city are required')
         }
-        if (!isFiniteNumber(suggestion.proposedLat) || !isFiniteNumber(suggestion.proposedLng)) {
-          throw new Error('Cannot approve suggestion: coordinates are required for map display')
-        }
-        assertPlausibleCoordinates({ lat: suggestion.proposedLat, lng: suggestion.proposedLng })
+        // Coordinates: the server-side lookup done above wins, with its own
+        // accuracy; else the client's proposed point, as 'approximate' (it
+        // carries no accuracy — see the rule above). A place with neither
+        // stays coordinate-less (hidden from the map) until the re-geocode job
+        // resolves it from the address.
+        const hasProposed = isFiniteNumber(suggestion.proposedLat) && isFiniteNumber(suggestion.proposedLng)
+        const proposed = hasProposed
+          ? { lat: suggestion.proposedLat as number, lng: suggestion.proposedLng as number }
+          : null
+        if (!resolvedPoint && proposed) assertPlausibleCoordinates(proposed)
+        const coords = resolvedPoint
+          ? geocodedFields(resolvedPoint)
+          : { lat: proposed?.lat ?? null, lng: proposed?.lng ?? null, geoAccuracy: 'approximate' as const, geocodeAttemptedAt: null }
 
         const hechsher = await resolveHechsher(tx, {
           name: suggestion.proposedHechsher,
@@ -618,8 +754,7 @@ export const mapCommunityRepo = {
             expires: expiresForStatus(certStatus),
             rabbanutId: hechsher.rabbanutId,
             notes: communityNotes(suggestion.notes),
-            lat: suggestion.proposedLat,
-            lng: suggestion.proposedLng,
+            ...coords,
             foodType: suggestion.proposedFoodType ?? DEFAULT_ADD_FOOD_TYPE,
             ...(categoryId ? { categoryId } : {}),
           },

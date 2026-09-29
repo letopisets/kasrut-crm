@@ -156,10 +156,29 @@ export const restaurantsRepo = {
   async update(id: string, patch: Partial<Omit<Restaurant, 'id'>>): Promise<Restaurant | null> {
     try {
       const { expires, lastInspection: _ignored, foodType, level: _levelName, hoursJson, ...rest } = patch
+
+      // A changed address invalidates the stored pin: demote it to approximate
+      // and clear the attempt marker so the re-geocode job resolves the new
+      // address. Compare against the current row — CRM forms send the full
+      // payload, so an unchanged address must not churn exact pins.
+      let geoReset = {}
+      if (rest.address !== undefined || rest.city !== undefined) {
+        const current = await prisma.restaurant.findUnique({
+          where: { id },
+          select: { address: true, city: true },
+        })
+        const changed = Boolean(current) && (
+          (rest.address !== undefined && rest.address !== current!.address) ||
+          (rest.city !== undefined && rest.city !== current!.city)
+        )
+        if (changed) geoReset = { geoAccuracy: 'approximate', geocodeAttemptedAt: null }
+      }
+
       const r = await prisma.restaurant.update({
         where: { id },
         data: {
           ...rest,
+          ...geoReset,
           ...(foodType ? { foodType: foodType as PrismaFoodType } : {}),
           ...(expires  ? { expires: new Date(expires) } : {}),
           // Json field: a plain null is ambiguous to Prisma — DbNull clears it.

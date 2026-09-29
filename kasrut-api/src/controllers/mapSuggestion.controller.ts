@@ -6,6 +6,7 @@ import {
 } from '../serializers/mapCommunity.serializer'
 import { invalidateMapCache } from '../lib/mapCache'
 import { asyncHandler } from '../lib/asyncHandler'
+import { CoordinateValidationError } from '../lib/geoValidation'
 import { ForbiddenScopeError, resolveScopeRabbanutId } from '../lib/rabbanutScope'
 
 const MAX_SUGGESTION_IMAGE_BYTES = 512 * 1024
@@ -137,6 +138,9 @@ export const mapSuggestionController = {
       if (status === 'approved') await invalidateMapCache()
       res.json(serializeMapSuggestionFull(result))
     } catch (e) {
+      if (e instanceof CoordinateValidationError) {
+        res.status(400).json({ error: e.message }); return
+      }
       if (e instanceof Error && e.message.startsWith('Cannot approve suggestion')) {
         res.status(400).json({ error: e.message }); return
       }

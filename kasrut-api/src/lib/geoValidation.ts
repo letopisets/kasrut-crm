@@ -82,17 +82,20 @@ export class CoordinateValidationError extends Error {
 
 /**
  * Throws CoordinateValidationError when coordinates are not plausible for a
- * real Israeli establishment (non-finite, outside Israel, or out at sea).
+ * real establishment. The map is worldwide, so any finite point on the globe
+ * is allowed; the Mediterranean waterline check still applies to points that
+ * land inside the Israel bounding box (the class of bug that put ~80 places
+ * in the sea).
  */
 export function assertPlausibleCoordinates(coords: Coordinates): void {
   const { lat, lng } = coords
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     throw new CoordinateValidationError('Coordinates must be finite numbers')
   }
-  if (!isWithinIsrael(coords)) {
-    throw new CoordinateValidationError(`Coordinates ${lat}, ${lng} fall outside Israel`)
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    throw new CoordinateValidationError(`Coordinates ${lat}, ${lng} are out of range`)
   }
-  if (isInMediterraneanSea(coords)) {
+  if (isWithinIsrael(coords) && isInMediterraneanSea(coords)) {
     throw new CoordinateValidationError(
       `Coordinates ${lat}, ${lng} fall in the sea — pick a point on land`,
     )

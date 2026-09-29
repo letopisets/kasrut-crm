@@ -65,13 +65,17 @@ describe('geoValidation', () => {
   })
 
   describe('assertPlausibleCoordinates', () => {
-    it('throws for sea coordinates', () => {
+    it('throws for sea coordinates inside Israel', () => {
       expect(() => assertPlausibleCoordinates({ lat: 32.02439, lng: 34.72887 }))
         .toThrow(CoordinateValidationError)
     })
-    it('throws for coordinates outside Israel', () => {
-      expect(() => assertPlausibleCoordinates({ lat: 48.85, lng: 2.35 }))
-        .toThrow(/outside Israel/)
+    it('accepts worldwide coordinates (the map is not Israel-only)', () => {
+      expect(() => assertPlausibleCoordinates({ lat: 48.85, lng: 2.35 })).not.toThrow()   // Paris
+      expect(() => assertPlausibleCoordinates({ lat: 40.71, lng: -74.01 })).not.toThrow() // New York
+    })
+    it('throws for out-of-range coordinates', () => {
+      expect(() => assertPlausibleCoordinates({ lat: 91, lng: 34.8 })).toThrow(/out of range/)
+      expect(() => assertPlausibleCoordinates({ lat: 32.0, lng: 181 })).toThrow(/out of range/)
     })
     it('throws for non-finite input', () => {
       expect(() => assertPlausibleCoordinates({ lat: NaN, lng: 34.8 })).toThrow()
@@ -80,7 +84,6 @@ describe('geoValidation', () => {
       expect(() => assertPlausibleCoordinates({ lat: 32.0171, lng: 34.7500 })).not.toThrow()
     })
   })
-})
 
   describe('looksLikeIsraeliAddress', () => {
     it('detects Hebrew addresses', () => {
@@ -95,3 +98,4 @@ describe('geoValidation', () => {
       expect(looksLikeIsraeliAddress('5th Avenue 350', 'New York')).toBe(false)
     })
   })
+})
