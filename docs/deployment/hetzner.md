@@ -41,10 +41,24 @@ Fill strong values for:
 
 - `POSTGRES_PASSWORD`
 - `JWT_SECRET`
+- `ENCRYPTION_KEY`
 - `CORS_ORIGINS`
 - `GOOGLE_CLIENT_ID`
 - `APPLE_CLIENT_ID`
 - `VITE_APPLE_REDIRECT_URI`
+
+Generate the two API secrets on the server:
+
+```sh
+openssl rand -hex 48   # JWT_SECRET
+openssl rand -hex 32   # ENCRYPTION_KEY (exactly 64 hex characters)
+```
+
+The API refuses to start when either one is a template placeholder or has an
+obvious pattern (for example `0123456789abcdef…`). Every JWT signing key is
+derived from `JWT_SECRET`, so changing it signs every CRM and map user out.
+`ENCRYPTION_KEY` encrypts CRM users' TOTP secrets: rotating it breaks 2FA for
+any user who has it enabled, so they must set 2FA up again.
 
 Optional, server-side geocoders (api service only): `LOCATIONIQ_API_KEY` and
 `GOVMAP_API_KEY` — see [GovMap](#govmap-geocoder-server-side-israeli-addresses)
@@ -63,6 +77,9 @@ Equivalent manual commands:
 ```sh
 git pull --ff-only
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml build
+# Preflight: exits non-zero if the API would reject JWT_SECRET / ENCRYPTION_KEY.
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  run --rm --no-deps --entrypoint node api -e "require('./dist/kasrut-api/src/config/env')"
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 

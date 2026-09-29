@@ -1,7 +1,4 @@
 import type { Response } from 'express'
-import jwt from 'jsonwebtoken'
-import { randomUUID } from 'crypto'
-import { env } from '../config/env'
 import { usersRepo } from '../db/users.repo'
 import type { User } from '../models/types'
 import { serializeUser } from '../serializers/user.serializer'
@@ -9,18 +6,16 @@ import { validate } from '../lib/validate'
 import { loginSchema } from '../schemas'
 import { blacklistToken } from '../lib/tokenBlacklist'
 import { asyncHandler } from '../lib/asyncHandler'
+import { signCrmAccessToken, signTwoFactorPendingToken } from '../lib/jwt'
 
 function signFullToken(user: User) {
-  const payload = {
+  return signCrmAccessToken({
     sub:   user.id,   role:  user.role,
     name:  user.name, email: user.email,
-    typ:   'crm' as const,
-    jti:   randomUUID(),
     ver:   user.sessionVersion ?? 0,
     ...(user.rabbanutId ? { rabbanutId: user.rabbanutId } : {}),
     ...(user.mashgiachId ? { mashgiachId: user.mashgiachId } : {}),
-  }
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN })
+  })
 }
 
 function setServiceLogActor(res: Response, user: Pick<User, 'id' | 'email' | 'role'>): void {
@@ -51,7 +46,7 @@ export const authController = {
     setServiceLogActor(res, user)
 
     if (user.twoFactorEnabled) {
-      const tempToken = jwt.sign({ sub: user.id, typ: '2fa_pending', jti: randomUUID() }, env.JWT_SECRET, { expiresIn: '5m' })
+      const tempToken = signTwoFactorPendingToken({ sub: user.id })
       res.locals.serviceLogMessage = 'CRM login requires 2FA'
       res.json({ requiresTwoFactor: true, tempToken })
       return

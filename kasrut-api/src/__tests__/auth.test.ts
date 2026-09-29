@@ -1,9 +1,14 @@
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { createApp } from '../app'
 import { usersRepo } from '../db/users.repo'
-import { env } from '../config/env'
+import {
+  signCrmAccessToken,
+  signTwoFactorPendingToken,
+  verifyCrmAccessToken,
+  verifyMapAccessToken,
+  verifyTwoFactorPendingToken,
+} from '../lib/jwt'
 import type { User } from '../models/types'
 import { checkTotpAttempt } from '../lib/twoFactorAttempts'
 import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
@@ -44,12 +49,15 @@ const baseUser: User = {
   twoFactorBackupCodes: [],
 }
 
-function makeToken(user: Partial<User> = baseUser) {
-  return jwt.sign(
-    { sub: user.id, role: user.role, name: user.name, email: user.email },
-    env.JWT_SECRET,
-    { expiresIn: '1h' } as object,
-  )
+function makeToken(user: User = baseUser) {
+  return signCrmAccessToken({ sub: user.id, role: user.role, name: user.name, email: user.email, ver: 0 })
+}
+
+// An issued session token must verify only as a CRM access token.
+function expectCrmSessionToken(token: string) {
+  expect(verifyCrmAccessToken(token)).toMatchObject({ sub: 'u1', role: 'owner', typ: 'crm', ver: 0 })
+  expect(() => verifyMapAccessToken(token)).toThrow()
+  expect(() => verifyTwoFactorPendingToken(token)).toThrow()
 }
 
 const app = createApp()
@@ -76,6 +84,10 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(200)
     expect(res.body).toHaveProperty('token')
     expect(res.body.user.email).toBe('owner@test.il')
+    expectCrmSessionToken(res.body.token)
+
+    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${res.body.token}`)
+    expect(me.status).toBe(200)
   })
 
   it('returns 401 on wrong password', async () => {
@@ -119,6 +131,9 @@ describe('POST /api/auth/login', () => {
     expect(res.body.requiresTwoFactor).toBe(true)
     expect(res.body).toHaveProperty('tempToken')
     expect(res.body).not.toHaveProperty('token')
+    expect(verifyTwoFactorPendingToken(res.body.tempToken)).toMatchObject({ sub: 'u1', typ: '2fa_pending' })
+    expect(() => verifyCrmAccessToken(res.body.tempToken)).toThrow()
+    expect(() => verifyMapAccessToken(res.body.tempToken)).toThrow()
   })
 })
 
@@ -263,11 +278,7 @@ describe('POST /api/auth/2fa/verify', () => {
     const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
     mockRepo.findAuthById.mockResolvedValue(tfUser)
 
-    const tempToken = jwt.sign(
-      { sub: 'u1', typ: '2fa_pending', jti: 'pending-1' },
-      env.JWT_SECRET,
-      { expiresIn: '5m' },
-    )
+    const tempToken = signTwoFactorPendingToken({ sub: 'u1', jti: 'pending-1' })
 
     const res = await request(app)
       .post('/api/auth/2fa/verify')
@@ -276,6 +287,7 @@ describe('POST /api/auth/2fa/verify', () => {
     expect(res.status).toBe(200)
     expect(res.body).toHaveProperty('token')
     expect(res.body.user.id).toBe('u1')
+    expectCrmSessionToken(res.body.token)
   })
 
   it('returns 401 with invalid tempToken', async () => {
@@ -287,10 +299,8 @@ describe('POST /api/auth/2fa/verify', () => {
   })
 
   it('rejects a full CRM JWT in place of a pending token', async () => {
-    const fullToken = jwt.sign(
-      { sub: 'u1', role: 'owner', typ: 'crm', jti: 'full-1', name: 'Owner', email: 'owner@test.il' },
-      env.JWT_SECRET,
-      { expiresIn: '1h' },
+    const fullToken = signCrmAccessToken(
+      { sub: 'u1', role: 'owner', jti: 'full-1', name: 'Owner', email: 'owner@test.il', ver: 0 },
     )
 
     const res = await request(app)
@@ -303,11 +313,7 @@ describe('POST /api/auth/2fa/verify', () => {
 
   it('rejects a blacklisted pending token', async () => {
     mockIsTokenBlacklisted.mockResolvedValue(true)
-    const tempToken = jwt.sign(
-      { sub: 'u1', typ: '2fa_pending', jti: 'revoked-pending' },
-      env.JWT_SECRET,
-      { expiresIn: '5m' },
-    )
+    const tempToken = signTwoFactorPendingToken({ sub: 'u1', jti: 'revoked-pending' })
 
     const res = await request(app)
       .post('/api/auth/2fa/verify')
@@ -320,11 +326,7 @@ describe('POST /api/auth/2fa/verify', () => {
     const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
     mockRepo.findAuthById.mockResolvedValue(tfUser)
     mockConsumeChallenge.mockResolvedValue('already_used')
-    const tempToken = jwt.sign(
-      { sub: 'u1', typ: '2fa_pending', jti: 'replayed-pending' },
-      env.JWT_SECRET,
-      { expiresIn: '5m' },
-    )
+    const tempToken = signTwoFactorPendingToken({ sub: 'u1', jti: 'replayed-pending' })
 
     const res = await request(app)
       .post('/api/auth/2fa/verify')
@@ -338,11 +340,7 @@ describe('POST /api/auth/2fa/verify', () => {
     const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
     mockRepo.findAuthById.mockResolvedValue(tfUser)
 
-    const tempToken = jwt.sign(
-      { sub: 'u1', typ: '2fa_pending', jti: 'pending-2' },
-      env.JWT_SECRET,
-      { expiresIn: '5m' },
-    )
+    const tempToken = signTwoFactorPendingToken({ sub: 'u1', jti: 'pending-2' })
 
     const res = await request(app)
       .post('/api/auth/2fa/verify')
@@ -368,11 +366,7 @@ describe('POST /api/auth/2fa/verify-backup', () => {
     }
     mockRepo.findAuthById.mockResolvedValue(tfUser)
     mockRepo.consumeBackupCode.mockResolvedValue(true)
-    const tempToken = jwt.sign(
-      { sub: 'u1', typ: '2fa_pending', jti: 'backup-pending' },
-      env.JWT_SECRET,
-      { expiresIn: '5m' },
-    )
+    const tempToken = signTwoFactorPendingToken({ sub: 'u1', jti: 'backup-pending' })
 
     const res = await request(app)
       .post('/api/auth/2fa/verify-backup')
@@ -380,6 +374,7 @@ describe('POST /api/auth/2fa/verify-backup', () => {
 
     expect(res.status).toBe(200)
     expect(mockRepo.consumeBackupCode).toHaveBeenCalledWith('u1', [hash], [])
+    expectCrmSessionToken(res.body.token)
   })
 
   it('does not issue a token when another request changed the backup-code set', async () => {
@@ -391,11 +386,7 @@ describe('POST /api/auth/2fa/verify-backup', () => {
     }
     mockRepo.findAuthById.mockResolvedValue(tfUser)
     mockRepo.consumeBackupCode.mockResolvedValue(false)
-    const tempToken = jwt.sign(
-      { sub: 'u1', typ: '2fa_pending', jti: 'backup-race' },
-      env.JWT_SECRET,
-      { expiresIn: '5m' },
-    )
+    const tempToken = signTwoFactorPendingToken({ sub: 'u1', jti: 'backup-race' })
 
     const res = await request(app)
       .post('/api/auth/2fa/verify-backup')

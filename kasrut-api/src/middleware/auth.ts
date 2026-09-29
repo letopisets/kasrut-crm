@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
-import { env } from '../config/env'
 import type { JWTPayload } from '../models/types'
+import { verifyCrmAccessToken } from '../lib/jwt'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { usersRepo } from '../db/users.repo'
 
@@ -22,22 +21,13 @@ export async function authenticateJWT(req: Request, res: Response, next: NextFun
   }
   const token = header.slice(7)
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as JWTPayload
-
-    // Reject tokens minted for a different audience. Public map-user tokens
-    // (typ='map_user') and pre-2FA temp tokens (typ='2fa_pending', no role) are
-    // signed with the same secret but must NEVER authenticate CRM endpoints.
-    // A valid CRM token carries a role and — once re-issued after this change —
-    // typ='crm'. Requiring a role also rejects legacy temp tokens that predate
-    // the typ marker, since neither map nor 2FA-pending tokens ever carry one.
-    const claims = payload as { typ?: string; role?: string }
-    if ((claims.typ !== undefined && claims.typ !== 'crm') || !claims.role) {
-      res.status(401).json({ error: 'Invalid token type' })
-      return
-    }
+    // Only CRM access tokens verify here: public map-user and pre-2FA tokens
+    // are signed with different derived keys and audiences, and the verifier
+    // still requires typ='crm', a role, a jti and a session version.
+    const payload = verifyCrmAccessToken(token)
 
     // Reject revoked tokens (logout blacklist)
-    if (payload.jti && await isTokenBlacklisted(payload.jti)) {
+    if (await isTokenBlacklisted(payload.jti)) {
       res.status(401).json({ error: 'Token has been revoked' })
       return
     }
@@ -55,13 +45,9 @@ export async function authenticateJWT(req: Request, res: Response, next: NextFun
     const currentRabbanutId = currentUser.rabbanutId ?? null
     const tokenMashgiachId = payload.mashgiachId ?? null
     const currentMashgiachId = currentUser.mashgiachId ?? null
-    const tokenVersion = payload.ver === undefined ? 0 : payload.ver
     const currentVersion = currentUser.sessionVersion ?? 0
     if (
-      typeof tokenVersion !== 'number' ||
-      !Number.isInteger(tokenVersion) ||
-      tokenVersion < 0 ||
-      tokenVersion !== currentVersion ||
+      payload.ver !== currentVersion ||
       payload.role !== currentUser.role ||
       tokenRabbanutId !== currentRabbanutId ||
       tokenMashgiachId !== currentMashgiachId

@@ -30,5 +30,15 @@ if [ -n "${DEPLOY_SHA:-}" ]; then
 fi
 
 docker compose --env-file "$ENV_FILE" $COMPOSE_FILES build
+
+# The API refuses to start with a placeholder or low-entropy JWT_SECRET /
+# ENCRYPTION_KEY. Check the new image against the env before replacing the
+# running containers, so a bad secret aborts the deploy instead of crash-looping.
+if ! docker compose --env-file "$ENV_FILE" $COMPOSE_FILES run --rm --no-deps --entrypoint node api \
+  -e "require('./dist/kasrut-api/src/config/env')"; then
+  echo "API env validation failed; fix $ENV_FILE (see docs/deployment/hetzner.md). Nothing was restarted." >&2
+  exit 1
+fi
+
 docker compose --env-file "$ENV_FILE" $COMPOSE_FILES up -d
 docker compose --env-file "$ENV_FILE" $COMPOSE_FILES ps

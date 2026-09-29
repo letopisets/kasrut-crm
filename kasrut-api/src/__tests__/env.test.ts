@@ -1,0 +1,139 @@
+import { randomBytes } from 'crypto'
+import { readFileSync } from 'fs'
+import path from 'path'
+import { parse } from 'dotenv'
+import { ZodError } from 'zod'
+import { parseEnv } from '../config/env'
+
+const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+
+// Mirrors the production secrets: 64 random alphanumerics (~41 distinct chars)
+// and 64 random hex digits.
+function randomJwtSecret(length = 64): string {
+  return Array.from(randomBytes(length), byte => ALPHANUMERIC[byte % ALPHANUMERIC.length]).join('')
+}
+
+function randomEncryptionKey(): string {
+  return randomBytes(32).toString('hex')
+}
+
+function productionEnv(overrides: Record<string, string> = {}): Record<string, string> {
+  return {
+    NODE_ENV:         'production',
+    JWT_SECRET:       randomJwtSecret(),
+    JWT_EXPIRES_IN:   '7d',
+    ENCRYPTION_KEY:   randomEncryptionKey(),
+    GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
+    APPLE_CLIENT_ID:  '',
+    REDIS_URL:        'redis://redis:6379',
+    CORS_ORIGINS:     'https://mykoshermap.com,https://crm.mykoshermap.com',
+    ...overrides,
+  }
+}
+
+function rejectionOf(source: Record<string, string>): ZodError {
+  try {
+    parseEnv(source)
+  } catch (error) {
+    if (error instanceof ZodError) return error
+    throw error
+  }
+  throw new Error('parseEnv accepted the configuration')
+}
+
+function expectRejected(variable: 'JWT_SECRET' | 'ENCRYPTION_KEY', value: string): void {
+  const error = rejectionOf(productionEnv({ [variable]: value }))
+  expect(error.issues.map(issue => issue.path.join('.'))).toContain(variable)
+  // The startup error must never echo the secret it rejected.
+  expect(error.message).not.toContain(value)
+}
+
+describe('parseEnv secret validation', () => {
+  it('accepts the production shape', () => {
+    const source = productionEnv()
+    const env = parseEnv(source)
+    expect(env.JWT_SECRET).toBe(source.JWT_SECRET)
+    expect(env.ENCRYPTION_KEY).toBe(source.ENCRYPTION_KEY)
+    expect(env.NODE_ENV).toBe('production')
+  })
+
+  it('accepts secrets from the documented generators', () => {
+    for (let i = 0; i < 100; i += 1) {
+      expect(() => parseEnv(productionEnv({
+        JWT_SECRET:     randomBytes(48).toString('hex'),
+        ENCRYPTION_KEY: randomBytes(32).toString('hex').toUpperCase(),
+      }))).not.toThrow()
+      expect(() => parseEnv(productionEnv({ JWT_SECRET: randomBytes(48).toString('base64url') }))).not.toThrow()
+    }
+  })
+
+  it.each([
+    'change-me', 'CHANGEME', 'CHANGE_ME', 'change me', 'replace-with', 'Replace_With', 'replacewith',
+    'your-secret', 'your_secret', 'YOUR_JWT_SECRET', 'SECRET-KEY', 'secret_key', 'secretkey',
+    'super_secret', 'at-least', 'placeholder', 'example',
+  ])('rejects a JWT_SECRET containing the placeholder %s', placeholder => {
+    expectRejected('JWT_SECRET', `${randomJwtSecret(20)}${placeholder}${randomJwtSecret(20)}`)
+  })
+
+  it.each([
+    'CHANGE_ME_TO_SOMETHING_RANDOM_AND_LONG_12345',
+    'your_jwt_secret_key_here_change_in_production',
+    'your_secret_here_at_least_32_characters_long',
+    'my_super_secret_key_for_jwt_signing_2024_prod',
+    'supersecretjwtkeythatisatleast32characterslong',
+    // The old CI literals, which were once committed to the repository.
+    'test-secret-must-be-at-least-32-chars-long',
+    'ci-jwt-secret-must-be-at-least-32-chars',
+  ])('rejects the common template JWT_SECRET %s', value => {
+    expectRejected('JWT_SECRET', value)
+  })
+
+  it.each([
+    ['fewer than 32 characters', randomJwtSecret(31)],
+    ['fewer than 12 distinct characters', `${'abcdefghijk'.repeat(3)}kjihgfedcba`],
+    ['one repeated character', 'x'.repeat(64)],
+    ['a repeated pattern', '0123456789abcdefghijklmnopqrstuv'.repeat(2)],
+  ])('rejects a JWT_SECRET with %s', (_label, value) => {
+    expectRejected('JWT_SECRET', value)
+  })
+
+  it.each([
+    ['0123456789abcdef repeated', '0123456789abcdef'.repeat(4)],
+    ['0123456789ABCDEF repeated', '0123456789ABCDEF'.repeat(4)],
+    ['one repeated character', 'a'.repeat(64)],
+    ['all zeros', '0'.repeat(64)],
+    ['fewer than 8 distinct digits', `${'0123456'.repeat(8)}65432106`],
+    ['a short repeated block', 'deadbeef'.repeat(8)],
+    ['the template with its last digit edited', `${'0123456789abcdef'.repeat(4).slice(0, 63)}e`],
+    ['the template with its first digit edited', `1${'0123456789abcdef'.repeat(4).slice(1)}`],
+    ['a repeated block with one digit edited', `${'deadbeef'.repeat(7)}deadbeee`],
+    ['sequential bytes 00 01 02 …', Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, '0')).join('')],
+    ['descending bytes ff fe fd …', Array.from({ length: 32 }, (_, i) => (255 - i).toString(16).padStart(2, '0')).join('')],
+    ['random digits around an ascending run', `${randomEncryptionKey().slice(0, 24)}0123456789abcdef${randomEncryptionKey().slice(0, 24)}`],
+    ['random digits around a descending run', `${randomEncryptionKey().slice(0, 28)}fedcba98${randomEncryptionKey().slice(0, 28)}`],
+    ['a replace-with placeholder', 'replace-with-64-hex-chars'],
+    ['an upper-case placeholder', 'REPLACE_WITH_RANDOM_64_CHAR_HEX'],
+    ['a non-hex value', `${randomEncryptionKey().slice(0, 63)}g`],
+    ['the wrong length', randomEncryptionKey().slice(0, 62)],
+  ])('rejects an ENCRYPTION_KEY that is %s', (_label, value) => {
+    expectRejected('ENCRYPTION_KEY', value)
+  })
+})
+
+describe('placeholders shipped in the .env templates', () => {
+  const repoRoot = path.resolve(__dirname, '..', '..', '..')
+  const templates = ['.env.example', '.env.hetzner.example', path.join('kasrut-api', '.env.example')]
+
+  const cases = templates.flatMap(template => {
+    const values = parse(readFileSync(path.join(repoRoot, template)))
+    return (['JWT_SECRET', 'ENCRYPTION_KEY'] as const).map(variable => {
+      const value = values[variable]
+      if (!value) throw new Error(`${template} no longer defines ${variable}`)
+      return [template, variable, value] as const
+    })
+  })
+
+  it.each(cases)('%s: %s placeholder is rejected', (_template, variable, value) => {
+    expectRejected(variable, value)
+  })
+})

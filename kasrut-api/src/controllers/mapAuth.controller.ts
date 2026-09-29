@@ -1,6 +1,4 @@
 import type { Response } from 'express'
-import jwt from 'jsonwebtoken'
-import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { env } from '../config/env'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
@@ -22,6 +20,7 @@ import {
 } from '../services/mapPassword.service'
 import { asyncHandler } from '../lib/asyncHandler'
 import { blacklistToken } from '../lib/tokenBlacklist'
+import { signMapAccessToken } from '../lib/jwt'
 import { sendMapPasswordResetToken } from '../lib/mailer'
 import { logger } from '../lib/logger'
 
@@ -61,18 +60,12 @@ const passwordResetConfirmSchema = z.object({
 })
 
 function signMapToken(user: { id: string; name: string; email: string; sessionVersion: number }): string {
-  return jwt.sign(
-    {
-      sub: user.id,
-      typ: 'map_user',
-      name: user.name,
-      email: user.email,
-      ver: user.sessionVersion,
-      jti: randomUUID(),
-    },
-    env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN },
-  )
+  return signMapAccessToken({
+    sub: user.id,
+    name: user.name,
+    email: user.email,
+    ver: user.sessionVersion,
+  })
 }
 
 function setMapServiceLogActor(res: Response, user: { id: string; email: string }): void {

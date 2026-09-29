@@ -1,15 +1,14 @@
 import qrcode from 'qrcode'
-import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import { usersRepo } from '../db/users.repo'
-import { env } from '../config/env'
 import { serializeUser } from '../serializers/user.serializer'
 import { signFullToken } from './auth.controller'
 import { asyncHandler } from '../lib/asyncHandler'
 import { checkTotpAttempt } from '../lib/twoFactorAttempts'
 import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
+import { verifyTwoFactorPendingToken, type TwoFactorPendingPayload } from '../lib/jwt'
 
 const BACKUP_CODE_COUNT = 8
 const BACKUP_CODE_BYTES = 5
@@ -40,36 +39,17 @@ function verifyCode(code: string, secret: string): boolean {
   } catch { return false }
 }
 
-interface PendingTwoFactorPayload {
-  sub: string
-  typ: '2fa_pending'
-  jti: string
-  exp: number
-}
-
-async function verifyPendingToken(token: string): Promise<PendingTwoFactorPayload | null> {
+async function verifyPendingToken(token: string): Promise<TwoFactorPendingPayload | null> {
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET)
-    if (typeof payload === 'string') return null
-    if (
-      payload.typ !== '2fa_pending' ||
-      typeof payload.sub !== 'string' || !payload.sub ||
-      typeof payload.jti !== 'string' || !payload.jti ||
-      typeof payload.exp !== 'number'
-    ) return null
+    const payload = verifyTwoFactorPendingToken(token)
     if (await isTokenBlacklisted(payload.jti)) return null
-    return {
-      sub: payload.sub,
-      typ: '2fa_pending',
-      jti: payload.jti,
-      exp: payload.exp,
-    }
+    return payload
   } catch {
     return null
   }
 }
 
-function challengeTtlSeconds(payload: PendingTwoFactorPayload): number {
+function challengeTtlSeconds(payload: TwoFactorPendingPayload): number {
   return Math.max(1, Math.ceil(payload.exp - Date.now() / 1000))
 }
 

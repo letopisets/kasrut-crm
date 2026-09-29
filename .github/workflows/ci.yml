@@ -39,12 +39,16 @@ jobs:
         run: npm run build
       - name: Build seed scripts
         run: npx tsc -p tsconfig.seed.json
+      # Fresh random secrets per run: no working key is ever committed, and
+      # config/env.ts rejects placeholder or patterned values at startup.
+      - name: Generate throwaway secrets
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Tests
         run: npx jest --ci --runInBand
         env:
           NODE_ENV: test
-          JWT_SECRET: test-secret-must-be-at-least-32-chars-long
-          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           CORS_ORIGINS: http://localhost:5173
 
   crm:
@@ -98,11 +102,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Generate throwaway secrets
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
       - name: Validate production compose
         env:
           POSTGRES_PASSWORD: ci-postgres-password
-          JWT_SECRET: ci-jwt-secret-must-be-at-least-32-chars
-          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           CORS_ORIGINS: https://mykoshermap.com,https://crm.mykoshermap.com,https://api.mykoshermap.com
           VITE_APPLE_REDIRECT_URI: https://mykoshermap.com/
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config > /dev/null

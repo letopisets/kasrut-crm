@@ -1,9 +1,8 @@
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { usersRepo } from '../db/users.repo'
-import { env } from '../config/env'
+import { signCrmAccessToken } from '../lib/jwt'
 import { withCache } from '../lib/cache'
 import type { Restaurant } from '../models/types'
 
@@ -38,16 +37,10 @@ const ownerUser = {
   twoFactorBackupCodes: [],
 }
 
-const ownerToken = jwt.sign(
-  { sub: 'u1', role: 'owner', name: 'Owner', email: 'o@test.il' },
-  env.JWT_SECRET,
-  { expiresIn: '1h' } as object,
-)
+const ownerToken = signCrmAccessToken({ sub: 'u1', role: 'owner', name: 'Owner', email: 'o@test.il', ver: 0 })
 
-const unscopedRabbanutToken = jwt.sign(
-  { sub: 'u2', role: 'rabbanut', name: 'Broken tenant user', email: 'r@test.il' },
-  env.JWT_SECRET,
-  { expiresIn: '1h' } as object,
+const unscopedRabbanutToken = signCrmAccessToken(
+  { sub: 'u2', role: 'rabbanut', name: 'Broken tenant user', email: 'r@test.il', ver: 0 },
 )
 
 const sample = (id: string, name: string): Restaurant => ({

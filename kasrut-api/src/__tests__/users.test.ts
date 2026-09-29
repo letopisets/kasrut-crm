@@ -1,10 +1,9 @@
 import path from 'path'
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
 import { usersRepo, UserChangedError } from '../db/users.repo'
 import { Prisma } from '../generated/prisma/client'
-import { env } from '../config/env'
+import { signCrmAccessToken } from '../lib/jwt'
 import type { User } from '../models/types'
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -59,25 +58,20 @@ const mashgiachUser: User = {
 }
 
 function ownerToken() {
-  return jwt.sign(
-    { sub: ownerUser.id, role: ownerUser.role, name: ownerUser.name, email: ownerUser.email },
-    env.JWT_SECRET,
-    { expiresIn: '1h' } as object,
+  return signCrmAccessToken(
+    { sub: ownerUser.id, role: ownerUser.role, name: ownerUser.name, email: ownerUser.email, ver: 0 },
   )
 }
 
 function rabbanutToken() {
-  return jwt.sign(
-    {
-      sub: rabbanutUser.id,
-      role: rabbanutUser.role,
-      name: rabbanutUser.name,
-      email: rabbanutUser.email,
-      rabbanutId: rabbanutUser.rabbanutId,
-    },
-    env.JWT_SECRET,
-    { expiresIn: '1h' } as object,
-  )
+  return signCrmAccessToken({
+    sub: rabbanutUser.id,
+    role: rabbanutUser.role,
+    name: rabbanutUser.name,
+    email: rabbanutUser.email,
+    rabbanutId: rabbanutUser.rabbanutId,
+    ver: 0,
+  })
 }
 
 // ── App ────────────────────────────────────────────────────────────────────

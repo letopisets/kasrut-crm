@@ -1,9 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
-import { env } from '../config/env'
 import type { MapJWTPayload } from '../models/types'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
+import { verifyMapAccessToken } from '../lib/jwt'
 
 declare global {
   namespace Express {
@@ -21,16 +20,9 @@ export async function authenticateMapJWT(req: Request, res: Response, next: Next
   }
 
   try {
-    const payload = jwt.verify(header.slice(7), env.JWT_SECRET) as MapJWTPayload
-    if (
-      payload.typ !== 'map_user' ||
-      typeof payload.ver !== 'number' ||
-      typeof payload.jti !== 'string' ||
-      !payload.jti
-    ) {
-      res.status(401).json({ error: 'Invalid token type' })
-      return
-    }
+    // Requires the map-access key/audience plus typ='map_user', a jti and a
+    // session version; CRM and pre-2FA tokens never verify here.
+    const payload = verifyMapAccessToken(header.slice(7))
 
     if (await isTokenBlacklisted(payload.jti)) {
       res.status(401).json({ error: 'Token has been revoked' })
