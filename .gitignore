@@ -44,3 +44,10 @@ coverage/
 
 # Runtime backups
 backups/
+
+# Personal data: source PDFs, the local inspector directory and generated
+# exports (names/phones of mashgichim) must never be committed.
+docs-kashrut/
+docs/kashrut-export/*
+!docs/kashrut-export/README.md
+/mobile-*.png

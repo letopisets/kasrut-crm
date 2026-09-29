@@ -464,12 +464,45 @@ function selectEffectivePdfNames(names: string[]) {
   return [...selected].sort((a, b) => a.localeCompare(b, 'he'))
 }
 
-function parsePdfs(pdfs: PdfText[], builder: ImportBuilder) {
+// The Eilat PDF lists inspectors only by phone; their names live in a local,
+// untracked directory file next to the source PDFs (personal data must not be
+// committed). Format: { "inspectors": [{ "phone": "05...", "name": "..." }],
+// "nameStarts": ["..."] }. nameStarts are the first words the parser uses to
+// find where the inspector column begins; when omitted they are derived from
+// the names. Without the file the import still runs, just without names.
+interface InspectorDirectory {
+  byPhone: Map<string, string>
+  nameStarts: string[]
+}
+
+function loadInspectorDirectory(sourceDir: string): InspectorDirectory {
+  const file = path.resolve(process.env.EILAT_INSPECTORS_FILE ?? path.join(sourceDir, 'eilat-inspectors.json'))
+  if (!fs.existsSync(file)) {
+    console.warn(`Inspector directory ${file} not found: Eilat mashgichim are imported without names.`)
+    return { byPhone: new Map(), nameStarts: [] }
+  }
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+    inspectors?: Array<{ phone?: unknown; name?: unknown }>
+    nameStarts?: unknown
+  }
+  const byPhone = new Map<string, string>()
+  for (const entry of raw.inspectors ?? []) {
+    if (typeof entry.phone === 'string' && typeof entry.name === 'string' && entry.name.trim()) {
+      byPhone.set(digitsOnly(entry.phone), entry.name.trim())
+    }
+  }
+  const nameStarts = Array.isArray(raw.nameStarts)
+    ? raw.nameStarts.filter((v): v is string => typeof v === 'string' && v.length > 0)
+    : [...new Set([...byPhone.values()].map(name => name.split(/\s+/)[0]))]
+  return { byPhone, nameStarts }
+}
+
+function parsePdfs(pdfs: PdfText[], builder: ImportBuilder, inspectors: InspectorDirectory) {
   for (const pdf of pdfs) {
     builder.addDocument(pdf)
     const before = builder.restaurants.size
     let parser = 'document-only'
-    if (pdf.name.includes('עסקים בכשרות')) { parser = 'eilat'; parseEilat(pdf, builder) }
+    if (pdf.name.includes('עסקים בכשרות')) { parser = 'eilat'; parseEilat(pdf, builder, inspectors) }
     else if (pdf.name.includes('מסעדות-7')) { parser = 'rubin'; parseRubin(pdf, builder) }
     else if (pdf.name.includes('נתניה')) { parser = 'netanya'; parseNetanya(pdf, builder) }
     else if (pdf.name.includes('מסעדות כשרות')) { parser = 'bat-yam'; parseBatYam(pdf, builder) }
@@ -505,20 +538,9 @@ function parseRubin(pdf: PdfText, builder: ImportBuilder) {
   }
 }
 
-function parseEilat(pdf: PdfText, builder: ImportBuilder) {
-  const inspectorByPhone = new Map<string, string>([
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-    ['0500000000', 'REDACTED'],
-  ])
-  const inspectorStarts = ['אופיר', 'איתן', 'אליהו', 'א', 'בר', 'טל', 'מרדכי', 'עובדיה', 'עידו', 'אהרון', 'ירחמיאל']
+function parseEilat(pdf: PdfText, builder: ImportBuilder, inspectors: InspectorDirectory) {
+  const inspectorByPhone = inspectors.byPhone
+  const inspectorStarts = inspectors.nameStarts
   const pendingName: string[] = []
 
   for (const rawLine of lines(pdf.text)) {
@@ -1381,7 +1403,7 @@ async function main() {
   bootstrapStaticData(builder)
 
   const pdfs = await extractPdfs(sourceDir)
-  parsePdfs(pdfs, builder)
+  parsePdfs(pdfs, builder, loadInspectorDirectory(sourceDir))
   printSummary(builder, dryRun)
 
   if (exportFiles) {
