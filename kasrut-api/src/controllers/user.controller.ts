@@ -1,4 +1,4 @@
-import { usersRepo } from '../db/users.repo'
+import { usersRepo, UserChangedError } from '../db/users.repo'
 import { serializeUser, serializeUsers } from '../serializers/user.serializer'
 import { validate } from '../lib/validate'
 import {
@@ -47,17 +47,36 @@ export const userController = {
     // PATCH validation must use the resulting role/tenant pair. Validating the
     // partial body alone would allow an owner account without a rabbanutId to
     // be converted into a tenant role and then read every tenant fail-open.
+    // An explicit `null` in the body clears the stored link, so it must not
+    // fall back to the existing value (`??` would resurrect it).
+    const rabbanutId  = body.rabbanutId  !== undefined ? body.rabbanutId  : existing.rabbanutId
+    const mashgiachId = body.mashgiachId !== undefined ? body.mashgiachId : existing.mashgiachId
     const assignment = validate(userTenantAssignmentSchema, {
       role: body.role ?? existing.role,
-      rabbanutId: body.rabbanutId ?? existing.rabbanutId,
-      mashgiachId: body.mashgiachId ?? existing.mashgiachId,
+      rabbanutId: rabbanutId ?? undefined,
+      mashgiachId: mashgiachId ?? undefined,
     })
     if (!await usersRepo.validateTenantAssignment(assignment)) {
       res.status(400).json({ error: 'Role must reference an active profile in the same active rabbanut' })
       return
     }
 
-    const u = await usersRepo.update(req.params.id, body)
+    // Pin the state validated above: a concurrent PATCH makes this one fail
+    // instead of combining with it into an unvalidated role/tenant pair.
+    let u
+    try {
+      u = await usersRepo.update(req.params.id, body, {
+        role:        existing.role,
+        rabbanutId:  existing.rabbanutId ?? null,
+        mashgiachId: existing.mashgiachId ?? null,
+      })
+    } catch (e) {
+      if (e instanceof UserChangedError) {
+        res.status(409).json({ error: 'Conflict: the user was changed concurrently; reload and retry' })
+        return
+      }
+      throw e
+    }
     if (!u) { res.status(404).json({ error: 'Not found' }); return }
     res.json(serializeUser(u))
   }),

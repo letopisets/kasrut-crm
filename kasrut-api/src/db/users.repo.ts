@@ -7,6 +7,32 @@ import type { User as PrismaUser } from '../generated/prisma/client'
 
 export interface PageResult<T> { items: T[]; nextCursor: string | null }
 
+/**
+ * Fields update() may change. Deliberately narrow: password, 2FA state and
+ * sessionVersion have dedicated methods (a 2FA secret must be encrypted, and
+ * resetting sessionVersion would revive revoked tokens). Tenant links accept
+ * `null` to clear them.
+ */
+export type UserPatch = Partial<Pick<User, 'name' | 'email' | 'role'>> & {
+  rabbanutId?:  string | null
+  mashgiachId?: string | null
+}
+
+/** Authorization state a patch was validated against. */
+export interface UserAuthState {
+  role:        Role
+  rabbanutId:  string | null
+  mashgiachId: string | null
+}
+
+/** The user's role/tenant links changed after they were read and validated. */
+export class UserChangedError extends Error {
+  constructor() {
+    super('User was changed concurrently')
+    this.name = 'UserChangedError'
+  }
+}
+
 function toUser(u: PrismaUser): User {
   let twoFactorSecret: string | undefined
   if (u.twoFactorSecret) {
@@ -158,12 +184,49 @@ export const usersRepo = {
     return toUser(u)
   },
 
-  async update(id: string, patch: Partial<Omit<User, 'id' | 'passwordHash'>>): Promise<User | null> {
+  /**
+   * Applies `patch` only if the row still has the role/tenant links in
+   * `expected` (what the caller validated against), so two concurrent PATCHes
+   * cannot combine into a state nobody validated; throws UserChangedError
+   * otherwise. A change of role, rabbanutId or mashgiachId bumps
+   * sessionVersion, so tokens from before it stay dead even if the change is
+   * later reverted (A -> B -> A).
+   */
+  async update(id: string, patch: UserPatch, expected: UserAuthState): Promise<User | null> {
+    // Explicit whitelist: nothing else from a caller-supplied object is written.
+    const data: Prisma.UserUncheckedUpdateInput = {}
+    if (patch.name  !== undefined) data.name  = patch.name
+    if (patch.email !== undefined) data.email = patch.email
+    if (patch.role  !== undefined) data.role  = patch.role
+    // undefined keeps the stored link; null writes NULL (clears it).
+    if (patch.rabbanutId  !== undefined) data.rabbanutId  = patch.rabbanutId
+    if (patch.mashgiachId !== undefined) data.mashgiachId = patch.mashgiachId
+
+    const authChanged =
+      (patch.role        !== undefined && patch.role        !== expected.role) ||
+      (patch.rabbanutId  !== undefined && patch.rabbanutId  !== expected.rabbanutId) ||
+      (patch.mashgiachId !== undefined && patch.mashgiachId !== expected.mashgiachId)
+    if (authChanged) data.sessionVersion = { increment: 1 }
+
     try {
-      const u = await prisma.user.update({ where: { id }, data: patch })
+      const u = await prisma.user.update({
+        where: {
+          id,
+          role:       expected.role,
+          rabbanutId: expected.rabbanutId,
+          // A unique field only takes a plain string at the top level of a
+          // unique where; the IS NULL filter has to go through AND.
+          AND: [{ mashgiachId: expected.mashgiachId }],
+        },
+        data,
+      })
       return toUser(u)
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return null
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        const stillThere = await prisma.user.findUnique({ where: { id }, select: { id: true } })
+        if (stillThere) throw new UserChangedError()
+        return null
+      }
       throw e
     }
   },

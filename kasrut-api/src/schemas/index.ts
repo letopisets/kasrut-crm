@@ -83,7 +83,13 @@ function requireTenantAssignment(
 }
 
 export const createUserSchema = userFieldsSchema.superRefine(requireTenantAssignment)
-export const updateUserSchema = userFieldsSchema.omit({ password: true }).partial()
+// PATCH: `null` clears a tenant link (rabbanut -> owner, mashgiach -> rabbanut),
+// `undefined`/absent keeps the stored value. The resulting role/tenant pair is
+// validated in the controller against userTenantAssignmentSchema.
+export const updateUserSchema = userFieldsSchema.omit({ password: true }).partial().extend({
+  rabbanutId:  id.nullable().optional(),
+  mashgiachId: id.nullable().optional(),
+})
 export const userTenantAssignmentSchema = z.object({
   role,
   rabbanutId: id.optional(),
