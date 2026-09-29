@@ -85,8 +85,9 @@ export const serializeMapReviewsPayload = (payload: {
   reviews: Parameters<typeof serializeMapReview>[0][]
   ratingAvg: number | null
   reviewCount: number
-}) => ({
+}, nextCursor: string | null) => ({
   ratingAvg: payload.ratingAvg,
   reviewCount: payload.reviewCount,
   reviews: payload.reviews.map(serializeMapReview),
+  nextCursor,
 })

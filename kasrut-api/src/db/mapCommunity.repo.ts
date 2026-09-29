@@ -58,6 +58,17 @@ export interface CreateReviewInput {
   text?: string | null
 }
 
+// Keyset position of the last review on a page (see listReviews).
+export interface ReviewCursor {
+  createdAt: Date
+  id: string
+}
+
+export interface ReviewPageInput {
+  limit: number
+  cursor?: ReviewCursor | null
+}
+
 const mapUserSelect = {
   id: true,
   email: true,
@@ -799,14 +810,32 @@ export const mapCommunityRepo = {
     return Boolean(row)
   },
 
-  async listReviews(restaurantId: string) {
-    const [reviews, summary] = await Promise.all([
+  // One keyset page, newest first. (createdAt, id) is a total order — id
+  // breaks createdAt ties — so a cursor taken from the last row of a page
+  // resumes exactly after it, and reviews written meanwhile land before the
+  // cursor instead of shifting later pages. The summary is an aggregate over
+  // the whole restaurant, identical on every page.
+  async listReviews(restaurantId: string, page: ReviewPageInput) {
+    const { limit, cursor } = page
+    const [rows, summary] = await Promise.all([
       prisma.mapRestaurantReview.findMany({
-        where: { restaurantId },
+        where: {
+          restaurantId,
+          ...(cursor
+            ? {
+                OR: [
+                  { createdAt: { lt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                ],
+              }
+            : {}),
+        },
         include: {
           mapUser: { select: { id: true, name: true, avatarUrl: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        // One extra row tells us whether another page exists.
+        take: limit + 1,
       }),
       prisma.mapRestaurantReview.aggregate({
         where: { restaurantId },
@@ -815,11 +844,32 @@ export const mapCommunityRepo = {
       }),
     ])
 
+    const reviews = rows.slice(0, limit)
+    const last = reviews[reviews.length - 1]
+    const nextCursor: ReviewCursor | null = rows.length > limit && last
+      ? { createdAt: last.createdAt, id: last.id }
+      : null
+
     return {
       reviews,
       ratingAvg: summary._avg.rating,
       reviewCount: summary._count._all,
+      nextCursor,
     }
+  },
+
+  async findOwnReview(mapUserId: string, restaurantId: string) {
+    return prisma.mapRestaurantReview.findUnique({
+      where: {
+        restaurantId_mapUserId: {
+          restaurantId,
+          mapUserId,
+        },
+      },
+      include: {
+        mapUser: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    })
   },
 
   async upsertReview(mapUserId: string, restaurantId: string, input: CreateReviewInput) {

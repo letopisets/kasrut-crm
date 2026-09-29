@@ -134,10 +134,17 @@ export interface MapReview {
   }
 }
 
+// One page of GET /map/restaurants/:id/reviews. ratingAvg / reviewCount cover
+// every review of the restaurant; nextCursor is null on the last page.
 export interface MapReviewsPayload {
   ratingAvg: number | null
   reviewCount: number
   reviews: MapReview[]
+  nextCursor: string | null
+}
+
+export interface MapOwnReviewPayload {
+  review: MapReview | null
 }
 
 export interface MapFilters {

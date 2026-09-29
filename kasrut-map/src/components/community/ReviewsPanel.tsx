@@ -3,7 +3,12 @@ import {
   Alert, Avatar, Box, Button, CircularProgress, Divider,
   Rating, Stack, TextField, Typography,
 } from '@mui/material'
-import { useGetRestaurantReviewsQuery, useSubmitRestaurantReviewMutation } from '@/store/api/mapCommunityApi'
+import { skipToken } from '@reduxjs/toolkit/query'
+import {
+  useGetMyRestaurantReviewQuery,
+  useGetRestaurantReviewsInfiniteQuery,
+  useSubmitRestaurantReviewMutation,
+} from '@/store/api/mapCommunityApi'
 import { useAppSelector } from '@/store/hooks'
 import { useMapLang } from '@/i18n/useMapLang'
 import type { MapReview, MapUser } from '@/types'
@@ -27,17 +32,37 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
   const lang = useAppSelector(s => s.mapLang.lang)
   const locale = lang === 'ru' ? 'ru-RU' : lang === 'he' ? 'he-IL' : 'en-US'
 
-  const { data, isLoading, isError } = useGetRestaurantReviewsQuery(restaurantId)
+  const {
+    data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage,
+  } = useGetRestaurantReviewsInfiniteQuery(restaurantId)
+  // The list is paginated, so the user's own review may not be on a loaded
+  // page — it comes from its own endpoint. currentData, not data: after an
+  // account switch the previous user's review must not linger.
+  const {
+    currentData: mine, isError: isOwnReviewError, refetch: refetchOwnReview,
+  } = useGetMyRestaurantReviewQuery(
+    user ? { restaurantId, userId: user.id } : skipToken,
+  )
+  // Saving is an upsert, so until the existing review is known the empty form
+  // would silently overwrite it.
+  const ownReviewUnknown = Boolean(user) && mine === undefined
   const [submitReview, submitState] = useSubmitRestaurantReviewMutation()
   const [rating, setRating] = useState<number | null>(5)
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const ownReview = useMemo(
-    () => data?.reviews.find(review => review.user.id === user?.id),
-    [data?.reviews, user?.id],
-  )
+  const ownReview = user ? mine?.review ?? null : null
+  // Every page carries the same restaurant-wide summary.
+  const summary = data?.pages[0]
+  const reviews = useMemo(() => {
+    const seen = new Set<string>()
+    return (data?.pages ?? []).flatMap(page => page.reviews).filter((review) => {
+      if (seen.has(review.id)) return false
+      seen.add(review.id)
+      return true
+    })
+  }, [data?.pages])
 
   useEffect(() => {
     if (!ownReview) return
@@ -57,22 +82,32 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
     }
   }
 
-  const reviews = data?.reviews ?? []
-
   return (
     <Stack spacing={2}>
       <Box>
         <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>{t.reviewsTitle}</Typography>
         <Typography variant="body2" color="text.secondary">
-          {data?.reviewCount
+          {summary?.reviewCount
             ? t.avgRating
-                .replace('{avg}', String(data.ratingAvg?.toFixed(1)))
-                .replace('{count}', String(data.reviewCount))
+                .replace('{avg}', String(summary.ratingAvg?.toFixed(1)))
+                .replace('{count}', String(summary.reviewCount))
             : t.noReviews}
         </Typography>
       </Box>
 
       {isError && <Alert severity="error">{t.loadReviewsError}</Alert>}
+      {ownReviewUnknown && isOwnReviewError && (
+        <Alert
+          severity="error"
+          action={(
+            <Button color="inherit" size="small" onClick={() => { void refetchOwnReview() }}>
+              {t.retryBtn}
+            </Button>
+          )}
+        >
+          {t.loadOwnReviewError}
+        </Alert>
+      )}
       {success && <Alert severity="success">{t.reviewSaved}</Alert>}
       {error && <Alert severity="error">{error}</Alert>}
 
@@ -97,7 +132,7 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
         <Button
           variant="outlined"
           onClick={user ? handleSubmit : onRequireAuth}
-          disabled={submitState.isLoading}
+          disabled={submitState.isLoading || ownReviewUnknown}
           sx={{ alignSelf: 'flex-start', borderRadius: 1 }}
         >
           {user ? t.saveReview : t.loginAndReview}
@@ -138,6 +173,18 @@ export function ReviewsPanel({ restaurantId, user, onRequireAuth }: Props) {
           </Box>
         ))}
       </Stack>
+
+      {hasNextPage && (
+        <Button
+          variant="text"
+          onClick={() => { void fetchNextPage() }}
+          disabled={isFetchingNextPage}
+          startIcon={isFetchingNextPage ? <CircularProgress size={16} /> : undefined}
+          sx={{ alignSelf: 'center', borderRadius: 1 }}
+        >
+          {t.showMoreReviews}
+        </Button>
+      )}
     </Stack>
   )
 }

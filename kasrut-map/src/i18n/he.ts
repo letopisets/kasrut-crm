@@ -64,6 +64,9 @@ const he: MapTranslations = {
   saveReview: 'שמור ביקורת',
   loginAndReview: 'היכנס והשאר ביקורת',
   loadingReviews: 'טוען ביקורות',
+  showMoreReviews: 'הצג ביקורות נוספות',
+  loadOwnReviewError: 'לא ניתן לטעון את הביקורת שלך. השמירה מושהית כדי שלא תידרס.',
+  retryBtn: 'נסה שוב',
 
   suggestNewTitle: 'הצע מקום חדש',
   suggestEditTitle: 'הצע תיקון',

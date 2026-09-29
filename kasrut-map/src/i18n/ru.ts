@@ -64,6 +64,9 @@ const ru: MapTranslations = {
   saveReview: 'Сохранить отзыв',
   loginAndReview: 'Войти и оставить отзыв',
   loadingReviews: 'Загружаем отзывы',
+  showMoreReviews: 'Показать ещё отзывы',
+  loadOwnReviewError: 'Не удалось загрузить ваш отзыв. Сохранение приостановлено, чтобы не перезаписать его.',
+  retryBtn: 'Повторить',
 
   suggestNewTitle: 'Предложить новое заведение',
   suggestEditTitle: 'Предложить правку',
