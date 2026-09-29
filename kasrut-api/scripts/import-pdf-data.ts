@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { PDFParse } from 'pdf-parse'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { resolveTenantMashgiachIds } from '../src/lib/mashgiachTenancy'
 
 type FoodType = 'meat' | 'dairy' | 'pareve' | 'takeaway'
 type HechsherType = 'Rabbanut' | 'Badatz' | 'Mehadrin' | 'Private'
@@ -45,7 +46,10 @@ interface HechsherDraft {
 }
 
 interface MashgiachDraft {
+  /** Database id; see resolveMashgiachIds(). */
   id: string
+  /** Tenant-independent id (placeholder, or derived from the phone). */
+  baseId: string
   name: string
   phone: string
   email: string
@@ -61,7 +65,8 @@ interface RestaurantDraft {
   city: string
   levelId: KashrutLevelId
   hechsherId: string
-  mashgiachId: string
+  /** Read `.id` only when writing: it can change in resolveMashgiachIds(). */
+  mashgiach: MashgiachDraft
   kitniyot: boolean
   expires: Date
   rabbanutId: string
@@ -211,10 +216,14 @@ const CITY_COORDS: Record<string, [number, number]> = {
 class ImportBuilder {
   authorities = new Map<string, AuthorityDraft>()
   hechsherim = new Map<string, HechsherDraft>()
+  /** Keyed by `${baseId}|${rabbanutId}`: one profile per person PER rabbanut. */
   mashgichim = new Map<string, MashgiachDraft>()
   restaurants = new Map<string, RestaurantDraft>()
   documents = new Map<string, DocumentDraft>()
+  /** Placeholder for rows whose PDF names no mashgiach (one copy per rabbanut). */
   demoMashgiachId = 'm_import_default'
+  /** Database owner (rabbanutId) of base ids that already exist there. */
+  private mashgiachOwners = new Map<string, string>()
 
   ensureAuthority(input: {
     id?: string
@@ -286,26 +295,48 @@ class ImportBuilder {
   }): MashgiachDraft {
     const phone = normalizePhone(input.phone ?? '')
     const name = cleanText(input.name || (phone ? `משגיח ${phone}` : 'משגיח יבוא'))
-    const id = input.id ?? (phone ? idFor('m', phone) : idFor('m', `${input.rabbanutId}|${name}`))
-    const existing = this.mashgichim.get(id)
+    // The placeholder and phone-derived ids carry no tenant. A profile may only
+    // be linked to restaurants/hechsherim of its own rabbanut (DB triggers of
+    // migration 20260714100000), so the same person gets one profile per
+    // rabbanut; resolveMashgiachIds() gives them their database ids.
+    const baseId = input.id ?? (phone ? idFor('m', phone) : idFor('m', `${input.rabbanutId}|${name}`))
+    const key = `${baseId}|${input.rabbanutId}`
+    const existing = this.mashgichim.get(key)
     if (existing) {
       existing.hechsherIds.add(input.hechsherId)
       return existing
     }
 
     const mashgiach: MashgiachDraft = {
-      id,
+      id: baseId,
+      baseId,
       name,
       phone,
-      email: `${id}@import.local`,
+      // Same for every copy: the split migration copies the source's email.
+      email: `${baseId}@import.local`,
       area: cleanText(input.area),
       active: true,
       rabbanutId: input.rabbanutId,
       hechsherIds: new Set([input.hechsherId]),
     }
 
-    this.mashgichim.set(id, mashgiach)
+    this.mashgichim.set(key, mashgiach)
+    this.resolveMashgiachIds()
     return mashgiach
+  }
+
+  /**
+   * The owner rabbanut of a base id keeps the base id; every other rabbanut
+   * gets `${baseId}__${md5(rabbanutId)[0..10]}`, exactly the ids migration
+   * 20260714095000_split_cross_tenant_mashgichim gave the copies it split off,
+   * so a re-import updates those rows instead of re-linking restaurants to a
+   * profile of another rabbanut. The owner is the database's tenant for that
+   * id when known (see loadIntoDatabase), else the first rabbanut seen.
+   */
+  resolveMashgiachIds(existingOwners?: ReadonlyMap<string, string>) {
+    if (existingOwners) this.mashgiachOwners = new Map(existingOwners)
+    const ids = resolveTenantMashgiachIds(this.mashgichim.values(), this.mashgiachOwners)
+    for (const [draft, id] of ids) draft.id = id
   }
 
   addDocument(file: PdfText) {
@@ -366,7 +397,7 @@ class ImportBuilder {
       city,
       levelId: levelIdFor(parsedLevel),
       hechsherId: hechsher.id,
-      mashgiachId: mashgiach.id,
+      mashgiach,
       kitniyot: false,
       expires,
       rabbanutId: hechsher.rabbanutId,
@@ -664,24 +695,10 @@ async function loadIntoDatabase(builder: ImportBuilder) {
   const prisma = new PrismaClient({ adapter })
 
   try {
-    const demoUser = await prisma.user.findUnique({
-      where: { email: 'cohen@jer.il' },
-      select: { id: true, name: true },
-    })
-    if (demoUser) {
-      const demo = builder.mashgichim.get(builder.demoMashgiachId)
-      if (demo) {
-        builder.mashgichim.delete(builder.demoMashgiachId)
-        demo.id = demoUser.id
-        demo.name = demoUser.name || demo.name
-        demo.email = `${demoUser.id}@import.local`
-        builder.demoMashgiachId = demoUser.id
-        builder.mashgichim.set(demo.id, demo)
-        for (const restaurant of builder.restaurants.values()) {
-          if (restaurant.mashgiachId === 'm_import_default') restaurant.mashgiachId = demo.id
-        }
-      }
-    }
+    // The placeholder used to be renamed to the id of the demo user
+    // cohen@jer.il and assigned to every tenant's rows. Users are now linked to
+    // a profile through users."mashgiachId", and a profile may only serve its
+    // own rabbanut, so the placeholder keeps its per-rabbanut ids.
 
     // Incremental upsert — NEVER wipe. Re-running the import updates existing
     // rows by their deterministic id and inserts new ones, leaving community
@@ -689,6 +706,16 @@ async function loadIntoDatabase(builder: ImportBuilder) {
     // (Previously this transaction deleteMany()'d the whole graph including
     // reviews/suggestions/inspections, so every re-run destroyed user data.)
     await prisma.$transaction(async tx => {
+      // A base id that already exists belongs to the rabbanut the database
+      // says (e.g. m_import_default -> its original tenant); only the other
+      // rabbanuts get the split-migration copy ids.
+      const baseIds = [...new Set([...builder.mashgichim.values()].map(m => m.baseId))]
+      const existingOwners = await tx.mashgiach.findMany({
+        where: { id: { in: baseIds } },
+        select: { id: true, rabbanutId: true },
+      })
+      builder.resolveMashgiachIds(new Map(existingOwners.map(m => [m.id, m.rabbanutId])))
+
       await tx.kashrutLevel.createMany({ data: [...KASHRUT_LEVELS], skipDuplicates: true })
       await tx.establishmentCategory.createMany({ data: [...ESTABLISHMENT_CATEGORIES], skipDuplicates: true })
 
@@ -700,8 +727,10 @@ async function loadIntoDatabase(builder: ImportBuilder) {
         await tx.rabbanut.upsert({ where: { id: a.id }, create: data, update: data })
       }
 
+      // A user linked to a mashgiach profile must stay in that profile's
+      // rabbanut (users_mashgiach_tenant_guard would abort the whole import).
       await tx.user.updateMany({
-        where: { email: { in: ['admin@jer.il', 'cohen@jer.il'] } },
+        where: { email: { in: ['admin@jer.il', 'cohen@jer.il'] }, mashgiachId: null },
         data: { rabbanutId: JERUSALEM_RABBANUT_ID },
       })
 
@@ -741,7 +770,7 @@ async function loadIntoDatabase(builder: ImportBuilder) {
         const geo = { lat: r.lat, lng: r.lng, geoAccuracy: r.geoAccuracy }
         const common = {
           name: r.name, address: r.address, city: r.city,
-          levelId: r.levelId, hechsherId: r.hechsherId, mashgiachId: r.mashgiachId,
+          levelId: r.levelId, hechsherId: r.hechsherId, mashgiachId: r.mashgiach.id,
           kitniyot: r.kitniyot, expires: r.expires, rabbanutId: r.rabbanutId,
           notes: r.notes, categoryId: r.categoryId,
           foodType: r.foodType, phone: r.phone, hours: r.hours,
@@ -758,9 +787,7 @@ async function loadIntoDatabase(builder: ImportBuilder) {
   }
 }
 
-function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: string) {
-  fs.mkdirSync(outDir, { recursive: true })
-
+function exportRows(builder: ImportBuilder) {
   const authorities = [...builder.authorities.values()].map(row => ({
     id: row.id,
     name: row.name,
@@ -805,7 +832,7 @@ function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: str
     city: row.city,
     levelId: row.levelId,
     hechsherId: row.hechsherId,
-    mashgiachId: row.mashgiachId,
+    mashgiachId: row.mashgiach.id,
     kitniyot: row.kitniyot,
     expires: row.expires.toISOString(),
     rabbanutId: row.rabbanutId,
@@ -827,7 +854,13 @@ function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: str
     ext: row.ext,
     url: row.url,
   }))
+  return { authorities, hechsherim, mashgichim, mashgiachHechsher, restaurants, documents }
+}
 
+function exportParsedData(builder: ImportBuilder, sourceDir: string, outDir: string) {
+  fs.mkdirSync(outDir, { recursive: true })
+
+  const { authorities, hechsherim, mashgichim, mashgiachHechsher, restaurants, documents } = exportRows(builder)
   const exports = [
     ['rabbanuts', authorities],
     ['hechsherim', hechsherim],
@@ -915,12 +948,15 @@ function buildImportSql(data: {
     '-- Generated by kasrut-api/scripts/import-pdf-data.ts',
     `-- Generated at ${new Date().toISOString()}`,
     '-- Idempotent upsert: safe to re-run; does NOT delete reviews, suggestions or inspections.',
+    MASHGIACH_TENANCY_MARKER,
     'BEGIN;',
     'SET CONSTRAINTS ALL DEFERRED;',
+    mashgiachOwnerGuardSql(data.mashgichim),
     upsertSql('kashrut_levels', ['id', 'name', 'sortOrder'], ['id'], [...KASHRUT_LEVELS]),
     upsertSql('establishment_categories', ['id', 'slug', 'nameHe', 'nameEn', 'nameRu'], ['id'], [...ESTABLISHMENT_CATEGORIES]),
     upsertSql('rabbanuts', ['id', 'name', 'city', 'contact', 'phone', 'email', 'active', 'color', 'updatedAt'], ['id'], withUpdatedAt(data.authorities, updatedAt)),
-    `UPDATE "users" SET "rabbanutId" = ${sqlValue(JERUSALEM_RABBANUT_ID)} WHERE "email" IN ('admin@jer.il', 'cohen@jer.il');`,
+    // Users linked to a mashgiach profile stay in that profile's rabbanut.
+    `UPDATE "users" SET "rabbanutId" = ${sqlValue(JERUSALEM_RABBANUT_ID)} WHERE "email" IN ('admin@jer.il', 'cohen@jer.il') AND "mashgiachId" IS NULL;`,
     upsertSql('hechsherim', ['id', 'name', 'shortName', 'city', 'contact', 'phone', 'email', 'type', 'color', 'rabbanutId', 'updatedAt'], ['id'], withUpdatedAt(data.hechsherim, updatedAt)),
     upsertSql('mashgichim', ['id', 'name', 'phone', 'email', 'area', 'active', 'rabbanutId', 'updatedAt'], ['id'], withUpdatedAt(data.mashgichim, updatedAt)),
     // Refresh the hechsher links of only the imported mashgichim (scoped delete),
@@ -954,6 +990,32 @@ function buildImportSql(data: {
     'COMMIT;',
     '',
   ].filter(Boolean).join('\n')
+}
+
+/** scripts/import-kashrut-export.sh refuses an import.sql without this line. */
+const MASHGIACH_TENANCY_MARKER = '-- mashgiach-ids: per-rabbanut (split-migration clone ids)'
+
+// The export has no database to read the owner rabbanut of an existing
+// mashgiach id from; it assumes the first rabbanut in PDF order (the same
+// rule that produced the data). Abort instead of moving a profile to another
+// rabbanut or linking rows across rabbanuts if the target database disagrees.
+function mashgiachOwnerGuardSql(mashgichim: Array<Record<string, unknown>>) {
+  if (!mashgichim.length) return ''
+  const values = mashgichim.map(m => `(${sqlValue(m.id)}, ${sqlValue(m.rabbanutId)})`).join(',\n    ')
+  return [
+    'DO $$',
+    'BEGIN',
+    '  IF EXISTS (',
+    '    SELECT 1 FROM "mashgichim" AS m',
+    '    JOIN (VALUES',
+    `    ${values}`,
+    '    ) AS v("id", "rabbanutId") ON v."id" = m."id"',
+    '    WHERE m."rabbanutId" IS DISTINCT FROM v."rabbanutId"',
+    '  ) THEN',
+    "    RAISE EXCEPTION 'A mashgiach id in this export belongs to another rabbanut in the database. Run npm run import:pdf (it reads the owners from the database) instead.';",
+    '  END IF;',
+    'END $$;',
+  ].join('\n')
 }
 
 function withUpdatedAt(rows: Array<Record<string, unknown>>, updatedAt: string) {
@@ -1332,7 +1394,13 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(error)
-  process.exit(1)
-})
+// Exported for tests (src/__tests__/importPdfMashgichim.test.ts); the CLI only
+// runs when this file is executed directly (npm run import:pdf / export:pdf).
+export { ImportBuilder, buildImportSql, exportRows, loadIntoDatabase }
+
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error)
+    process.exit(1)
+  })
+}

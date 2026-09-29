@@ -28,6 +28,15 @@ if [ ! -f "$IMPORT_SQL" ]; then
   exit 1
 fi
 
+# Exports generated before per-rabbanut mashgiach ids (migrations
+# 20260714095000/20260714100000) link one mashgiach profile to restaurants of
+# several rabbanuts; the tenant triggers reject them, or they would undo the
+# split. Only replay an export that carries the marker line.
+if ! grep -q '^-- mashgiach-ids: per-rabbanut' "$IMPORT_SQL"; then
+  echo "$IMPORT_SQL predates per-rabbanut mashgiach ids. Regenerate it with npm run export:pdf from kasrut-api, or use npm run import:pdf." >&2
+  exit 1
+fi
+
 set -a
 . "./$ENV_FILE"
 set +a
