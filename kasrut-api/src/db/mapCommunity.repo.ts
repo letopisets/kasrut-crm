@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma'
 import { assertPlausibleCoordinates, looksLikeIsraeliAddress } from '../lib/geoValidation'
 import { geocodeAddressDetailed, isAddressLevel } from '../lib/nominatim'
 import { ForbiddenScopeError } from '../lib/rabbanutScope'
-import { publicRestaurantVisibilityWhere } from './map.repo'
+import { publicHechsherWhere, publicRabbanutWhere, publicRestaurantVisibilityWhere } from './map.repo'
 import type { FoodType, MapPasswordResetChannel, MapSuggestionType, MapSuggestionStatus } from '../models/types'
 import type {
   FoodType as PrismaFoodType,
@@ -230,22 +230,31 @@ function hechsherTypeFromText(value: string | null): 'Rabbanut' | 'Badatz' | 'Me
   return 'Private'
 }
 
+// Approving a suggestion must never certify a place through a withdrawn
+// authority: a soft-deleted or switched-off rabbanut, or a switched-off
+// hechsher, is hidden from the public map (map.repo publicRabbanutWhere /
+// publicHechsherWhere), and a place linked to one would silently vanish or,
+// worse, revive a withdrawn name. Resolution therefore only picks active,
+// non-deleted rows and refuses the approval (a 400 via the
+// 'Cannot approve suggestion' prefix) rather than falling back to one.
 async function resolveRabbanutId(
   tx: Prisma.TransactionClient,
   city: string,
   reviewerRabbanutId?: string | null,
 ): Promise<string> {
   if (reviewerRabbanutId) {
-    const reviewerRabbanut = await tx.rabbanut.findUnique({
-      where: { id: reviewerRabbanutId },
+    const reviewerRabbanut = await tx.rabbanut.findFirst({
+      where: { id: reviewerRabbanutId, ...publicRabbanutWhere() },
       select: { id: true },
     })
     if (reviewerRabbanut) return reviewerRabbanut.id
+    // A tenant reviewer never falls through to another tenant's rabbanut.
+    throw new Error('Cannot approve suggestion: your rabbanut is inactive or removed')
   }
 
   const cityRabbanut = await tx.rabbanut.findFirst({
     where: {
-      active: true,
+      ...publicRabbanutWhere(),
       city: { equals: city, mode: 'insensitive' },
     },
     select: { id: true },
@@ -254,19 +263,26 @@ async function resolveRabbanutId(
   if (cityRabbanut) return cityRabbanut.id
 
   const activeRabbanut = await tx.rabbanut.findFirst({
-    where: { active: true },
+    where: publicRabbanutWhere(),
     select: { id: true },
     orderBy: { name: 'asc' },
   })
   if (activeRabbanut) return activeRabbanut.id
 
-  const anyRabbanut = await tx.rabbanut.findFirst({
-    select: { id: true },
-    orderBy: { name: 'asc' },
-  })
-  if (anyRabbanut) return anyRabbanut.id
+  throw new Error('Cannot approve suggestion: no active rabbanut exists for the new restaurant')
+}
 
-  throw new Error('Cannot approve suggestion: no rabbanut exists for the new restaurant')
+function hechsherNameWhere(name: string): Prisma.HechsherWhereInput {
+  return {
+    OR: [
+      { name: { equals: name, mode: 'insensitive' } },
+      { shortName: { equals: name, mode: 'insensitive' } },
+    ],
+  }
+}
+
+function withdrawnHechsherError(name: string): Error {
+  return new Error(`Cannot approve suggestion: hechsher "${name}" is inactive or its rabbanut is withdrawn`)
 }
 
 async function resolveHechsher(
@@ -278,22 +294,32 @@ async function resolveHechsher(
     reviewerRabbanutId?: string | null
   },
 ): Promise<{ id: string; rabbanutId: string; type: string }> {
+  // Tenant reviewers must never resolve a same-named hechsher from a peer
+  // rabbanut and thereby move a restaurant across tenants.
+  const tenantScope: Prisma.HechsherWhereInput = input.reviewerRabbanutId
+    ? { rabbanutId: input.reviewerRabbanutId }
+    : {}
   const requestedName = input.name?.trim()
   if (requestedName) {
     const existing = await tx.hechsher.findFirst({
       where: {
-        // Tenant reviewers must never resolve a same-named hechsher from a
-        // peer rabbanut and thereby move a restaurant across tenants.
-        ...(input.reviewerRabbanutId ? { rabbanutId: input.reviewerRabbanutId } : {}),
-        OR: [
-          { name: { equals: requestedName, mode: 'insensitive' } },
-          { shortName: { equals: requestedName, mode: 'insensitive' } },
-        ],
+        ...tenantScope,
+        ...hechsherNameWhere(requestedName),
+        ...publicHechsherWhere(),
+        rabbanut: publicRabbanutWhere(),
       },
       select: { id: true, rabbanutId: true, type: true },
       orderBy: { name: 'asc' },
     })
     if (existing) return existing
+
+    // The name exists but is withdrawn: creating a fresh active copy would
+    // undo the operator's decision, so refuse instead.
+    const withdrawn = await tx.hechsher.findFirst({
+      where: { ...tenantScope, ...hechsherNameWhere(requestedName) },
+      select: { id: true },
+    })
+    if (withdrawn) throw withdrawnHechsherError(requestedName)
   }
 
   const rabbanutId = await resolveRabbanutId(tx, input.city, input.reviewerRabbanutId)
@@ -303,10 +329,13 @@ async function resolveHechsher(
       rabbanutId,
       name: { equals: fallbackName, mode: 'insensitive' },
     },
-    select: { id: true, rabbanutId: true, type: true },
-    orderBy: { name: 'asc' },
+    select: { id: true, rabbanutId: true, type: true, active: true },
+    orderBy: [{ active: 'desc' }, { name: 'asc' }],
   })
-  if (existingFallback) return existingFallback
+  if (existingFallback) {
+    if (!existingFallback.active) throw withdrawnHechsherError(fallbackName)
+    return { id: existingFallback.id, rabbanutId: existingFallback.rabbanutId, type: existingFallback.type }
+  }
 
   return tx.hechsher.create({
     data: {

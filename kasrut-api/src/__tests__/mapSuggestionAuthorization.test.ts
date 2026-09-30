@@ -226,3 +226,143 @@ describe('map suggestion moderation tenant authorization', () => {
     expect(tx.mapRestaurantSuggestion.create).not.toHaveBeenCalled()
   })
 })
+
+// Approval must never link a place to a withdrawn authority: a soft-deleted or
+// inactive rabbanut, or an inactive hechsher (all hidden from the public map).
+describe('map suggestion approval skips withdrawn rabbanuts and hechsherim', () => {
+  const ACTIVE_RABBANUT = { active: true, deletedAt: null }
+
+  function addSuggestion(overrides: Record<string, unknown> = {}) {
+    return updateSuggestion({
+      type: 'add',
+      restaurantId: null,
+      proposedName: 'Falafel',
+      proposedAddress: 'Herzl 1',
+      proposedCity: 'Haifa',
+      ...overrides,
+    })
+  }
+
+  const approveAsOwner = () => mapCommunityRepo.reviewSuggestion('s1', { status: 'approved', reviewerRole: 'owner' })
+
+  beforeEach(() => {
+    jest.resetAllMocks()
+    mockPrisma.$transaction.mockImplementation(
+      (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+    )
+    tx.kashrutLevel.findUnique.mockResolvedValue({ id: 'kl_regular' })
+    tx.restaurant.create.mockResolvedValue({ id: 'r_new' })
+    tx.mapRestaurantSuggestion.update.mockResolvedValue(addSuggestion({ status: 'approved' }))
+  })
+
+  it('resolves a named hechsher only among active hechsherim of active, non-deleted rabbanuts', async () => {
+    tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(addSuggestion({ proposedHechsher: 'Badatz X' }))
+    tx.hechsher.findFirst.mockResolvedValueOnce({ id: 'h_x', rabbanutId: 'rb_x', type: 'Badatz' })
+
+    await approveAsOwner()
+
+    expect(tx.hechsher.findFirst).toHaveBeenCalledTimes(1)
+    expect(tx.hechsher.findFirst.mock.calls[0][0].where).toMatchObject({
+      active: true,
+      rabbanut: ACTIVE_RABBANUT,
+    })
+    expect(tx.restaurant.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ hechsherId: 'h_x', rabbanutId: 'rb_x' }),
+    }))
+  })
+
+  it('refuses the approval when the named hechsher exists only withdrawn', async () => {
+    tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(addSuggestion({ proposedHechsher: 'Old Hechsher' }))
+    tx.hechsher.findFirst
+      .mockResolvedValueOnce(null)              // no active match
+      .mockResolvedValueOnce({ id: 'h_old' })   // but a withdrawn one by that name
+
+    await expect(approveAsOwner()).rejects.toThrow(
+      'Cannot approve suggestion: hechsher "Old Hechsher" is inactive or its rabbanut is withdrawn',
+    )
+    expect(tx.hechsher.create).not.toHaveBeenCalled()
+    expect(tx.restaurant.create).not.toHaveBeenCalled()
+    expect(tx.mapRestaurantSuggestion.update).not.toHaveBeenCalled()
+  })
+
+  it('picks the city rabbanut only when it is active and not deleted', async () => {
+    tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(addSuggestion({ proposedHechsher: 'New Hechsher' }))
+    tx.hechsher.findFirst.mockResolvedValue(null)
+    tx.rabbanut.findFirst.mockResolvedValueOnce({ id: 'rb_haifa' })
+    tx.hechsher.create.mockResolvedValue({ id: 'h_new', rabbanutId: 'rb_haifa', type: 'Private' })
+
+    await approveAsOwner()
+
+    expect(tx.rabbanut.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { ...ACTIVE_RABBANUT, city: { equals: 'Haifa', mode: 'insensitive' } },
+    }))
+    expect(tx.hechsher.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ name: 'New Hechsher', rabbanutId: 'rb_haifa' }),
+    }))
+  })
+
+  it('falls back to another active rabbanut, never to an inactive or deleted one', async () => {
+    tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(addSuggestion())
+    tx.hechsher.findFirst.mockResolvedValue(null)
+    tx.rabbanut.findFirst
+      .mockResolvedValueOnce(null)                 // none in the city
+      .mockResolvedValueOnce({ id: 'rb_other' })   // an active one elsewhere
+    tx.hechsher.create.mockResolvedValue({ id: 'h_new', rabbanutId: 'rb_other', type: 'Private' })
+
+    await approveAsOwner()
+
+    expect(tx.rabbanut.findFirst).toHaveBeenNthCalledWith(2, expect.objectContaining({ where: ACTIVE_RABBANUT }))
+  })
+
+  it('refuses the approval when no active rabbanut exists', async () => {
+    tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(addSuggestion())
+    tx.hechsher.findFirst.mockResolvedValue(null)
+    // Only withdrawn rabbanuts exist: every active lookup misses. The old
+    // code then took any rabbanut at all.
+    tx.rabbanut.findFirst.mockImplementation(async (args: { where?: Record<string, unknown> }) =>
+      args.where?.active === true ? null : { id: 'rb_withdrawn' })
+
+    await expect(approveAsOwner()).rejects.toThrow(
+      'Cannot approve suggestion: no active rabbanut exists for the new restaurant',
+    )
+    expect(tx.rabbanut.findFirst).toHaveBeenCalledTimes(2)
+    expect(tx.hechsher.create).not.toHaveBeenCalled()
+    expect(tx.restaurant.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses rather than reviving a withdrawn fallback hechsher', async () => {
+    tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(addSuggestion())
+    tx.rabbanut.findFirst.mockResolvedValueOnce({ id: 'rb_haifa' })
+    tx.hechsher.findFirst.mockResolvedValueOnce({
+      id: 'h_community', rabbanutId: 'rb_haifa', type: 'Private', active: false,
+    })
+
+    await expect(approveAsOwner()).rejects.toThrow(
+      'Cannot approve suggestion: hechsher "Community review Haifa" is inactive or its rabbanut is withdrawn',
+    )
+    expect(tx.hechsher.create).not.toHaveBeenCalled()
+  })
+
+  it('never moves a tenant reviewer to another rabbanut when its own is withdrawn', async () => {
+    tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(updateSuggestion({
+      proposedHechsher: 'Brand new',
+      proposedCity: 'Haifa',
+    }))
+    tx.restaurant.findUnique.mockResolvedValue({ rabbanutId: 'rb_mine' })
+    tx.hechsher.findFirst.mockResolvedValue(null)
+    tx.rabbanut.findFirst.mockResolvedValue(null)   // rb_mine is inactive or deleted
+
+    await expect(mapCommunityRepo.reviewSuggestion('s1', {
+      status: 'approved',
+      reviewerRole: 'rabbanut',
+      reviewerRabbanutId: 'rb_mine',
+    })).rejects.toThrow('Cannot approve suggestion: your rabbanut is inactive or removed')
+
+    expect(tx.rabbanut.findFirst).toHaveBeenCalledTimes(1)
+    expect(tx.rabbanut.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'rb_mine', ...ACTIVE_RABBANUT },
+    }))
+    expect(tx.hechsher.create).not.toHaveBeenCalled()
+    expect(tx.restaurant.update).not.toHaveBeenCalled()
+  })
+})

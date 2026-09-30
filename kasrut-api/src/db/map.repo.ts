@@ -138,13 +138,13 @@ function applyBounds(where: Prisma.RestaurantWhereInput, bounds: MapBounds): Pri
 
 // A rabbanut switched off or removed in the CRM takes its whole tenant off the
 // public surface: its certificates no longer vouch for anything.
-function publicRabbanutWhere(): Prisma.RabbanutWhereInput {
+export function publicRabbanutWhere(): Prisma.RabbanutWhereInput {
   return { active: true, deletedAt: null }
 }
 
 // Hechsherim have no soft-delete (removal is a hard delete, refused while
 // establishments still reference one), so `active` is their only switch.
-function publicHechsherWhere(): Prisma.HechsherWhereInput {
+export function publicHechsherWhere(): Prisma.HechsherWhereInput {
   return { active: true }
 }
 
