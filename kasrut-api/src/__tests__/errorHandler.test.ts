@@ -213,6 +213,51 @@ describe('errorHandler: foreign key violations', () => {
   })
 })
 
+// Shape of the http-errors that body-parser passes to next(): see
+// createError(...) in node_modules/body-parser/lib/read.js.
+function bodyParserError(status: number, type: string) {
+  return Object.assign(new Error('Unexpected token } in JSON at position 9'), {
+    status, statusCode: status, expose: status < 500, type, body: '{"a": 1,}',
+  })
+}
+
+describe('errorHandler: body-parser rejections', () => {
+  it('maps a malformed body to 400 without echoing the parser message', () => {
+    const res = run(bodyParserError(400, 'entity.parse.failed'))
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'Invalid request body' })
+    expect(res.locals.serviceErrorMessage).toBe('Request body rejected (entity.parse.failed) on PATCH /api/restaurants/r1')
+  })
+
+  it('maps an oversized body to 413 and an unsupported charset to 415', () => {
+    const tooLarge = run(bodyParserError(413, 'entity.too.large'))
+    expect(tooLarge.statusCode).toBe(413)
+    expect(tooLarge.body).toEqual({ error: 'Request body too large' })
+    expect(run(bodyParserError(415, 'charset.unsupported')).statusCode).toBe(415)
+  })
+
+  it('does not log them at error level', () => {
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined)
+    try {
+      run(bodyParserError(400, 'entity.parse.failed'))
+      expect(errorSpy).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('keeps 500 for server-side parser faults (expose: false)', () => {
+    const res = run(bodyParserError(500, 'stream.not.readable'))
+    expect(res.statusCode).toBe(500)
+    expect(res.body).toEqual({ error: 'Internal server error' })
+  })
+
+  it('ignores status-carrying errors without a body-parser type', () => {
+    const res = run(Object.assign(new Error('nope'), { status: 400, expose: true }))
+    expect(res.statusCode).toBe(500)
+  })
+})
+
 describe('errorHandler: everything else', () => {
   it('still returns 500 for other driver adapter errors', () => {
     const deadlock = new DriverAdapterError({ originalCode: '40P01', kind: 'postgres', code: '40P01', severity: 'ERROR', message: 'deadlock detected' })

@@ -173,8 +173,18 @@ function messageFor(req: Request, res: Response, entity: { entityType?: string; 
   return `${verb} ${target}`
 }
 
+// A client-supplied x-request-id is stored in service_logs and echoed back, so
+// only a conservative token shape (UUIDs, ULIDs, trace ids) is honoured.
+// Anything else (markup, oversized values, comma-joined repeated headers) gets
+// a fresh UUID.
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,64}$/
+
+export function resolveRequestId(supplied: string | undefined): string {
+  return supplied !== undefined && REQUEST_ID_PATTERN.test(supplied) ? supplied : randomUUID()
+}
+
 export function serviceLogger(req: Request, res: Response, next: NextFunction): void {
-  const requestId = req.header('x-request-id') || randomUUID()
+  const requestId = resolveRequestId(req.header('x-request-id'))
   const startedAt = Date.now()
   res.setHeader('x-request-id', requestId)
 

@@ -11,12 +11,19 @@ import { swaggerSpec } from './lib/swagger'
 import { logger } from './lib/logger'
 import { prisma } from './lib/prisma'
 import { redis } from './lib/redis'
+import { asyncHandler } from './lib/asyncHandler'
 
 export function createApp() {
   const app = express()
 
   // Required for accurate req.ip behind nginx / any reverse-proxy
   app.set('trust proxy', 1)
+
+  // Request id + service_logs audit hook. Mounted first so responses produced
+  // by the middleware below (CORS preflights, malformed or oversized bodies)
+  // also carry x-request-id. The audit row is written on 'finish', after the
+  // body has been parsed.
+  app.use(serviceLogger)
 
   // Security headers
   app.use(helmet())
@@ -44,10 +51,8 @@ export function createApp() {
     },
   }))
 
-  app.use(serviceLogger)
-
   // Liveness probe — checks DB + Redis so orchestrators get a real signal
-  app.get('/health', async (_req, res) => {
+  app.get('/health', asyncHandler(async (_req, res) => {
     const checks: Record<string, 'ok' | 'error'> = {}
     try {
       await prisma.$queryRaw`SELECT 1`
@@ -63,7 +68,7 @@ export function createApp() {
     }
     const healthy = checks.db === 'ok' && checks.redis === 'ok'
     res.status(healthy ? 200 : 503).json({ status: healthy ? 'ok' : 'degraded', checks })
-  })
+  }))
 
   // OpenAPI / Swagger UI — exposed in non-production only
   if (env.NODE_ENV !== 'production') {

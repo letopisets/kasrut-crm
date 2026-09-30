@@ -125,3 +125,61 @@ describe('serviceLogger platform filtering', () => {
     }))
   })
 })
+
+describe('serviceLogger x-request-id', () => {
+  const app = buildApp()
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockCreate.mockResolvedValue(undefined)
+  })
+
+  async function storedRequestId(header?: string): Promise<{ echoed: string; stored: unknown }> {
+    const req = request(app).post('/api/users').send({ name: 'New User' })
+    const res = await (header === undefined ? req : req.set('x-request-id', header))
+    await flushServiceLog()
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    return { echoed: res.headers['x-request-id'], stored: mockCreate.mock.calls[0][0].requestId }
+  }
+
+  it.each([
+    '3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e',
+    '01HZX3K7Q9M2V5N8P4R6T0W1Y3',
+    'trace.abc_123:span-9',
+    'a'.repeat(8),
+    'Z'.repeat(64),
+  ])('keeps a well-formed client id %s', async (id) => {
+    const { echoed, stored } = await storedRequestId(id)
+    expect(echoed).toBe(id)
+    expect(stored).toBe(id)
+  })
+
+  it.each([
+    ['too short', 'abc1234'],
+    ['too long', 'a'.repeat(65)],
+    ['markup', '<script>alert(1)</script>'],
+    ['spaces', 'request id 12345'],
+    ['a repeated header joined by Node', 'aaaaaaaa, bbbbbbbb'],
+    ['path characters', '../../etc/passwd'],
+    ['non-ASCII', 'requête-12345678'],
+    ['empty', ''],
+  ])('replaces a malformed client id (%s) with a UUID', async (_label, id) => {
+    const { echoed, stored } = await storedRequestId(id)
+    expect(echoed).toMatch(UUID_RE)
+    expect(echoed).not.toBe(id)
+    expect(stored).toBe(echoed)
+  })
+
+  it('generates a UUID when no id is supplied', async () => {
+    const { echoed, stored } = await storedRequestId()
+    expect(echoed).toMatch(UUID_RE)
+    expect(stored).toBe(echoed)
+  })
+
+  it('echoes the effective id on requests that are not logged', async () => {
+    const res = await request(app).get('/api/restaurants').set('x-request-id', 'bad id')
+    expect(res.headers['x-request-id']).toMatch(UUID_RE)
+    expect(mockCreate).not.toHaveBeenCalled()
+  })
+})
