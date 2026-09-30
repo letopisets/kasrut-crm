@@ -146,7 +146,11 @@ Translation files: `src/i18n/{en,ru,he}.ts`, type `Translations` in `src/i18n/ty
 | `/suggestions` | Suggestions | Owner, Rabbanut |
 | `/reviews` | Reviews (map review moderation) | Owner, Rabbanut |
 | `/logs` | Logs | Owner only |
-| `/login` | Login | Public |
+| `/login` | Login (password, then the 2FA code or a backup code) | Public |
+| `/setup-2fa` | SetupTwoFactor | Owner without 2FA (`REQUIRE_OWNER_2FA`); cannot be skipped |
+
+Every route renders inside `SessionGate`, which trades the httpOnly refresh
+cookie for an access token after a reload before anything else is shown.
 
 When adding a new route, update both `App.tsx` and `lib/permissions.ts`.
 
@@ -161,7 +165,7 @@ src/
 ├── controllers/           # use{Page}Controller — orchestration layer
 ├── components/
 │   ├── ui/                # atoms (Badge, Button, Input, Modal, Select)
-│   ├── layout/            # Header, Sidebar, AppLayout, ProtectedRoute, RoleBanner
+│   ├── layout/            # Header, Sidebar, AppLayout, ProtectedRoute, SessionGate
 │   ├── auth/              # 2FA UI
 │   ├── restaurants/, inspections/, mashgichim/, hechsherim/, dashboard/, documents/, rabbanuts/, users/
 ├── store/
