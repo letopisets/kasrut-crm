@@ -298,3 +298,45 @@ describe('MAP_PUBLIC_URL', () => {
     expect(new Set(error.issues.map(issue => issue.path.join('.')))).toEqual(new Set(['MAP_PUBLIC_URL']))
   })
 })
+
+// docker-compose.yml is what production actually runs: every optional
+// variable reaches the API as ${VAR:-default}, i.e. '' when the env file
+// leaves it out.
+describe('docker-compose.yml api environment', () => {
+  const compose = readFileSync(path.resolve(__dirname, '..', '..', '..', 'docker-compose.yml'), 'utf8')
+  const apiBlock = compose.slice(compose.indexOf('\n  api:'), compose.indexOf('\n  kasrut-map:'))
+  // KEY: ${KEY:-default} or ${KEY:?message}
+  const forwarded = new Map(
+    [...apiBlock.matchAll(/^ {6}([A-Z0-9_]+):\s+\$\{\1:([-?])([^}]*)\}\s*$/gm)]
+      .map(([, key, kind, rest]) => [key, kind === '-' ? rest : undefined] as const),
+  )
+
+  it.each([
+    ['ACCESS_TOKEN_TTL', ''], ['REFRESH_TOKEN_TTL_DAYS', ''], ['COOKIE_SECURE', ''],
+    ['REQUIRE_OWNER_2FA', 'true'],
+    ['SMTP_HOST', ''], ['SMTP_PORT', ''], ['SMTP_USER', ''], ['SMTP_PASS', ''],
+    ['MAP_EMAIL_VERIFICATION', ''], ['MAP_PUBLIC_URL', ''],
+  ])('forwards %s with default %j', (key, fallback) => {
+    expect(forwarded.has(key)).toBe(true)
+    expect(forwarded.get(key)).toBe(fallback)
+  })
+
+  it('no longer passes JWT_EXPIRES_IN', () => {
+    expect(apiBlock).not.toMatch(/^\s+JWT_EXPIRES_IN:/m)
+  })
+
+  it('starts on the intended production defaults when the env file sets none of them', () => {
+    const defaults = Object.fromEntries(
+      [...forwarded].filter((entry): entry is [string, string] => entry[1] !== undefined),
+    )
+    const env = parseEnv(productionEnv({ ...defaults, NODE_ENV: 'production' }))
+
+    expect(env.ACCESS_TOKEN_TTL_SECONDS).toBe(900)
+    expect(env.REFRESH_TOKEN_TTL_DAYS).toBe(30)
+    expect(env.COOKIE_SECURE).toBe(true)
+    expect(env.REQUIRE_OWNER_2FA).toBe(true)
+    expect(env.SMTP_CONFIGURED).toBe(false)
+    expect(env.MAP_EMAIL_VERIFICATION).toBe('off')
+    expect(env.MAP_PUBLIC_URL).toBe('https://mykoshermap.com')
+  })
+})

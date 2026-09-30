@@ -12,19 +12,35 @@ function escapeHtml(value: string): string {
   })
 }
 
-function createTransport() {
-  return nodemailer.createTransport({
-    host:   process.env.SMTP_HOST   ?? 'localhost',
-    port:   Number(process.env.SMTP_PORT ?? 587),
-    secure: process.env.SMTP_PORT === '465',
-    auth:   process.env.SMTP_USER
-      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-      : undefined,
+// docker-compose passes every optional SMTP_* variable as ${VAR:-}, so an
+// empty value must mean unset: '' would otherwise become port 0 and an empty
+// sender address.
+function smtpSetting(name: 'SMTP_HOST' | 'SMTP_PORT' | 'SMTP_USER'): string | undefined {
+  const value = process.env[name]?.trim()
+  return value ? value : undefined
+}
+
+function senderAddress(): string {
+  return smtpSetting('SMTP_USER') ?? 'noreply@kashrut.local'
+}
+
+export function smtpTransportOptions() {
+  const port = smtpSetting('SMTP_PORT') ?? '587'
+  const user = smtpSetting('SMTP_USER')
+  return {
+    host:   smtpSetting('SMTP_HOST') ?? 'localhost',
+    port:   Number(port),
+    secure: port === '465',
+    auth:   user ? { user, pass: process.env.SMTP_PASS ?? '' } : undefined,
     // No mail path in this application needs to read local files or fetch
     // remote content. Keep these disabled even if a future template changes.
     disableFileAccess: true,
     disableUrlAccess: true,
-  })
+  }
+}
+
+function createTransport() {
+  return nodemailer.createTransport(smtpTransportOptions())
 }
 
 export async function sendMapPasswordResetToken(payload: {
@@ -37,7 +53,7 @@ export async function sendMapPasswordResetToken(payload: {
   const token = escapeHtml(payload.token)
 
   await transporter.sendMail({
-    from: `"Kosher Map" <${process.env.SMTP_USER ?? 'noreply@kashrut.local'}>`,
+    from: `"Kosher Map" <${senderAddress()}>`,
     to: payload.recipientEmail,
     subject: 'Kosher Map password reset code',
     text: `Your Kosher Map password reset code is: ${payload.token}\n\nIt expires in 30 minutes. If you did not request this, ignore this message.`,
@@ -64,7 +80,7 @@ export async function sendMapEmailVerification(payload: {
   const notYours = 'If you did not create a Kosher Map account, do not confirm: someone else entered your address. Ignore this message and that account stays unconfirmed.'
 
   await transporter.sendMail({
-    from: `"Kosher Map" <${process.env.SMTP_USER ?? 'noreply@kashrut.local'}>`,
+    from: `"Kosher Map" <${senderAddress()}>`,
     to: payload.recipientEmail,
     subject: 'Confirm your Kosher Map email',
     text: `Someone registered a Kosher Map account with this email address. To confirm that it is yours, open this link and press "Confirm email":\n\n${payload.link}\n\nThe link expires in 24 hours. ${notYours}`,
@@ -114,7 +130,7 @@ export async function sendExpiryWarning(payload: ExpiryMailPayload): Promise<voi
   `
 
   await transporter.sendMail({
-    from:    `"KashrutCRM" <${process.env.SMTP_USER ?? 'noreply@kashrut.local'}>`,
+    from:    `"KashrutCRM" <${senderAddress()}>`,
     to:      payload.recipientEmail,
     subject,
     html,

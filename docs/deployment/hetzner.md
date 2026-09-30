@@ -87,12 +87,10 @@ an owner does, anyone who knows that owner's password can enrol their own
 authenticator on the account. Wrong codes on the setup screen count against
 the same per-account lockout as the 2FA sign-in step.
 
-The api service in `docker-compose.yml` has to forward the variable, or
-production always runs with the default `true` and setting it in `.env.hetzner`
-has no effect. Add it to that service's `environment` block as
+The api service in `docker-compose.yml` forwards the variable as
 `REQUIRE_OWNER_2FA: ${REQUIRE_OWNER_2FA:-true}` (an empty value also counts as
-unset, i.e. `true`). With that in place, setting `REQUIRE_OWNER_2FA=false` in
-`.env.hetzner` and recreating the api container
+unset, i.e. `true`). Setting `REQUIRE_OWNER_2FA=false` in `.env.hetzner` and
+recreating the api container
 (`docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d api`)
 is the rollback that needs no SQL.
 
@@ -126,14 +124,12 @@ it: on every page load and whenever the access token has expired.
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | Days a sign-in can be renewed (1 to 365). Renewing does not extend it: every session ends this long after the password (and 2FA) sign-in. |
 | `COOKIE_SECURE` | `true` (`false` when `NODE_ENV` is `development` or `test`) | `Secure` attribute of the refresh cookies. Keep it on in production. |
 
-`JWT_EXPIRES_IN` is no longer read. While it is set the API logs
-`JWT_EXPIRES_IN is set but ignored` once at startup. `docker-compose.yml`
-still passes `JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}` to the api service, so
-the warning appears until that line is removed. The service does not
-forward the three variables above yet, so production runs on the defaults,
-which are the intended production values. To change one, add it to the api
-`environment` block, for example
-`ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}` (an empty value counts as unset).
+The api service in `docker-compose.yml` forwards the three variables as
+`${VAR:-}`; left out of `.env.hetzner` (or empty) they take the defaults above,
+which are the intended production values. `JWT_EXPIRES_IN` is no longer read,
+and `docker-compose.yml` no longer passes it. If some other route still puts
+it in the api's environment, the API logs `JWT_EXPIRES_IN is set but ignored`
+once at startup and otherwise ignores it; delete it from `.env.hetzner`.
 
 The cookies are `kashrut_crm_rt` (path `/api/auth`, sent only to
 crm.mykoshermap.com) and `kashrut_map_rt` (path `/api/map-auth`, sent only to
@@ -147,7 +143,9 @@ exception is a token presented again within a minute of its own rotation,
 which is what a reload or a dropped connection in the middle of a refresh
 looks like: the chain is still revoked (that browser signs in again), but
 the account's other sessions stay. A new sign-in revokes the chain of the
-cookie it replaces. Expired rows are purged once a day by the API process.
+cookie it replaces. Expired rows are purged once a day by the API process,
+together with map email-verification and password-reset links that expired
+more than a day earlier (`lib/tokenPurge.ts`).
 
 The calls that set a refresh cookie without an access token (CRM login,
 2FA verify and verify-backup, map login, register, OAuth and password-reset
@@ -219,19 +217,12 @@ sends no email (the API logs `mail budget used up`), and "send again" answers
 hour per address; confirming a link shares the password-reset limit of 10 per
 hour per address.
 
-To turn it on, set the `SMTP_*` values in `.env.hetzner` and forward them from
-the api service in `docker-compose.yml`, which does not pass them yet:
-
-```yaml
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      MAP_EMAIL_VERIFICATION: ${MAP_EMAIL_VERIFICATION:-}
-      MAP_PUBLIC_URL: ${MAP_PUBLIC_URL:-}
-```
-
-Recreate the api container and check that the startup warning is gone.
+The api service in `docker-compose.yml` forwards `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASS`, `MAP_EMAIL_VERIFICATION` and `MAP_PUBLIC_URL` as
+`${VAR:-}`; an empty value means the default in the table above (an empty
+`SMTP_PORT` is 587). To turn verification on, set the `SMTP_*` values in
+`.env.hetzner`, recreate the api container and check that the startup warning
+is gone.
 `MAP_EMAIL_VERIFICATION=off` in `.env.hetzner` is the rollback. To verify one
 account by hand (for example when its mail never arrives):
 
@@ -327,9 +318,11 @@ $DC exec -T api node -e "fetch('http://127.0.0.1:3000/health').then(r=>r.text())
 If the api and redis disagree on the password (`WRONGPASS` or `NOAUTH`), fix it
 at once — it is a security incident, not a cold cache:
 
-- Logout revocation is off. The token blacklist lives in Redis and fails open,
-  so tokens that were logged out are accepted again, and logouts made meanwhile
-  are lost for the rest of the token lifetime (`JWT_EXPIRES_IN`, 7 days).
+- The token blacklist lives in Redis and fails open, so it stops catching
+  logged-out access tokens. Sign-out still bumps the account's `sessionVersion`
+  in Postgres, which the API checks on every request, so this is lost defence
+  in depth rather than an open door; an access token lives at most
+  `ACCESS_TOKEN_TTL` (15 minutes) anyway.
 - 2FA login is refused (the single-use challenge check fails closed), and rate
   limits fall back to per-process memory.
 - `/health` returns 503 with `"redis":"error"`, so the api turns (unhealthy) and

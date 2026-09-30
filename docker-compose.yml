@@ -57,8 +57,27 @@ services:
       REDIS_URL:       "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (openssl rand -hex 32)}@redis:6379"
       # :? — упадёт при старте если не задан
       JWT_SECRET:      ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
-      JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-7d}
       ENCRYPTION_KEY:  ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256)}
+      # Sessions (docs/deployment/hetzner.md#sessions-and-refresh-cookies). Empty
+      # means the API default: 15m access tokens, 30-day refresh sign-ins, Secure
+      # cookies outside development/test. JWT_EXPIRES_IN is no longer read and is
+      # deliberately not passed.
+      ACCESS_TOKEN_TTL:       ${ACCESS_TOKEN_TTL:-}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-}
+      COOKIE_SECURE:          ${COOKIE_SECURE:-}
+      # Mandatory 2FA for CRM owners; REQUIRE_OWNER_2FA=false in the env file is
+      # the rollback (hetzner.md#mandatory-2fa-for-crm-owners).
+      REQUIRE_OWNER_2FA:      ${REQUIRE_OWNER_2FA:-true}
+      # Mail server for map password resets, map email verification and CRM
+      # expiry notices. Without SMTP_HOST no mail can be delivered and map email
+      # verification defaults to off (hetzner.md#map-email-verification). Empty
+      # SMTP_PORT = 587.
+      SMTP_HOST:              ${SMTP_HOST:-}
+      SMTP_PORT:              ${SMTP_PORT:-}
+      SMTP_USER:              ${SMTP_USER:-}
+      SMTP_PASS:              ${SMTP_PASS:-}
+      MAP_EMAIL_VERIFICATION: ${MAP_EMAIL_VERIFICATION:-}
+      MAP_PUBLIC_URL:         ${MAP_PUBLIC_URL:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       APPLE_CLIENT_ID:  ${APPLE_CLIENT_ID:-}
       # Optional: LocationIQ geocoding (address→coords) — primary geocoder when set,
