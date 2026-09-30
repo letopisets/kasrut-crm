@@ -4,12 +4,18 @@ import { signCrmAccessToken } from '../lib/jwt'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { usersRepo } from '../db/users.repo'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
+import { invalidateMapCache } from '../lib/mapCache'
+import { invalidatePattern } from '../lib/cache'
 import type { User } from '../models/types'
 
 jest.mock('../lib/prisma', () => ({ prisma: {} }))
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('../lib/tokenBlacklist')
 jest.mock('../lib/mapCache', () => ({ invalidateMapCache: jest.fn(async () => undefined) }))
+jest.mock('../lib/cache', () => ({
+  ...jest.requireActual('../lib/cache'),
+  invalidatePattern: jest.fn(async () => undefined),
+}))
 jest.mock('../db/users.repo')
 jest.mock('../db/mapCommunity.repo')
 jest.mock('../db/serviceLogs.repo', () => ({ serviceLogsRepo: { create: jest.fn(async () => undefined) } }))
@@ -76,5 +82,31 @@ describe('map suggestion moderation: submitter email', () => {
     expect(review.status).toBe(200)
     expect(review.body.user).toEqual({ id: 'mu1', name: 'Dana' })
     expect(JSON.stringify([list.body, review.body])).not.toContain('dana@example.com')
+  })
+})
+
+describe('map suggestion moderation: caches', () => {
+  it('drops the CRM hechsher lists as well as the map cache on approval', async () => {
+    mockCommunity.reviewSuggestion.mockResolvedValue({ ...ROW, status: 'approved', reviewedAt: new Date() } as never)
+
+    const res = await request(app)
+      .post('/api/map/suggestions/s1/review')
+      .set('Authorization', `Bearer ${tokenFor(RABBANUT)}`)
+      .send({ status: 'approved' })
+
+    expect(res.status).toBe(200)
+    expect(invalidateMapCache).toHaveBeenCalledTimes(1)
+    expect(invalidatePattern).toHaveBeenCalledWith('hechsherim:*')
+  })
+
+  it('leaves the caches alone on rejection', async () => {
+    const res = await request(app)
+      .post('/api/map/suggestions/s1/review')
+      .set('Authorization', `Bearer ${tokenFor(RABBANUT)}`)
+      .send({ status: 'rejected' })
+
+    expect(res.status).toBe(200)
+    expect(invalidateMapCache).not.toHaveBeenCalled()
+    expect(invalidatePattern).not.toHaveBeenCalled()
   })
 })
