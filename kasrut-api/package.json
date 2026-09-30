@@ -26,7 +26,7 @@
     "express": "^4.21.1",
     "helmet": "^7.2.0",
     "ioredis": "^5.10.1",
-    "jose": "^6.2.2",
+    "jose": "^6.2.3",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.7",
