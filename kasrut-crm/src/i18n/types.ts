@@ -131,6 +131,21 @@ export interface Translations {
     count?: string
     upload?: string
     all?: string
+    uploadTitle: string
+    name: string
+    category: string
+    format: string
+    date: string
+    url: string
+    urlInvalid: string
+    scope: string
+    scopeGlobal: string
+    global: string
+    unknownScope: string
+    empty: string
+    delete: string
+    deleteConfirm: string
+    saveError: string
   }
   rabbanuts: {
     title: string

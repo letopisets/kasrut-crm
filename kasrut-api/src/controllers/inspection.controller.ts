@@ -3,7 +3,7 @@ import { serializeInspection, serializeInspections } from '../serializers/inspec
 import { validate } from '../lib/validate'
 import { createInspectionSchema, updateInspectionSchema, paginationSchema } from '../schemas'
 import { asyncHandler } from '../lib/asyncHandler'
-import { ForbiddenScopeError } from '../lib/rabbanutScope'
+import { ForbiddenScopeError, resolveScopeRabbanutId } from '../lib/rabbanutScope'
 
 // Resolve which rabbanutId an inspection write should be scoped to.
 // Inspection rows have no rabbanutId column themselves; ownership flows through
@@ -31,10 +31,10 @@ export const inspectionController = {
   list: asyncHandler(async (req, res) => {
     const q           = req.query as Record<string, string>
     const mashgiachId = req.user?.role === 'mashgiach' ? req.user.mashgiachId : q.mashgiachId
-    const rabbanutId  = req.user?.role === 'rabbanut' || req.user?.role === 'mashgiach'
-      ? req.user.rabbanutId
-      : undefined
-    if (req.user?.role === 'mashgiach' && (!mashgiachId || !rabbanutId)) {
+    // Owner: unscoped. Rabbanut/mashgiach: own tenant, or 403 when the account
+    // has none (an undefined rabbanutId would mean "no filter" to the repo).
+    const rabbanutId  = resolveScopeRabbanutId(req, undefined)
+    if (req.user?.role === 'mashgiach' && !mashgiachId) {
       throw new ForbiddenScopeError()
     }
     const pageInput   = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })

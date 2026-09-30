@@ -8,5 +8,18 @@ export interface KashrutDocument {
   date: string
   size: string
   ext: DocExt
+  url?: string | null
+  /** null / absent = global document (owner-managed, visible to every role). */
+  rabbanutId?: string | null
+}
+
+/** POST /documents body. The server pins rabbanut users to their own tenant;
+ *  only the owner sends `rabbanutId` (null = global). */
+export interface CreateDocumentInput {
+  name: string
+  category: DocumentCategory
+  date: string
+  ext: DocExt
   url?: string
+  rabbanutId?: string | null
 }

@@ -40,6 +40,15 @@ const mapReadRateLimit = rateLimit({
   max: 120,
   keyPrefix: 'map:read',
 })
+// Filter options, hechsher list and sitemap: one request per page load or
+// crawl and normally a cache hit, but each one queries Postgres while Redis
+// cannot be trusted with the map cache. A bucket of their own, so they never
+// eat into mapReadRateLimit.
+const mapMetaRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  keyPrefix: 'map:meta',
+})
 const communityWriteRateLimit = rateLimit({
   windowMs: 60 * 60_000,
   max: 20,
@@ -48,9 +57,9 @@ const communityWriteRateLimit = rateLimit({
 
 // Public — no auth required
 // GET /api/map/restaurants?city=ירושלים&hechsher=בד"ץ העדה החרדית&foodType=meat,dairy
-router.get('/sitemap.xml', mapController.getSitemap)
-router.get('/hechsherim', mapController.listHechsherim)
-router.get('/options', mapController.listOptions)
+router.get('/sitemap.xml', mapMetaRateLimit, mapController.getSitemap)
+router.get('/hechsherim', mapMetaRateLimit, mapController.listHechsherim)
+router.get('/options', mapMetaRateLimit, mapController.listOptions)
 router.get('/geo', mapController.getGeo)
 router.get('/geocode', geocodeRateLimit, mapController.getGeocode)
 router.get('/places', placesRateLimit, mapController.getPlaces)

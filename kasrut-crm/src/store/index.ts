@@ -5,6 +5,7 @@ import langReducer from './langSlice'
 import uiReducer from './uiSlice'
 import { baseApi } from './api/baseApi'
 import { rtkQueryErrorToast } from './errorMiddleware'
+import { resetApiOnSessionChange } from './sessionReset'
 
 export const store = configureStore({
   reducer: {
@@ -13,7 +14,7 @@ export const store = configureStore({
     ui:   uiReducer,
     [baseApi.reducerPath]: baseApi.reducer,
   },
-  middleware: (getDefault) => getDefault().concat(baseApi.middleware, rtkQueryErrorToast),
+  middleware: (getDefault) => getDefault().concat(baseApi.middleware, rtkQueryErrorToast, resetApiOnSessionChange),
 })
 
 export type RootState   = ReturnType<typeof store.getState>

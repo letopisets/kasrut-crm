@@ -5,20 +5,28 @@ import type { KashrutDocument as PrismaDoc } from '../generated/prisma/client'
 
 function toDocument(d: PrismaDoc): KashrutDocument {
   return {
-    id:       d.id,
-    name:     d.name,
-    category: d.category as DocumentCategory,
-    date:     d.date.toISOString().slice(0, 10),
-    size:     Number(d.size),  // BigInt → number for JSON serialisation
-    ext:      d.ext as DocExt,
-    url:      d.url ?? undefined,
+    id:         d.id,
+    name:       d.name,
+    category:   d.category as DocumentCategory,
+    date:       d.date.toISOString().slice(0, 10),
+    size:       Number(d.size),  // BigInt → number for JSON serialisation
+    ext:        d.ext as DocExt,
+    url:        d.url ?? undefined,
+    rabbanutId: d.rabbanutId,
   }
 }
 
 export const documentsRepo = {
-  async findAll(filter?: { category?: string }): Promise<KashrutDocument[]> {
+  /** `rabbanutId` narrows the list to global documents plus that tenant's own;
+   *  undefined (owner) returns every document. */
+  async findAll(filter?: { category?: DocumentCategory; rabbanutId?: string }): Promise<KashrutDocument[]> {
     const rows = await prisma.kashrutDocument.findMany({
-      where: filter?.category ? { category: filter.category as DocumentCategory } : undefined,
+      where: {
+        ...(filter?.category ? { category: filter.category } : {}),
+        ...(filter?.rabbanutId !== undefined
+          ? { OR: [{ rabbanutId: null }, { rabbanutId: filter.rabbanutId }] }
+          : {}),
+      },
       orderBy: { date: 'desc' },
     })
     return rows.map(toDocument)

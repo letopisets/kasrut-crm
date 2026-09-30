@@ -4,6 +4,8 @@ import { mapRepo } from '../db/map.repo'
 
 jest.mock('../lib/prisma')
 jest.mock('../db/map.repo')
+// Redis unreachable: every command fails, so each request reads the repo mock.
+jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('otplib', () => ({
   generateSecret: () => 'MOCKSECRET32',
   generateURI:    () => 'otpauth://totp/test',
@@ -58,10 +60,27 @@ describe('GET /api/map/prerender/:id', () => {
     expect(res.text).not.toContain('GeoCoordinates')
   })
 
-  it('404s (noindex) for a missing or hidden establishment', async () => {
+  it('404s (noindex, not publicly cacheable) for a missing or hidden establishment', async () => {
     mockMap.findById.mockResolvedValue(null)
     const res = await request(app).get('/api/map/prerender/nope')
     expect(res.status).toBe(404)
     expect(res.text).toContain('noindex')
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(mockMap.findById).toHaveBeenCalledWith('nope')
+  })
+
+  it('404s an id no establishment can have without querying', async () => {
+    const res = await request(app).get('/api/map/prerender/%3Cscript%3E')
+    expect(res.status).toBe(404)
+    expect(res.text).toContain('noindex')
+    expect(mockMap.findById).not.toHaveBeenCalled()
+  })
+
+  it('still serves from the database while Redis is unreachable', async () => {
+    mockMap.findById.mockResolvedValue(sampleRow())
+    await request(app).get('/api/map/prerender/r_abc').expect(200)
+    await request(app).get('/api/map/prerender/r_abc').expect(200)
+    // No generation to trust, so nothing is cached: every request reads the DB.
+    expect(mockMap.findById).toHaveBeenCalledTimes(2)
   })
 })

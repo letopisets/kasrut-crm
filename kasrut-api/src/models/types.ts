@@ -134,6 +134,7 @@ export interface KashrutDocument {
   size:     number   // bytes stored as BigInt in DB, serialised as number
   ext:      DocExt
   url?:     string
+  rabbanutId: string | null   // null = global (owner-managed, visible to every role)
 }
 
 // JWT payload stored in token

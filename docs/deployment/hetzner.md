@@ -40,6 +40,7 @@ cp .env.hetzner.example .env.hetzner
 Fill strong values for:
 
 - `POSTGRES_PASSWORD`
+- `REDIS_PASSWORD` — `openssl rand -hex 32` (see [Redis password](#redis-password))
 - `JWT_SECRET`
 - `CORS_ORIGINS`
 - `GOOGLE_CLIENT_ID`
@@ -66,6 +67,102 @@ docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.p
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
+## Redis password
+
+Redis holds the public-map cache, the rate-limit counters and short-lived auth
+state, so it requires a password even though its port is not published.
+`docker-compose.yml` starts `redis-server --requirepass "$REDIS_PASSWORD"` from
+the redis service's environment and gives the api
+`REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379`. While `REDIS_PASSWORD` is
+unset or empty, every compose command stops with
+`required variable REDIS_PASSWORD is missing a value`. The password is part of
+a URL, so generate it as hex — `@ : / # ?` would break `REDIS_URL`:
+
+```sh
+openssl rand -hex 32
+```
+
+The redis healthcheck passes only when an anonymous `PING` is refused with
+`NOAUTH` and the password gets `PONG`. A redis-server started without
+`--requirepass` (or with a different password) therefore stays unhealthy, and
+compose does not start the api, map, CRM or nginx behind it.
+
+**First deploy of this change on a running server** — add the password and
+check the merged config **before** deploying. Without the password
+`scripts/hetzner-deploy.sh` stops at the build step after the pull (the running
+containers are left as they were); with a local `docker-compose.prod.yml` that
+replaces the redis `command`, redis would come up unhealthy and take the site
+down with it:
+
+```sh
+cd /opt/kasrut
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
+# Generate the password once. sed drops an empty line copied from the template;
+# the leading \n keeps it off the previous line if the file lacks a final newline.
+if ! grep -q '^REDIS_PASSWORD=.' .env.hetzner; then
+  sed -i '/^REDIS_PASSWORD=/d' .env.hetzner
+  printf '\nREDIS_PASSWORD=%s\n' "$(openssl rand -hex 32)" >> .env.hetzner
+fi
+git pull --ff-only
+$DC config | grep -- '--requirepass'  # must print the redis command line
+sh scripts/hetzner-deploy.sh          # plain `up -d`: recreates redis and api together
+```
+
+If `config` prints nothing, the server's local `docker-compose.prod.yml`
+overrides the redis `command` and drops the password. Add
+`--requirepass "$$REDIS_PASSWORD"` to that override (`$$` leaves the variable to
+the container's shell; start through `docker-entrypoint.sh`, as
+`docker-compose.yml` does) before deploying.
+
+This deploy must recreate redis. Do not use a partial
+`up -d --no-deps api kasrut-map kasrut-crm` for it: the old redis container
+keeps running without a password (and with its old healthcheck), the new api
+authenticates against it anyway — ioredis only warns
+`This Redis server's default user does not require a password` — and nothing
+reports that Redis is still open. Redis writes its snapshot on stop and loads it
+on start, so cached data and counters survive the recreate.
+
+Verify on the running containers, not just the config:
+
+```sh
+$DC ps                                                                  # redis and api (healthy)
+$DC exec -T redis redis-cli ping                                        # NOAUTH Authentication required.
+$DC exec -T redis sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping'  # PONG
+$DC exec -T api node -e "fetch('http://127.0.0.1:3000/health').then(r=>r.text()).then(console.log)"  # "redis":"ok"
+```
+
+If the api and redis disagree on the password (`WRONGPASS` or `NOAUTH`), fix it
+at once — it is a security incident, not a cold cache:
+
+- Logout revocation is off. The token blacklist lives in Redis and fails open,
+  so tokens that were logged out are accepted again, and logouts made meanwhile
+  are lost for the rest of the token lifetime (`JWT_EXPIRES_IN`, 7 days).
+- 2FA login is refused (the single-use challenge check fails closed), and rate
+  limits fall back to per-process memory.
+- `/health` returns 503 with `"redis":"error"`, so the api turns (unhealthy) and
+  compose will not start the map, CRM or nginx that depend on it.
+
+Do not judge it by the api log: ioredis reconnects in a loop and logs
+`[Redis] connected` on every attempt (before the password is checked), while
+`[Redis] unavailable — running without cache: WRONGPASS …` appears only once
+per process. `/health` is the check.
+
+To rotate the password, change `REDIS_PASSWORD` in `.env.hetzner` and recreate
+both services together: `$DC up -d redis api`.
+
+Every `redis-cli` call needs the password. Take it from the container's own
+environment through `REDISCLI_AUTH`, which keeps it off the command line:
+`$DC exec -T redis sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli <command>'`.
+Without it redis-cli prints `NOAUTH Authentication required.` and still exits
+0, so scripts do not notice. For example, the old map-cache flush
+`redis-cli --scan --pattern 'map:*' | xargs -r redis-cli del` now deletes
+nothing. Bump `map:gen` instead (see [Public map cache](#public-map-cache)), or
+export the password for both calls:
+
+```sh
+$DC exec -T redis sh -c 'export REDISCLI_AUTH="$REDIS_PASSWORD"; redis-cli --scan --pattern "map:*" | xargs -r redis-cli del'
+```
+
 ## Production Kashrut Data Import
 
 The export in `docs/kashrut-export/import.sql` resets and reloads the kashrut
@@ -76,6 +173,19 @@ tables.
 
 ```sh
 sh scripts/import-kashrut-export.sh
+```
+
+## Public map cache
+
+The API caches public-map responses in Redis under `map:v<gen>:*` and
+invalidates them all by incrementing `map:gen` whenever the CRM changes
+something (ADR-0005). SQL run by hand, including the import above, bypasses
+that, and so does a re-geocode run whose own bump failed (it logs
+`cache generation bump failed`). The map then serves the old data for up to an
+hour. To drop it at once:
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml exec redis sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli INCR map:gen'
 ```
 
 ## GitHub Actions CD

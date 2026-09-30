@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isHttpsUrl } from '../lib/httpsUrl'
 
 // Shared primitives
 // IDs are Prisma cuids (@default(cuid())) plus custom seed ids like
@@ -175,13 +176,25 @@ export const updateMashgiachSchema  = createMashgiachSchema.partial()
 export const assignMashgiachSchema  = z.object({ restaurantId: id })
 
 // Document
+// Document links are rendered as clickable links in the CRM, so only absolute
+// https URLs are stored: javascript:/data: would run script in the CRM origin
+// and http: would open the file over plain text. z.string().url() accepted all
+// of them.
+const httpsUrl = z.string().trim().max(2048).refine(isHttpsUrl, 'URL must be an absolute https:// link')
+
 export const createDocumentSchema = z.object({
-  name:     z.string().min(1).max(500).trim(),
-  category: documentCategory,
-  date:     dateStr,
-  size:     z.coerce.number().int().nonnegative().default(0),
-  ext:      docExt,
-  url:      z.string().url().max(2000).optional(),
+  name:       z.string().min(1).max(500).trim(),
+  category:   documentCategory,
+  date:       dateStr,
+  size:       z.coerce.number().int().nonnegative().default(0),
+  ext:        docExt,
+  url:        httpsUrl.optional(),
+  // null / omitted = global (owner only); rabbanut users are pinned to their own.
+  rabbanutId: id.nullable().optional(),
+})
+
+export const listDocumentQuerySchema = z.object({
+  category: documentCategory.optional(),
 })
 
 // Restaurant list query

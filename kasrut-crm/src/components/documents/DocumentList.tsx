@@ -1,17 +1,22 @@
 import type { KashrutDocument } from '@/types'
 import { Badge } from '@/components/ui'
 import { DOCUMENT_CATEGORY_COLOR } from '@/lib/statusColor'
+import { httpsHref } from '@/lib/safeUrl'
+import { documentCategoryLabel } from '@/lib/documents'
+import { useLang } from '@/i18n/useLang'
 import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import DeleteIcon from '@mui/icons-material/Delete'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 
 interface Props {
-  documents: KashrutDocument[]
-  canEdit:   boolean
-  onDelete:  (id: string) => void
+  documents:  KashrutDocument[]
+  canDelete:  (d: KashrutDocument) => boolean
+  scopeLabel: (d: KashrutDocument) => string
+  onDelete:   (id: string) => void
 }
 
 const EXT_COLOR: Record<string, string> = {
@@ -20,11 +25,16 @@ const EXT_COLOR: Record<string, string> = {
   XLSX: '#2ECC71',
 }
 
-export function DocumentList({ documents, canEdit, onDelete }: Props) {
+const GLOBAL_COLOR = '#E8C96D'
+const TENANT_COLOR = '#9B8FD9'
+
+export function DocumentList({ documents, canDelete, scopeLabel, onDelete }: Props) {
+  const t = useLang()
+
   if (!documents.length) {
     return (
       <Typography sx={{ textAlign: 'center', py: 8, color: 'text.disabled', fontSize: 13 }}>
-        {'No documents'}
+        {t.documents.empty}
       </Typography>
     )
   }
@@ -32,7 +42,10 @@ export function DocumentList({ documents, canEdit, onDelete }: Props) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
       {documents.map(d => {
-        const ec = EXT_COLOR[d.ext] ?? '#888'
+        const ec   = EXT_COLOR[d.ext] ?? '#888'
+        // Only absolute https links are clickable; anything else (javascript:,
+        // data:, http:) stays plain text.
+        const href = httpsHref(d.url)
         return (
           <Box key={d.id} sx={{
             background: '#161929', border: '1px solid #252840', borderRadius: 2.5,
@@ -57,11 +70,33 @@ export function DocumentList({ documents, canEdit, onDelete }: Props) {
               </Typography>
             </Box>
 
-            <Badge label={d.category} color={DOCUMENT_CATEGORY_COLOR[d.category]} small />
+            <Badge label={scopeLabel(d)} color={d.rabbanutId ? TENANT_COLOR : GLOBAL_COLOR} small />
+            <Badge label={documentCategoryLabel(t, d.category)} color={DOCUMENT_CATEGORY_COLOR[d.category]} small />
 
-            {canEdit && (
-              <Tooltip title="Delete">
-                <IconButton size="small" onClick={() => onDelete(d.id)} sx={{ color: alpha('#E74C3C', 0.6), '&:hover': { color: '#E74C3C' }, flexShrink: 0 }}>
+            {href && (
+              <Tooltip title={t.documents.view}>
+                <IconButton
+                  size="small"
+                  component="a"
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={t.documents.view}
+                  sx={{ color: 'text.secondary', '&:hover': { color: GLOBAL_COLOR }, flexShrink: 0 }}
+                >
+                  <OpenInNewIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+
+            {canDelete(d) && (
+              <Tooltip title={t.documents.delete}>
+                <IconButton
+                  size="small"
+                  onClick={() => onDelete(d.id)}
+                  aria-label={t.documents.delete}
+                  sx={{ color: alpha('#E74C3C', 0.6), '&:hover': { color: '#E74C3C' }, flexShrink: 0 }}
+                >
                   <DeleteIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Tooltip>

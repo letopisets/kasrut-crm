@@ -1,12 +1,29 @@
+import type { Server } from 'http'
 import { createApp } from './app'
 import { env } from './config/env'
 import { serviceLogsRepo } from './db/serviceLogs.repo'
 import { logger } from './lib/logger'
+import { installProcessErrorHandlers } from './lib/processErrorHandlers'
 import './jobs/expiryNotifier'
+
+// Assigned once listening. The handlers are installed before that so they also
+// cover startup; stopAccepting does nothing until the server exists.
+let server: Server | undefined
+
+// Log stray promise rejections and keep serving; on an uncaught exception log,
+// stop accepting connections, flush the buffered service logs and exit(1) so
+// Docker restarts the API. nginx opens a new upstream connection per request,
+// so closing the listener stops new requests from reaching this process.
+installProcessErrorHandlers({
+  logger,
+  stopAccepting: () => { server?.close() },
+  flush: () => serviceLogsRepo.flush(),
+  exit: code => process.exit(code),
+})
 
 const app = createApp()
 
-const server = app.listen(env.PORT, () => {
+server = app.listen(env.PORT, () => {
   console.log(`KashrutCRM API running on http://localhost:${env.PORT}`)
   console.log(`Health: http://localhost:${env.PORT}/health`)
 })
@@ -29,7 +46,7 @@ if (typeof rotationTimer.unref === 'function') rotationTimer.unref()
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   logger.info({ signal }, 'shutting down')
-  server.close()
+  server?.close()
   // Flush any buffered service-log rows before the process exits — otherwise
   // we'd lose the last batch under SIGTERM rolling deploys.
   try { await serviceLogsRepo.flush() } catch { /* already logged */ }

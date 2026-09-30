@@ -38,7 +38,8 @@ export const mapRouteController = {
 
     const { fromLat, fromLng, toLat, toLng } = parsed.data
     const r = (v: number) => Math.round(v * 1_000) / 1_000
-    const cacheKey = `map:route:foot:${r(fromLat)},${r(fromLng)}=>${r(toLat)},${r(toLng)}`
+    // Deliberately outside `map:*`: routes don't depend on CRM data (see lib/mapCache).
+    const cacheKey = `route:foot:${r(fromLat)},${r(fromLng)}=>${r(toLat)},${r(toLng)}`
 
     try {
       const data = await withCache(cacheKey, ROUTE_CACHE_TTL, async () => {

@@ -101,11 +101,21 @@ jobs:
       - name: Validate production compose
         env:
           POSTGRES_PASSWORD: ci-postgres-password
+          REDIS_PASSWORD: ci-redis-password
           JWT_SECRET: ci-jwt-secret-must-be-at-least-32-chars
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           CORS_ORIGINS: https://mykoshermap.com,https://crm.mykoshermap.com,https://api.mykoshermap.com
           VITE_APPLE_REDIRECT_URI: https://mykoshermap.com/
-        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config > /dev/null
+        run: |
+          # Valid config whose redis requires a password and whose api carries it
+          # in REDIS_URL, and compose refuses to run without one.
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config > "$RUNNER_TEMP/compose.yml"
+          grep -q -- '--requirepass' "$RUNNER_TEMP/compose.yml"
+          grep -q 'REDIS_URL: redis://:ci-redis-password@redis:6379$' "$RUNNER_TEMP/compose.yml"
+          if REDIS_PASSWORD= docker compose -f docker-compose.yml -f docker-compose.prod.yml config > /dev/null 2>&1; then
+            echo "::error::docker compose accepted an empty REDIS_PASSWORD"
+            exit 1
+          fi
 
       - name: Build API image
         run: docker build -f kasrut-api/Dockerfile .

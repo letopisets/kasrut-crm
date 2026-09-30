@@ -21,12 +21,25 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # The password reaches redis-server through this environment, never through
+    # the file. It is also embedded in the api's REDIS_URL, so it must be
+    # URL-safe: generate it with `openssl rand -hex 32`.
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (openssl rand -hex 32)}
+    # sh expands $$REDIS_PASSWORD inside the container; going back through
+    # docker-entrypoint.sh keeps the image's switch from root to the redis user.
+    command: ["sh", "-c", "exec docker-entrypoint.sh redis-server --requirepass \"$$REDIS_PASSWORD\""]
     # ports:
     #   - "${REDIS_PORT:-6380}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # Healthy only when an anonymous PING is refused (NOAUTH) and the password
+      # gets PONG: a redis-server started without --requirepass stays unhealthy
+      # and holds back the api. redis-cli exits 0 on error replies, hence grep.
+      # REDISCLI_AUTH keeps the password out of the process arguments (-a would
+      # show it in ps on the host).
+      test: ["CMD-SHELL", "redis-cli ping 2>&1 | grep -q NOAUTH && REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli --no-auth-warning ping | grep -q PONG"]
       interval: 10s
       timeout:  5s
       retries:  10
@@ -41,7 +54,7 @@ services:
       PORT:            3000
       API_PUBLIC_URL:  ${API_PUBLIC_URL:-http://localhost:8080/api}
       DATABASE_URL:    "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-kashrutcrm_db}?schema=public&connection_limit=${DB_CONNECTION_LIMIT:-10}&pool_timeout=10"
-      REDIS_URL:       redis://redis:6379
+      REDIS_URL:       "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env (openssl rand -hex 32)}@redis:6379"
       # :? — упадёт при старте если не задан
       JWT_SECRET:      ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
       JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-7d}

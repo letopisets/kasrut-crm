@@ -135,6 +135,7 @@ model Rabbanut {
   hechsherim   Hechsher[]
   mashgichim   Mashgiach[]
   restaurants  Restaurant[]
+  documents    KashrutDocument[]
   settlement   Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
 
   @@index([deletedAt])
@@ -292,16 +293,22 @@ model Inspection {
 }
 
 model KashrutDocument {
-  id        String           @id @default(cuid())
-  name      String
-  category  DocumentCategory
-  date      DateTime
-  size      BigInt           @default(0)
-  ext       DocExt
-  url       String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id         String           @id @default(cuid())
+  name       String
+  category   DocumentCategory
+  date       DateTime
+  size       BigInt           @default(0)
+  ext        DocExt
+  url        String?
+  // NULL = global document (owner-managed, visible to every CRM role);
+  // otherwise the document belongs to that rabbanut only.
+  rabbanutId String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 
+  rabbanut   Rabbanut?        @relation(fields: [rabbanutId], references: [id], onDelete: Cascade)
+
+  @@index([rabbanutId])
   @@map("documents")
 }
 

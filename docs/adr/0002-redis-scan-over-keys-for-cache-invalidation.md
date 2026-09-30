@@ -1,7 +1,7 @@
 # ADR-0002: SCAN instead of KEYS for Redis cache invalidation
 
 **Date:** 2025-11-15  
-**Status:** Accepted
+**Status:** Accepted; for the public map namespace superseded by ADR-0005
 
 ## Context
 

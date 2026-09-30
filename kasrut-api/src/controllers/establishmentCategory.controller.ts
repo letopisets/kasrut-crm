@@ -1,9 +1,9 @@
-import type { Request, Response } from 'express'
 import { establishmentCategoriesRepo } from '../db/establishmentCategories.repo'
+import { asyncHandler } from '../lib/asyncHandler'
 
 export const establishmentCategoryController = {
-  async list(_req: Request, res: Response) {
+  list: asyncHandler(async (_req, res) => {
     const categories = await establishmentCategoriesRepo.findAll()
     res.json(categories)
-  },
+  }),
 }

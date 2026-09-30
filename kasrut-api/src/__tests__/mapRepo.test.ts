@@ -63,4 +63,45 @@ describe('publicRestaurantVisibilityWhere (shared with community surface)', () =
     expect(where.deletedAt).toBeNull()
     expect(where.expires).toEqual({ gte: expect.any(Date) })
   })
+
+  it('hides establishments of an inactive or deleted rabbanut', () => {
+    const where = publicRestaurantVisibilityWhere() as Record<string, unknown>
+    expect(where.rabbanut).toEqual({ active: true, deletedAt: null })
+  })
+
+  it('hides establishments certified by an inactive hechsher', () => {
+    const where = publicRestaurantVisibilityWhere() as Record<string, unknown>
+    expect(where.hechsher).toEqual({ active: true })
+  })
+})
+
+describe('buildMapWhere tenant / hechsher visibility', () => {
+  it('carries the rabbanut and hechsher predicates without filters', () => {
+    const where = buildMapWhere({ limit: 750 }) as Record<string, unknown>
+    expect(where.rabbanut).toEqual({ active: true, deletedAt: null })
+    expect(where.hechsher).toEqual({ active: true })
+  })
+
+  it('merges a hechsher-name filter into the active-hechsher clause', () => {
+    const where = buildMapWhere({ limit: 750, hechsher: ['Badatz X'] }) as Record<string, unknown>
+    expect(where.hechsher).toEqual({ active: true, name: { in: ['Badatz X'] } })
+    expect(where.rabbanut).toEqual({ active: true, deletedAt: null })
+  })
+
+  it('merges a kashrut-level filter into the active-hechsher clause', () => {
+    const where = buildMapWhere({ limit: 750, kashrutLevel: ['badatz'] }) as Record<string, unknown>
+    expect(where.hechsher).toEqual({ active: true, type: { in: ['Badatz'] } })
+  })
+
+  it('keeps both predicates under bounds and search wrappers', () => {
+    const where = buildMapWhere({
+      limit: 750,
+      hechsher: ['Badatz X'],
+      bounds: { north: 33, south: 32, east: 35, west: 34 },
+      q: 'pizza',
+    }) as { AND: Array<{ AND?: Array<Record<string, unknown>> }> }
+    const base = where.AND[0].AND![0]
+    expect(base.rabbanut).toEqual({ active: true, deletedAt: null })
+    expect(base.hechsher).toEqual({ active: true, name: { in: ['Badatz X'] } })
+  })
 })

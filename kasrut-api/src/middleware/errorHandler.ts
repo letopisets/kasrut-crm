@@ -100,6 +100,25 @@ export function isTenantInvariantViolation(info: PostgresErrorInfo | undefined):
     && TENANT_TRIGGER_MESSAGE.test(info.message)
 }
 
+interface BodyParserClientError {
+  status: number
+  type: string
+}
+
+// express.json() / express.urlencoded() (body-parser) reject malformed,
+// oversized or unsupported bodies with an http-errors 4xx that carries a
+// `type` ('entity.parse.failed', 'entity.too.large', 'charset.unsupported',
+// ...) and `expose: true`. That is a client error, not a server fault.
+function isBodyParserClientError(err: unknown): err is BodyParserClientError {
+  if (typeof err !== 'object' || err === null) return false
+  const candidate = err as { status?: unknown; type?: unknown; expose?: unknown }
+  return typeof candidate.type === 'string'
+    && candidate.expose === true
+    && typeof candidate.status === 'number'
+    && candidate.status >= 400
+    && candidate.status < 500
+}
+
 export function errorHandler(
   err: unknown,
   req: Request,
@@ -119,6 +138,13 @@ export function errorHandler(
   if (err instanceof ForbiddenScopeError) {
     res.locals.serviceErrorMessage = `Cross-rabbanut access denied on ${req.method} ${req.path}`
     res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
+  // The parser's own message (e.g. the JSON syntax error) is not echoed.
+  if (isBodyParserClientError(err)) {
+    res.locals.serviceErrorMessage = `Request body rejected (${err.type}) on ${req.method} ${req.path}`
+    res.status(err.status).json({ error: err.status === 413 ? 'Request body too large' : 'Invalid request body' })
     return
   }
 
