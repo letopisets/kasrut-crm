@@ -57,7 +57,16 @@ openssl rand -hex 32   # ENCRYPTION_KEY (exactly 64 hex characters)
 
 The API refuses to start when either one is a template placeholder or has an
 obvious pattern (for example `0123456789abcdef…`). Every JWT signing key is
-derived from `JWT_SECRET`, so changing it signs every CRM and map user out.
+derived from `JWT_SECRET`, one per purpose (CRM access, map access, pending
+2FA sign-in; see [ADR 0006](../adr/0006-per-purpose-jwt-keys.md)). Changing it
+does **not** sign anyone out: it invalidates only the outstanding access
+tokens (at most `ACCESS_TOKEN_TTL`, 15 minutes) and 2FA sign-ins in progress,
+and the CRM and the map renew silently through their refresh cookies, which
+do not depend on it. Rotate it when the secret itself may have leaked (forged
+tokens stop verifying). To end sessions, for example after stolen cookies or
+tokens, bump `sessionVersion` instead (see
+[Sessions and refresh cookies](#sessions-and-refresh-cookies)); after a leak
+of the whole `.env.hetzner`, do both.
 `ENCRYPTION_KEY` encrypts CRM users' TOTP secrets: rotating it breaks 2FA for
 any user who has it enabled, so they must set 2FA up again.
 
@@ -101,6 +110,10 @@ recreating the api container
 (`docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d api`)
 is the rollback that needs no SQL.
 
+A backup code is entered at the CRM sign-in's 2FA step ("Use a backup code").
+Each works once; spaces, dashes and letter case do not matter, and the CRM
+says how many codes are left after one is used.
+
 While the flag is on, an owner who already has 2FA cannot move it to a new
 authenticator or get new backup codes: setup refuses while 2FA is on, and
 switching it off is refused for owners (the CRM says so). The only way is the
@@ -118,6 +131,51 @@ UPDATE users SET "twoFactorEnabled" = false, "twoFactorSecret" = NULL,
 WHERE email = '<owner email, lowercase>';
 SQL
 ```
+
+### Login lockout
+
+Failed sign-ins are counted per account, whatever address they come from
+(`src/lib/loginThrottle.ts`). The first 5 failures are free; each further one
+locks the account for 1, 5, 15 and then 60 minutes (60 at most). The count is
+forgotten 24 hours after the latest failure and cleared by a successful
+sign-in. An unknown email is counted like a real one, so a lock says nothing
+about whether an account exists. While an account is locked, the credential
+is not checked at all and the API answers `429 {"error":"Too many attempts.
+Try again later."}` with `Retry-After` (seconds); the CRM and the map show a
+translated "too many attempts" message.
+
+| Scope | Identifier | Covers |
+| --- | --- | --- |
+| `crm` | CRM email | CRM password sign-in; the password re-check of `/api/auth/2fa/setup` |
+| `crm-2fa` | CRM user id | `/api/auth/2fa/verify`, `verify-backup`, `enable` and `disable` |
+| `map` | map email | map password sign-in (a completed map password reset lifts it) |
+
+The counters live in Redis (`login:fail:<scope>:<sha256 of the identifier>`).
+While Redis is down or not answering (each command gives up after 500 ms),
+every api process counts in memory instead and carries those failures into
+Redis once it is back; a lock taken in Redis still holds meanwhile.
+
+Known weakness, accepted for now: anyone who knows an account's email can keep
+it locked with about one failed attempt per lock period (one an hour once
+escalated), from any number of addresses. 2FA does not help, because the lock
+is checked before the password. Both production owners are exposed. To lift
+a lock, copy the unlock script into the running api container and name the
+scope and identifier:
+
+```sh
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
+docker cp kasrut-api/scripts/unlock-login-runtime.cjs "$($DC ps -q api)":/app/kasrut-api/unlock-login-runtime.cjs
+$DC exec -T api node unlock-login-runtime.cjs crm owner@example.com   # password step
+$DC exec -T api node unlock-login-runtime.cjs crm-2fa <CRM user id>   # 2FA step
+$DC exec -T api node unlock-login-runtime.cjs map user@example.com    # map sign-in
+```
+
+A CRM user id comes from
+`$DC exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, email FROM users"'`.
+The script clears only Redis: if Redis was unavailable while the failures
+were counted, also restart the api (`$DC restart api`) to drop its in-memory
+counts. The script copy is lost when the container is recreated, which is
+fine; copy it again when needed.
 
 ### Sessions and refresh cookies
 
@@ -359,6 +417,10 @@ at once — it is a security incident, not a cold cache:
   `ACCESS_TOKEN_TTL` (15 minutes) anyway.
 - Rate limits and the per-account login lockout fall back to per-process
   memory. 2FA sign-in keeps working: its single-use checks are in Postgres.
+- A Redis that accepts connections but stops answering (a paused container,
+  a stalled fork) is treated the same way: every Redis command gives up after
+  500 ms (`REDIS_COMMAND_TIMEOUT_MS` in `src/lib/redis.ts`) and the fallbacks
+  above take over, so requests slow down by that much instead of hanging.
 - `/health` returns 503 with `"redis":"error"`, so the api turns (unhealthy) and
   compose will not start the map, CRM or nginx that depend on it.
 

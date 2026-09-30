@@ -8,8 +8,9 @@
 //   docker compose ... exec -T api node unlock-login-runtime.cjs crm owner@example.com
 //
 // Scopes: crm (CRM password step, and the /2fa/setup password re-check) and
-// map (map password login) take the account email; crm-2fa (CRM 2FA step and
-// /2fa/disable) takes the CRM user id. Only Redis is cleared: failures the API
+// map (map password login) take the account email; crm-2fa (the CRM 2FA step:
+// /2fa/verify, /2fa/verify-backup, /2fa/enable and /2fa/disable) takes the CRM
+// user id. See docs/deployment/hetzner.md#login-lockout. Only Redis is cleared: failures the API
 // counted in its in-process fallback store while Redis was down are carried
 // into Redis on the next attempt, so if Redis was unavailable during the
 // attack, restart the api container as well.
