@@ -16,6 +16,7 @@ import {
   REUSE_GRACE_MS,
   issueRefreshToken,
   readCookie,
+  readCookies,
   revokeRefreshFamily,
   rotateRefreshToken,
 } from '../lib/refreshTokens'
@@ -317,6 +318,146 @@ describe('readCookie', () => {
     [undefined, null],
   ])('%p → %p', (header, expected) => {
     expect(readCookie(header, 'kashrut_crm_rt')).toBe(expected)
+  })
+
+  it('readCookies returns every value in the order sent', () => {
+    expect(readCookies('kashrut_crm_rt=a; x=1; kashrut_crm_rt=b; kashrut_crm_rt=%E0%A4%A', 'kashrut_crm_rt'))
+      .toEqual(['a', 'b', null])
+    expect(readCookies('x=1', 'kashrut_crm_rt')).toEqual([])
+    expect(readCookies(undefined, 'kashrut_crm_rt')).toEqual([])
+  })
+})
+
+// ── Cookies planted by another host ────────────────────────────────────────
+// The refresh cookies are host-only, but a page on mykoshermap.com (the map)
+// or on another *.mykoshermap.com site can set one of the same name for
+// Domain=mykoshermap.com, which the browser also sends to crm.mykoshermap.com,
+// longer Path first. With two, the API cannot tell which is the browser's own.
+describe('more than one refresh cookie', () => {
+  const CRM_HOST = 'crm.mykoshermap.com'
+
+  function setCookieLines(res: request.Response): string[] {
+    return (res.headers['set-cookie'] as unknown as string[] | undefined) ?? []
+  }
+
+  async function plantedCrmToken(): Promise<string> {
+    // The attacker's own CRM account.
+    fakeDb.sessionVersions.user.set('u_attacker', 0)
+    return issueRefreshToken({ audience: 'crm', ownerId: 'u_attacker', sessionVersion: 0, userAgent: null })
+  }
+
+  it('refuses a refresh, revokes every presented family and clears the planted copies', async () => {
+    const victim = await crmSession()
+    const planted = await plantedCrmToken()
+    const warn = jest.spyOn(logger, 'warn')
+
+    const res = await request(app).post('/api/auth/refresh').set('X-Forwarded-For', nextIp())
+      .set('Host', CRM_HOST).set('X-Requested-With', 'kashrut')
+      .set('Cookie', `${CRM_COOKIE}=${planted}; ${CRM_COOKIE}=${victim.refresh}`)
+    const warnings = [...warn.mock.calls]
+    warn.mockRestore()
+
+    expect(res.status).toBe(401)
+    // Neither was rotated: the victim's tab does not switch accounts.
+    expect(rowFor(planted)).toMatchObject({ usedAt: null, revokedAt: expect.any(Date) })
+    expect(rowFor(victim.refresh)).toMatchObject({ usedAt: null, revokedAt: expect.any(Date) })
+    expect(crmVersion()).toBe(0)
+    const lines = setCookieLines(res)
+    // The host-only cookie, and the copies a parent or sibling host could set.
+    expect(lines).toContain(`${CRM_COOKIE}=; Path=/api/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict`)
+    for (const path of ['/', '/api', '/api/auth', '/api/auth/refresh']) {
+      expect(lines).toEqual(expect.arrayContaining([
+        expect.stringMatching(new RegExp(`^${CRM_COOKIE}=; Domain=mykoshermap\\.com; Path=${path.replace(/\//g, '\\/')}; Expires=Thu, 01 Jan 1970`)),
+      ]))
+    }
+    expect(lines.every(line => line.startsWith(`${CRM_COOKIE}=;`))).toBe(true)
+    // nginx refuses upstream headers past proxy_buffer_size (4 KB by default).
+    const headerBytes = Object.entries(res.headers)
+      .flatMap(([name, value]) => (Array.isArray(value) ? value : [String(value)]).map(v => `${name}: ${v}\r\n`))
+      .join('').length
+    expect(headerBytes).toBeLessThan(3_500)
+    // No account can be named for the service log; the api log carries both.
+    expect(warnings).toContainEqual([
+      { audience: 'crm', cookies: 2, ownerIds: ['u_attacker', crmUser.id], path: '/api/auth/refresh' },
+      'More than one refresh cookie presented (one may be planted by another host); every presented family revoked',
+    ])
+  })
+
+  it('clears only the own cookie when just one was presented', async () => {
+    const { refresh } = await crmSession()
+    rowFor(refresh)!.expiresAt = new Date(Date.now() - 1000)
+
+    const res = await crmRefresh(refresh).set('Host', CRM_HOST)
+
+    expect(res.status).toBe(401)
+    expect(setCookieLines(res)).toHaveLength(1)
+    expectCleared(res, CRM_COOKIE, '/api/auth')
+  })
+
+  it('makes a cookie-only logout revoke every presented family and end no account\'s sessions', async () => {
+    const victim = await crmSession()
+    const planted = await plantedCrmToken()
+
+    const res = await request(app).post('/api/auth/logout').set('X-Forwarded-For', nextIp())
+      .set('Host', CRM_HOST).set('X-Requested-With', 'kashrut')
+      .set('Cookie', `${CRM_COOKIE}=${planted}; ${CRM_COOKIE}=${victim.refresh}`)
+
+    expect(res.status).toBe(204)
+    expect(rowFor(victim.refresh)!.revokedAt).toBeInstanceOf(Date)
+    expect(rowFor(planted)!.revokedAt).toBeInstanceOf(Date)
+    expect(crmVersion()).toBe(0)
+    expect(fakeDb.sessionVersions.user.get('u_attacker')).toBe(0)
+    expect(setCookieLines(res).some(line => line.includes('Domain=mykoshermap.com; Path=/api/auth/logout;'))).toBe(true)
+    expect(serviceLogMessages()).toContain(
+      'CRM logout (refresh cookie): more than one refresh cookie presented; their families revoked and the cookies cleared',
+    )
+  })
+
+  it('makes a sign-in revoke every presented family and replace the planted copies with its own cookie', async () => {
+    const earlier = await crmSession()
+    const planted = await plantedCrmToken()
+
+    const res = await crmLogin().set('Host', CRM_HOST)
+      .set('Cookie', `${CRM_COOKIE}=${planted}; ${CRM_COOKIE}=${earlier.refresh}`)
+
+    expect(res.status).toBe(200)
+    expect(rowFor(planted)!.revokedAt).toBeInstanceOf(Date)
+    expect(rowFor(earlier.refresh)!.revokedAt).toBeInstanceOf(Date)
+    const lines = setCookieLines(res)
+    expect(lines.some(line => line.includes('Domain=mykoshermap.com; Path=/api/auth;'))).toBe(true)
+    // The new session's cookie comes last, so no clear overrides it.
+    const fresh = setCookie(res, CRM_COOKIE)
+    expect(lines[lines.length - 1]).toMatch(new RegExp(`^${CRM_COOKIE}=[A-Za-z0-9_-]{43}; Max-Age=`))
+    expect(fresh).not.toBeNull()
+    expect((await crmRefresh(lines[lines.length - 1].split(';')[0].slice(CRM_COOKIE.length + 1))).status).toBe(200)
+  })
+
+  it('makes a sign-out with an access token revoke the account\'s own families only', async () => {
+    const victim = await crmSession()
+    const planted = await plantedCrmToken()
+
+    const res = await request(app).post('/api/auth/logout').set('X-Forwarded-For', nextIp())
+      .set('Host', CRM_HOST).set('Authorization', `Bearer ${victim.access}`)
+      .set('Cookie', `${CRM_COOKIE}=${planted}; ${CRM_COOKIE}=${victim.refresh}`)
+
+    expect(res.status).toBe(204)
+    expect(rowFor(victim.refresh)!.revokedAt).toBeInstanceOf(Date)
+    expect(rowFor(planted)!.revokedAt).toBeNull()
+    expect(crmVersion()).toBe(1)
+    expect(setCookieLines(res).some(line => line.includes('Domain=mykoshermap.com;'))).toBe(true)
+  })
+
+  it('refuses a map refresh with a planted copy the same way', async () => {
+    const { refresh } = await mapSession()
+    const other = await issueRefreshToken({ audience: 'map', ownerId: mapUser.id, sessionVersion: 0, userAgent: null })
+
+    const res = await request(app).post('/api/map-auth/refresh').set('X-Forwarded-For', nextIp())
+      .set('Host', 'mykoshermap.com').set('X-Requested-With', 'kashrut')
+      .set('Cookie', `${MAP_COOKIE}=${other}; ${MAP_COOKIE}=${refresh}`)
+
+    expect(res.status).toBe(401)
+    expect(rowFor(refresh)).toMatchObject({ usedAt: null, revokedAt: expect.any(Date) })
+    expect(setCookieLines(res).some(line => line.includes('Domain=mykoshermap.com; Path=/api/map-auth/refresh;'))).toBe(true)
   })
 })
 

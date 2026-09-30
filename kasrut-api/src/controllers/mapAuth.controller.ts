@@ -23,7 +23,7 @@ import { blacklistToken } from '../lib/tokenBlacklist'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { signMapAccessToken } from '../lib/jwt'
 import {
-  clearRefreshCookie,
+  clearRefreshCookies,
   endPresentedRefreshSession,
   refreshFailureLogMessage,
   revokePresentedRefreshFamily,
@@ -233,10 +233,10 @@ export const mapAuthController = {
   refresh: asyncHandler(async (req, res) => {
     const outcome = await rotateRefreshToken(req, 'map', id => mapCommunityRepo.findUserById(id))
     if (!outcome.ok) {
-      clearRefreshCookie(res, 'map')
+      clearRefreshCookies(req, res, 'map')
       const message = refreshFailureLogMessage(outcome)
-      if (message && outcome.ownerId) {
-        res.locals.serviceLogActor = { userId: outcome.ownerId, userRole: 'map_user', actorType: 'map_user' }
+      if (message) {
+        if (outcome.ownerId) res.locals.serviceLogActor = { userId: outcome.ownerId, userRole: 'map_user', actorType: 'map_user' }
         res.locals.serviceLogMessage = `Map ${message}`
       }
       res.status(401).json({ error: 'Session expired; sign in again' }); return
@@ -397,8 +397,10 @@ export const mapAuthController = {
       // No access token: the route let the request through on the refresh
       // guards, and the refresh cookie alone ends this browser's session.
       const ended = await endPresentedRefreshSession(req, 'map')
-      clearRefreshCookie(res, 'map')
-      if (ended.ownerId) {
+      clearRefreshCookies(req, res, 'map')
+      if (ended.failure === 'duplicate') {
+        res.locals.serviceLogMessage = `Map logout (refresh cookie): ${refreshFailureLogMessage({ reason: 'duplicate' })}`
+      } else if (ended.ownerId) {
         const message = ended.failure && refreshFailureLogMessage({ reason: ended.failure, sessionsEnded: ended.sessionsEnded })
         res.locals.serviceLogActor = { userId: ended.ownerId, userRole: 'map_user', actorType: 'map_user' }
         res.locals.serviceLogMessage = message
@@ -419,7 +421,7 @@ export const mapAuthController = {
     // account; revoking the family also makes a stolen copy of this cookie
     // count as reuse.
     await revokePresentedRefreshFamily(req, 'map', req.mapUser.sub)
-    clearRefreshCookie(res, 'map')
+    clearRefreshCookies(req, res, 'map')
     res.locals.serviceLogMessage = 'Map logout succeeded'
     res.status(204).send()
   }),

@@ -291,6 +291,21 @@ API process, together with consumed 2FA challenges whose pending token has
 expired and map email-verification and password-reset links that expired
 more than a day earlier (`lib/tokenPurge.ts`).
 
+Host-only does not stop a page on mykoshermap.com, or on any other
+`*.mykoshermap.com` host, from adding a cookie of the same name for
+`Domain=mykoshermap.com`: the browser sends it to the CRM and the map along
+with the API's own, the one with the longer path first ("cookie tossing",
+which would switch a signed-in tab into the planter's account, or make a
+sign-out end the wrong session). A request that carries more than one
+refresh cookie is therefore refused (refresh answers 401, sign-out still
+204): every chain presented is revoked, the copies are expired for each
+parent domain and each path they could have been set with, the api logs
+`More than one refresh cookie presented`, and the user signs in again. A
+cookie planted in a browser that has no session of its own cannot be told
+apart this way; `__Host-` cookie names would rule out planting, but they
+require `Path=/`, which would send the refresh cookie with every request to
+the host. Keep content nobody controls off `*.mykoshermap.com`.
+
 The calls that set a refresh cookie without an access token (CRM login,
 2FA verify and verify-backup, map login, register, OAuth and password-reset
 confirm) accept only JSON bodies, and the refresh calls require the header

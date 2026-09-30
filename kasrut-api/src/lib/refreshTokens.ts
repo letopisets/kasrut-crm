@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'crypto'
+import { isIP } from 'net'
 import type { CookieOptions, NextFunction, Request, RequestHandler, Response } from 'express'
 import { env } from '../config/env'
 import { refreshTokensRepo, type RefreshTokenAudience, type RefreshTokenRow } from '../db/refreshTokens.repo'
@@ -72,21 +73,30 @@ function ownerIdOf(token: RefreshTokenRow): string | null {
 
 // ── Cookies ───────────────────────────────────────────────────────────────────
 
-/** The value of cookie `name` in a Cookie request header, or null. */
-export function readCookie(header: string | undefined, name: string): string | null {
-  if (!header) return null
+/**
+ * Every value of cookie `name` in a Cookie request header, in the order sent
+ * (null for one that does not decode).
+ */
+export function readCookies(header: string | undefined, name: string): Array<string | null> {
+  if (!header) return []
+  const values: Array<string | null> = []
   for (const pair of header.split(';')) {
     const eq = pair.indexOf('=')
     if (eq === -1 || pair.slice(0, eq).trim() !== name) continue
     let value = pair.slice(eq + 1).trim()
     if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1)
     try {
-      return decodeURIComponent(value)
+      values.push(decodeURIComponent(value))
     } catch {
-      return null
+      values.push(null)
     }
   }
-  return null
+  return values
+}
+
+/** The first value of cookie `name` in a Cookie request header, or null. */
+export function readCookie(header: string | undefined, name: string): string | null {
+  return readCookies(header, name)[0] ?? null
 }
 
 function cookieOptions(audience: RefreshAudience): CookieOptions {
@@ -98,8 +108,18 @@ function cookieOptions(audience: RefreshAudience): CookieOptions {
   }
 }
 
-function readRefreshCookie(req: Request, audience: RefreshAudience): string | null {
-  return readCookie(req.headers.cookie, REFRESH_COOKIES[audience].name)
+/**
+ * The refresh cookies the request carries. More than one means a cookie of
+ * the same name was set from elsewhere: the API's own cookie is host-only, so
+ * a page on a parent or sibling host (mykoshermap.com, another
+ * *.mykoshermap.com site) can add one for `Domain=mykoshermap.com`, and one
+ * with a longer Path is sent first. Which of them is the browser's own cannot
+ * be told, so callers refuse them all ("cookie tossing": switching the
+ * victim's tab into the attacker's account, or a logout ending the wrong
+ * session).
+ */
+function presentedRefreshCookies(req: Request, audience: RefreshAudience): Array<string | null> {
+  return readCookies(req.headers.cookie, REFRESH_COOKIES[audience].name)
 }
 
 /** Sets the cookie to live as long as the token it carries (`maxAgeMs`). */
@@ -110,6 +130,51 @@ export function setRefreshCookie(res: Response, audience: RefreshAudience, token
 /** Expires the cookie; the Path must match the one it was set with. */
 export function clearRefreshCookie(res: Response, audience: RefreshAudience): void {
   res.clearCookie(REFRESH_COOKIES[audience].name, cookieOptions(audience))
+}
+
+// Domains another host can scope a cookie to so that this host receives it:
+// the host's own name and every parent above the top-level label
+// (crm.mykoshermap.com → crm.mykoshermap.com, mykoshermap.com). None for an IP
+// address or a single-label host such as localhost. From the Host header,
+// which nginx passes on.
+function cookieDomainsFor(req: Request): string[] {
+  const host = (req.get('host') ?? '').toLowerCase().replace(/:\d+$/, '')
+  if (!host.includes('.') || isIP(host) || !/^[a-z0-9.-]+$/.test(host)) return []
+  const labels = host.split('.')
+  return labels.slice(0, -1).map((_, i) => labels.slice(i).join('.'))
+}
+
+// Paths a cookie this request carried can have: every prefix of the request
+// path that ends at a segment boundary, with and without the slash.
+function cookiePathsFor(req: Request): string[] {
+  const path = (req.originalUrl || req.url).split('?')[0]
+  const paths = new Set(['/'])
+  let prefix = ''
+  for (const segment of path.split('/').filter(Boolean)) {
+    prefix += `/${segment}`
+    paths.add(prefix)
+    if (prefix !== path) paths.add(`${prefix}/`)
+  }
+  return [...paths]
+}
+
+// Expires every copy of the cookie a parent or sibling host could have set
+// for this request (see presentedRefreshCookies). The host-only cookie on
+// its own Path is left to clearRefreshCookie / setRefreshCookie.
+function clearTossedRefreshCookies(req: Request, res: Response, audience: RefreshAudience): void {
+  const { name } = REFRESH_COOKIES[audience]
+  for (const path of cookiePathsFor(req)) {
+    for (const domain of cookieDomainsFor(req)) res.clearCookie(name, { ...cookieOptions(audience), path, domain })
+  }
+}
+
+/**
+ * Expires the refresh cookie, and when the request carried more than one,
+ * every copy a parent or sibling host could have planted.
+ */
+export function clearRefreshCookies(req: Request, res: Response, audience: RefreshAudience): void {
+  if (presentedRefreshCookies(req, audience).length > 1) clearTossedRefreshCookies(req, res, audience)
+  clearRefreshCookie(res, audience)
 }
 
 // ── Request checks (CSRF) ─────────────────────────────────────────────────────
@@ -225,18 +290,42 @@ export async function issueRefreshToken(input: IssueInput): Promise<string> {
   return token
 }
 
-async function findPresented(req: Request, audience: RefreshAudience): Promise<RefreshTokenRow | null> {
-  const presented = readRefreshCookie(req, audience)
+async function findToken(presented: string | null, audience: RefreshAudience): Promise<RefreshTokenRow | null> {
   if (!presented || !TOKEN_PATTERN.test(presented)) return null
   const token = await refreshTokensRepo.findByHash(hashRefreshToken(presented))
   return token && token.audience === audience ? token : null
 }
 
+/** The known tokens of every refresh cookie the request carries. */
+async function findPresentedTokens(req: Request, audience: RefreshAudience): Promise<RefreshTokenRow[]> {
+  const tokens = await Promise.all(presentedRefreshCookies(req, audience).map(value => findToken(value, audience)))
+  return tokens.filter((token): token is RefreshTokenRow => token !== null)
+}
+
+/**
+ * Revokes the family of every refresh cookie the request carries, and says
+ * so in the api log when there was more than one (see presentedRefreshCookies).
+ */
+async function revokePresentedFamilies(req: Request, audience: RefreshAudience, now: Date): Promise<void> {
+  const tokens = await findPresentedTokens(req, audience)
+  for (const familyId of new Set(tokens.map(token => token.familyId))) {
+    await refreshTokensRepo.revokeFamily(familyId, now)
+  }
+  const cookies = presentedRefreshCookies(req, audience).length
+  if (cookies > 1) {
+    logger.warn(
+      { audience, cookies, ownerIds: [...new Set(tokens.map(ownerIdOf))], path: req.originalUrl.split('?')[0] },
+      'More than one refresh cookie presented (one may be planted by another host); every presented family revoked',
+    )
+  }
+}
+
 /**
  * Starts a refresh session for an account that has just fully signed in:
  * a new family bound to its current sessionVersion, set as the cookie. The
- * cookie it replaces is revoked first, whoever it belonged to, so a session
- * the browser can no longer present does not stay usable elsewhere.
+ * cookies it replaces are revoked first, whoever they belonged to, so a
+ * session the browser can no longer present does not stay usable elsewhere,
+ * and copies planted by another host (presentedRefreshCookies) are expired.
  */
 export async function startRefreshSession(
   req: Request,
@@ -244,8 +333,7 @@ export async function startRefreshSession(
   audience: RefreshAudience,
   account: { id: string; sessionVersion?: number },
 ): Promise<void> {
-  const replaced = await findPresented(req, audience)
-  if (replaced) await revokeRefreshFamily(replaced.familyId)
+  await revokePresentedFamilies(req, audience, new Date())
 
   const token = await issueRefreshToken({
     audience,
@@ -253,6 +341,7 @@ export async function startRefreshSession(
     sessionVersion: account.sessionVersion ?? 0,
     userAgent:      userAgentOf(req),
   })
+  if (presentedRefreshCookies(req, audience).length > 1) clearTossedRefreshCookies(req, res, audience)
   setRefreshCookie(res, audience, token, refreshTtlMs())
 }
 
@@ -267,6 +356,8 @@ export type RefreshFailure =
   | 'reused'     // used longer ago, or a revoked one whose presentation ended sessions:
                  //   family revoked, owner's sessions ended unless they already were
   | 'inactive'   // account gone or unavailable, or its sessionVersion moved on
+  | 'duplicate'  // more than one refresh cookie (presentedRefreshCookies): every
+                 //   presented family revoked, the cookies expired
 
 /** A token presented after it was used or revoked, and what was done about it. */
 interface ReuseOutcome {
@@ -329,6 +420,8 @@ export function refreshFailureLogMessage(failure: { reason: RefreshFailure; sess
       return 'refresh token presented again within the grace window; family revoked'
     case 'revoked':
       return 'revoked refresh token presented; family revoked'
+    case 'duplicate':
+      return 'more than one refresh cookie presented; their families revoked and the cookies cleared'
     default:
       return null
   }
@@ -345,10 +438,15 @@ export async function rotateRefreshToken<A extends { id: string; sessionVersion?
   audience: RefreshAudience,
   loadAccount: (ownerId: string) => Promise<A | null>,
 ): Promise<RefreshOutcome<A>> {
-  const presented = readRefreshCookie(req, audience)
+  const cookies = presentedRefreshCookies(req, audience)
+  const now = new Date()
+  if (cookies.length > 1) {
+    await revokePresentedFamilies(req, audience, now)
+    return { ok: false, reason: 'duplicate' }
+  }
+  const presented = cookies[0]
   if (!presented || !TOKEN_PATTERN.test(presented)) return { ok: false, reason: 'missing' }
 
-  const now = new Date()
   const tokenHash = hashRefreshToken(presented)
   const token = await refreshTokensRepo.findByHash(tokenHash)
   if (!token) return { ok: false, reason: 'unknown' }
@@ -391,8 +489,9 @@ export async function revokeRefreshFamily(familyId: string): Promise<void> {
 export interface EndedRefreshSession {
   /** Owner of the presented cookie; null when no known cookie was presented. */
   ownerId:        string | null
-  /** Set when the cookie was used or revoked already (see rotateRefreshToken). */
-  failure?:       'replayed' | 'revoked' | 'reused'
+  /** Set when the cookie was used or revoked already (see rotateRefreshToken),
+   *  or when there was more than one. */
+  failure?:       'replayed' | 'revoked' | 'reused' | 'duplicate'
   sessionsEnded?: boolean
 }
 
@@ -405,12 +504,19 @@ export interface EndedRefreshSession {
  * A cookie that was used or revoked already is answered as a refresh answers
  * it (handleReuse): a rotated cookie presented after the grace window is a
  * stolen copy's leftover, so the sessions it fed end and the reuse is logged.
+ * With more than one cookie, every presented family is revoked (which one is
+ * this browser's own cannot be told), and no account's sessions are ended.
  */
 export async function endPresentedRefreshSession(req: Request, audience: RefreshAudience): Promise<EndedRefreshSession> {
-  const token = await findPresented(req, audience)
+  const now = new Date()
+  const cookies = presentedRefreshCookies(req, audience)
+  if (cookies.length > 1) {
+    await revokePresentedFamilies(req, audience, now)
+    return { ownerId: null, failure: 'duplicate' }
+  }
+  const token = await findToken(cookies[0] ?? null, audience)
   if (!token) return { ownerId: null }
   const ownerId = ownerIdOf(token)
-  const now = new Date()
   if (token.usedAt || token.revokedAt) {
     const reuse = await handleReuse(token, now)
     return { ownerId, failure: reuse.reason, sessionsEnded: reuse.sessionsEnded }
@@ -421,7 +527,7 @@ export async function endPresentedRefreshSession(req: Request, audience: Refresh
 }
 
 /**
- * Logout: revokes the family of the presented cookie, if it belongs to the
+ * Logout: revokes the family of each presented cookie that belongs to the
  * account signing out. Another account's cookie in the same browser is left
  * alone (the logout response still clears it).
  */
@@ -430,6 +536,8 @@ export async function revokePresentedRefreshFamily(
   audience: RefreshAudience,
   ownerId: string,
 ): Promise<void> {
-  const token = await findPresented(req, audience)
-  if (token && ownerIdOf(token) === ownerId) await revokeRefreshFamily(token.familyId)
+  const now = new Date()
+  for (const token of await findPresentedTokens(req, audience)) {
+    if (ownerIdOf(token) === ownerId) await refreshTokensRepo.revokeFamily(token.familyId, now)
+  }
 }

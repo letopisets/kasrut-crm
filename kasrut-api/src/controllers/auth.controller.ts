@@ -11,7 +11,7 @@ import { signCrmAccessToken, signTwoFactorPendingToken } from '../lib/jwt'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { isTwoFactorSetupRequired } from '../lib/twoFactorPolicy'
 import {
-  clearRefreshCookie,
+  clearRefreshCookies,
   endPresentedRefreshSession,
   refreshFailureLogMessage,
   revokePresentedRefreshFamily,
@@ -98,10 +98,10 @@ export const authController = {
   refresh: asyncHandler(async (req, res) => {
     const outcome = await rotateRefreshToken(req, 'crm', id => usersRepo.findAuthById(id))
     if (!outcome.ok) {
-      clearRefreshCookie(res, 'crm')
+      clearRefreshCookies(req, res, 'crm')
       const message = refreshFailureLogMessage(outcome)
-      if (message && outcome.ownerId) {
-        res.locals.serviceLogActor = { userId: outcome.ownerId, actorType: 'crm_user' }
+      if (message) {
+        if (outcome.ownerId) res.locals.serviceLogActor = { userId: outcome.ownerId, actorType: 'crm_user' }
         res.locals.serviceLogMessage = `CRM ${message}`
       }
       res.status(401).json({ error: 'Session expired; sign in again' }); return
@@ -128,8 +128,10 @@ export const authController = {
       // No access token: the route let the request through on the refresh
       // guards, and the refresh cookie alone ends this browser's session.
       const ended = await endPresentedRefreshSession(req, 'crm')
-      clearRefreshCookie(res, 'crm')
-      if (ended.ownerId) {
+      clearRefreshCookies(req, res, 'crm')
+      if (ended.failure === 'duplicate') {
+        res.locals.serviceLogMessage = `CRM logout (refresh cookie): ${refreshFailureLogMessage({ reason: 'duplicate' })}`
+      } else if (ended.ownerId) {
         const message = ended.failure && refreshFailureLogMessage({ reason: ended.failure, sessionsEnded: ended.sessionsEnded })
         res.locals.serviceLogActor = { userId: ended.ownerId, actorType: 'crm_user' }
         res.locals.serviceLogMessage = message
@@ -150,7 +152,7 @@ export const authController = {
     // account; revoking the family also makes a stolen copy of this cookie
     // count as reuse.
     await revokePresentedRefreshFamily(req, 'crm', req.user.sub)
-    clearRefreshCookie(res, 'crm')
+    clearRefreshCookies(req, res, 'crm')
     res.locals.serviceLogMessage = 'CRM logout succeeded'
     res.status(204).send()
   }),
