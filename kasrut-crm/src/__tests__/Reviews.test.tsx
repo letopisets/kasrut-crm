@@ -4,6 +4,7 @@ import { Provider } from 'react-redux'
 import { configureStore } from '@reduxjs/toolkit'
 import { baseApi } from '@/store/api/baseApi'
 import { rtkQueryErrorToast } from '@/store/errorMiddleware'
+import { resetApiOnSessionChange } from '@/store/sessionReset'
 import authReducer, { logout, setUser } from '@/store/authSlice'
 import langReducer, { setLang, type Lang } from '@/store/langSlice'
 import uiReducer from '@/store/uiSlice'
@@ -84,7 +85,9 @@ function makeStore(lang: Lang = 'en', user: User = OWNER) {
       ui: uiReducer,
       [baseApi.reducerPath]: baseApi.reducer,
     },
-    middleware: (getDefault) => getDefault().concat(baseApi.middleware, rtkQueryErrorToast),
+    // As in store/index.ts: the session reset is what keeps one account's
+    // cached list from the next.
+    middleware: (getDefault) => getDefault().concat(baseApi.middleware, rtkQueryErrorToast, resetApiOnSessionChange),
   })
   store.dispatch(setLang(lang))
   store.dispatch(setUser({ user, token: `token_${user.id}` }))

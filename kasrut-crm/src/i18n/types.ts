@@ -17,7 +17,6 @@ export interface Translations {
     logs: string
   }
   roles: { owner: string; rabbanut: string; mashgiach: string }
-  roleDesc: { owner: string; rabbanut: string; mashgiach: string }
   dashboard: { title: string; sub: string }
   stats: [string, string, string, string]
   statsSub: [string, string, string, string]
@@ -256,10 +255,8 @@ export interface Translations {
     cityNotInRegistry: string
   }
   noAccess: string
-  myEstablishments: string
   myInspections: string
   ownerBanner: string
-  allRabbanuts: string
   loginHeading?: string
   login?: {
     title:      string

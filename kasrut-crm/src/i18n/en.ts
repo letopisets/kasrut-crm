@@ -19,7 +19,6 @@ const en: Translations = {
     logs:        'Logs',
   },
   roles:    { owner: 'Owner',                   rabbanut: 'Rabbanut',                       mashgiach: 'Mashgiach' },
-  roleDesc: { owner: 'Full system access',      rabbanut: 'Manage your organization',       mashgiach: 'Your assignments only' },
   dashboard: { title: 'Overview', sub: 'Live system status' },
   stats:    ['Active Certificates', 'Expiring in 30 days', 'Inspections this week', 'Pending Documents'],
   statsSub: ['+12 this month',      'Need attention',       '8 unassigned',          'Awaiting signature'],
@@ -264,10 +263,8 @@ const en: Translations = {
     cityNotInRegistry: 'Not in the registry — will be saved as typed',
   },
   noAccess:         "You don't have access to this section.",
-  myEstablishments: 'My Establishments',
   myInspections:    'My Inspections',
   ownerBanner:      'Owner — full system access',
-  allRabbanuts:     'All Rabbanuts',
   loginHeading:     'Select profile to sign in',
   login: {
     title:      'Sign In',

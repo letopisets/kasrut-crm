@@ -19,7 +19,6 @@ const he: Translations = {
     logs:        'לוגים',
   },
   roles:    { owner: 'Owner',              rabbanut: 'רבנות',                  mashgiach: 'משגיח' },
-  roleDesc: { owner: 'גישה מלאה למערכת', rabbanut: 'ניהול הארגון שלך',       mashgiach: 'השיוכים שלי בלבד' },
   dashboard: { title: 'סקירה כללית', sub: 'מצב המערכת' },
   stats:    ['תעודות פעילות', 'פגות תוקף ב-30 יום', 'ביקורות השבוע', 'מסמכים ממתינים'],
   statsSub: ['+12 החודש',    'דורשים טיפול',         '8 לא שובצו',    'ממתינים לחתימה'],
@@ -264,10 +263,8 @@ const he: Translations = {
     cityNotInRegistry: 'לא נמצא במאגר — יישמר כפי שהוקלד',
   },
   noAccess:         'אין לך גישה לקטע זה.',
-  myEstablishments: 'העסקים שלי',
   myInspections:    'הביקורות שלי',
   ownerBanner:      'Owner — גישה מלאה למערכת',
-  allRabbanuts:     'כל הרבנויות',
   loginHeading:     'בחר פרופיל להתחברות',
   login: {
     title:      'התחברות',

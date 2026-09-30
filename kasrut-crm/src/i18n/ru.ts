@@ -19,7 +19,6 @@ const ru: Translations = {
     logs:        'Логи',
   },
   roles:    { owner: 'Owner',                      rabbanut: 'Рабанут',                           mashgiach: 'Машгиах' },
-  roleDesc: { owner: 'Полный доступ к системе',    rabbanut: 'Управление своей организацией',     mashgiach: 'Только свои назначения' },
   dashboard: { title: 'Обзор', sub: 'Статус системы' },
   stats:    ['Активных сертификатов', 'Истекают в 30 дней', 'Инспекций на неделе', 'Документов ожидают'],
   statsSub: ['+12 за месяц',          'Требуют внимания',   '8 не назначено',       'Ожидают подписи'],
@@ -264,10 +263,8 @@ const ru: Translations = {
     cityNotInRegistry: 'Нет в справочнике — будет сохранено как введено',
   },
   noAccess:         'У вас нет доступа к этому разделу.',
-  myEstablishments: 'Мои заведения',
   myInspections:    'Мои инспекции',
   ownerBanner:      'Owner — полный доступ к системе',
-  allRabbanuts:     'Все рабануты',
   loginHeading:     'Выберите профиль для входа',
   login: {
     title:      'Авторизация',

@@ -6,10 +6,9 @@ export const reviewsApi = baseApi.injectEndpoints({
     // Cursor-paginated, most recently written first; the server scopes a
     // rabbanut to its own establishments. Invalidating 'Review' refetches every
     // loaded page from the first one, so the list stays contiguous after a
-    // delete. The arg is never sent: it names the signed-in viewer and scope so
-    // each gets a cache entry of its own, and a rabbanut signing in on the same
-    // tab is never shown the list cached for the previous user.
-    getModerationReviews: build.infiniteQuery<ModeratedReviewsPage, string, string | null>({
+    // delete. A different account signing in on the same tab never sees the
+    // previous one's list: store/sessionReset.ts resets the whole API cache.
+    getModerationReviews: build.infiniteQuery<ModeratedReviewsPage, void, string | null>({
       infiniteQueryOptions: {
         initialPageParam: null,
         getNextPageParam: (lastPage) => lastPage.nextCursor,

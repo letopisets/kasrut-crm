@@ -15,11 +15,12 @@ export function useReviewsController() {
   const dispatch = useAppDispatch()
   const lang     = useAppSelector(s => s.lang.lang)
   const viewer   = useAppSelector(s => s.auth.user)
-  const viewerKey = viewer ? `${viewer.id}:${viewer.role}:${viewer.rabbanutId ?? ''}` : ''
 
+  // The store's resetApiOnSessionChange clears the whole API cache when a
+  // different account signs in, so this list needs no per-viewer cache key.
   const {
     data, isLoading, isError, refetch, hasNextPage, fetchNextPage, isFetchingNextPage,
-  } = useGetModerationReviewsInfiniteQuery(viewerKey, { skip: !viewer })
+  } = useGetModerationReviewsInfiniteQuery(undefined, { skip: !viewer })
   const [deleteMutation, { isLoading: isDeleting }] = useDeleteReviewMutation()
 
   // The target outlives the dialog's open flag so the text does not blank out
