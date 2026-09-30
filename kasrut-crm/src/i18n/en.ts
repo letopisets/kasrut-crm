@@ -30,6 +30,10 @@ const en: Translations = {
   status: { ok: 'Active', warning: 'Expiring', critical: 'Urgent' },
   back: '← Back',
   logout: 'Logout',
+  sessionRestoring: 'Restoring your session…',
+  sessionUnavailable: 'Could not reach the server to restore your session.',
+  sessionRetry: 'Try again',
+  sessionSignIn: 'Sign in again',
   restaurants: {
     title:  'Establishments',
     sub:    'Restaurants and food businesses',

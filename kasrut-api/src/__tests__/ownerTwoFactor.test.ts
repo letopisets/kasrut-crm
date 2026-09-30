@@ -22,6 +22,7 @@ jest.mock('../db/mashgichim.repo')
 jest.mock('../db/hechsherim.repo')
 jest.mock('../db/rabbanuts.repo')
 jest.mock('../db/documents.repo')
+jest.mock('../db/refreshTokens.repo')
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('../lib/twoFactorAttempts')
 jest.mock('../lib/twoFactorChallenges')
@@ -113,11 +114,14 @@ function collectRoutes(stack: Layer[], prefix: string): ApiRoute[] {
 const API_ROUTES = collectRoutes((routes as unknown as { stack: Layer[] }).stack, '/api')
 const key = (route: ApiRoute) => `${route.method} ${route.path}`
 
-// CRM routes that are reachable without a session: the login steps.
+// CRM routes that are reachable without an access token: the login steps,
+// and the refresh call, which authenticates by its httpOnly cookie.
+const COOKIE_AUTH_ROUTES = new Set(['POST /api/auth/refresh'])
 const PUBLIC_AUTH_ROUTES = new Set([
   'POST /api/auth/login',
   'POST /api/auth/2fa/verify',
   'POST /api/auth/2fa/verify-backup',
+  ...COOKIE_AUTH_ROUTES,
 ])
 const isMapRoute = (path: string) => path === '/api/map' || path.startsWith('/api/map/') || path.startsWith('/api/map-auth/')
 
@@ -165,18 +169,23 @@ describe('CRM route table', () => {
   })
 
   // Pinned on purpose: widening the allowlist must fail this test.
-  it('allowlists exactly the session, sign-out and setup calls', () => {
+  it('allowlists exactly the session, refresh, sign-out and setup calls', () => {
     expect([...TWO_FACTOR_SETUP_ALLOWLIST].sort()).toEqual([
       'GET /api/auth/me',
       'POST /api/auth/2fa/enable',
       'POST /api/auth/2fa/setup',
       'POST /api/auth/logout',
+      'POST /api/auth/refresh',
     ])
   })
 
   it('allowlists only real authenticated routes', () => {
+    const mounted = new Set(API_ROUTES.map(key))
     const authenticated = new Set(API_ROUTES.filter(route => route.crmJwt).map(key))
-    for (const entry of TWO_FACTOR_SETUP_ALLOWLIST) expect(authenticated).toContain(entry)
+    for (const entry of TWO_FACTOR_SETUP_ALLOWLIST) {
+      expect(mounted).toContain(entry)
+      if (!COOKIE_AUTH_ROUTES.has(entry)) expect(authenticated).toContain(entry)
+    }
   })
 })
 

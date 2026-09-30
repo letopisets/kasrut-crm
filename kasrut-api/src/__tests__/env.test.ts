@@ -120,6 +120,66 @@ describe('parseEnv secret validation', () => {
   })
 })
 
+describe('parseEnv session lifetimes and cookies', () => {
+  function variablesRejected(source: Record<string, string>): string[] {
+    return rejectionOf(source).issues.map(issue => issue.path.join('.'))
+  }
+
+  it('defaults to 15-minute access tokens, 30-day refresh tokens and Secure cookies in production', () => {
+    const { JWT_EXPIRES_IN: _ignored, ...withoutLegacy } = productionEnv()
+    const env = parseEnv(withoutLegacy)
+    expect(env.ACCESS_TOKEN_TTL_SECONDS).toBe(15 * 60)
+    expect(env.REFRESH_TOKEN_TTL_DAYS).toBe(30)
+    expect(env.COOKIE_SECURE).toBe(true)
+    expect(env.JWT_EXPIRES_IN_IGNORED).toBe(false)
+  })
+
+  it('no longer lets JWT_EXPIRES_IN set the session length, and flags it for a warning', () => {
+    const env = parseEnv(productionEnv({ JWT_EXPIRES_IN: '7d' }))
+    expect(env.ACCESS_TOKEN_TTL_SECONDS).toBe(15 * 60)
+    expect(env.JWT_EXPIRES_IN_IGNORED).toBe(true)
+    expect(env).not.toHaveProperty('JWT_EXPIRES_IN')
+    expect(parseEnv(productionEnv({ JWT_EXPIRES_IN: '' })).JWT_EXPIRES_IN_IGNORED).toBe(false)
+  })
+
+  it.each([
+    ['15m', 900], ['1m', 60], ['60s', 60], ['900s', 900], ['1h', 3600], ['60m', 3600], [' 30m ', 1800], ['', 900],
+  ])('accepts ACCESS_TOKEN_TTL=%p as %i seconds', (value, seconds) => {
+    expect(parseEnv(productionEnv({ ACCESS_TOKEN_TTL: value })).ACCESS_TOKEN_TTL_SECONDS).toBe(seconds)
+  })
+
+  it.each(['7d', '2h', '61m', '59s', '0m', '900', '15 m', '15min', '-5m', 'abc'])(
+    'rejects ACCESS_TOKEN_TTL=%p',
+    value => {
+      expect(variablesRejected(productionEnv({ ACCESS_TOKEN_TTL: value }))).toEqual(['ACCESS_TOKEN_TTL'])
+    },
+  )
+
+  it.each([['7', 7], ['365', 365], ['', 30]])('accepts REFRESH_TOKEN_TTL_DAYS=%p', (value, days) => {
+    expect(parseEnv(productionEnv({ REFRESH_TOKEN_TTL_DAYS: value })).REFRESH_TOKEN_TTL_DAYS).toBe(days)
+  })
+
+  it.each(['0', '366', '1.5', 'week'])('rejects REFRESH_TOKEN_TTL_DAYS=%p', value => {
+    expect(variablesRejected(productionEnv({ REFRESH_TOKEN_TTL_DAYS: value }))).toEqual(['REFRESH_TOKEN_TTL_DAYS'])
+  })
+
+  it.each([
+    ['production', undefined, true],
+    ['development', undefined, false],
+    ['test', undefined, false],
+    ['production', '', true],
+    ['production', 'false', false],
+    ['development', 'true', true],
+  ] as const)('NODE_ENV=%s with COOKIE_SECURE=%p gives Secure=%p', (nodeEnv, value, secure) => {
+    const source = productionEnv({ NODE_ENV: nodeEnv, ...(value === undefined ? {} : { COOKIE_SECURE: value }) })
+    expect(parseEnv(source).COOKIE_SECURE).toBe(secure)
+  })
+
+  it('rejects a COOKIE_SECURE that is not true or false', () => {
+    expect(variablesRejected(productionEnv({ COOKIE_SECURE: 'yes' }))).toEqual(['COOKIE_SECURE'])
+  })
+})
+
 describe('placeholders shipped in the .env templates', () => {
   const repoRoot = path.resolve(__dirname, '..', '..', '..')
   const templates = ['.env.example', '.env.hetzner.example', path.join('kasrut-api', '.env.example')]

@@ -183,6 +183,7 @@ const ru: MapTranslations = {
   donateThanks: 'Спасибо за поддержку!',
 
   sessionExpired: 'Сессия истекла. Пожалуйста, войдите снова.',
+  sessionRestoring: 'Восстанавливаем сеанс…',
 }
 
 export default ru

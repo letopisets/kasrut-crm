@@ -6,6 +6,8 @@ const ROLES: Role[] = ['owner', 'rabbanut', 'mashgiach']
 
 export interface AuthState {
   user:               User | null
+  // The access token lives in memory only; a reload gets a new one from the
+  // httpOnly refresh cookie (store/sessionRefresh.ts).
   token:              string | null
   role:               Role
   rabbanutFilter:     string
@@ -17,9 +19,18 @@ export interface AuthState {
   // Plain backup codes from the enable call, kept in memory (never persisted)
   // until the user confirms they have saved them.
   backupCodes:        string[] | null
+  // False until the startup refresh has answered. Only then is it known
+  // whether the persisted user still has a session (SessionGate waits).
+  sessionChecked:     boolean
+  // The startup refresh could not reach the API (offline, server error, rate
+  // limit). The cookie may still be good, so SessionGate offers a retry
+  // instead of signing out.
+  sessionCheckFailed: boolean
 }
 
-type PersistedAuth = Pick<AuthState, 'user' | 'token' | 'role' | 'rabbanutFilter' | 'twoFactorSetupRequired'>
+// Nothing secret: the user and view settings survive a reload so the app
+// knows a session may exist, the token does not.
+type PersistedAuth = Pick<AuthState, 'user' | 'role' | 'rabbanutFilter' | 'twoFactorSetupRequired'>
 
 function getStorage(): Storage | null {
   try {
@@ -61,12 +72,10 @@ function normalizePersisted(value: unknown): Partial<PersistedAuth> {
   if (!isRecord(candidate)) return {}
 
   const user = normalizeUser(candidate.user)
-  const token = typeof candidate.token === 'string' && candidate.token.trim() ? candidate.token : null
-  if (!user || !token) return {}
+  if (!user) return {}
 
   return {
     user,
-    token,
     role: user.role,
     rabbanutFilter: typeof candidate.rabbanutFilter === 'string' ? candidate.rabbanutFilter : '',
     twoFactorSetupRequired: candidate.twoFactorSetupRequired === true,
@@ -78,35 +87,27 @@ function loadPersisted(): Partial<PersistedAuth> {
     const storage = getStorage()
     const raw = storage?.getItem(AUTH_STORAGE_KEY)
     if (!raw) return {}
-    return normalizePersisted(JSON.parse(raw))
+    const parsed: unknown = JSON.parse(raw)
+    const persisted = normalizePersisted(parsed)
+    // Older builds stored the access token here: drop it from storage now
+    // rather than at the next state change.
+    const legacy = isRecord(parsed) && 'state' in parsed ? parsed.state : parsed
+    if (isRecord(legacy) && 'token' in legacy) persistAuthState(persisted)
+    return persisted
   } catch { return {} }
 }
 
-const persisted = loadPersisted()
-
-const initialState: AuthState = {
-  user:             persisted.user   ?? null,
-  token:            persisted.token  ?? null,
-  role:             persisted.role   ?? 'owner',
-  rabbanutFilter:   persisted.rabbanutFilter ?? '',
-  twoFactorPending: false,
-  pendingTempToken: null,
-  twoFactorSetupRequired: persisted.twoFactorSetupRequired ?? false,
-  backupCodes:      null,
-}
-
-export function persistAuthState(state: PersistedAuth): void {
+export function persistAuthState(state: Partial<PersistedAuth>): void {
   const storage = getStorage()
   if (!storage) return
 
-  if (!state.user || !state.token) {
+  if (!state.user) {
     storage.removeItem(AUTH_STORAGE_KEY)
     return
   }
 
   storage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
     user:           state.user,
-    token:          state.token,
     role:           state.user.role,
     rabbanutFilter: state.rabbanutFilter,
     twoFactorSetupRequired: state.twoFactorSetupRequired,
@@ -115,6 +116,22 @@ export function persistAuthState(state: PersistedAuth): void {
 
 export function clearPersistedAuth(): void {
   getStorage()?.removeItem(AUTH_STORAGE_KEY)
+}
+
+const persisted = loadPersisted()
+
+const initialState: AuthState = {
+  user:             persisted.user   ?? null,
+  token:            null,
+  role:             persisted.role   ?? 'owner',
+  rabbanutFilter:   persisted.rabbanutFilter ?? '',
+  twoFactorPending: false,
+  pendingTempToken: null,
+  twoFactorSetupRequired: persisted.twoFactorSetupRequired ?? false,
+  backupCodes:      null,
+  // Without a persisted user there is no session to restore.
+  sessionChecked:   !persisted.user,
+  sessionCheckFailed: false,
 }
 
 const authSlice = createSlice({
@@ -135,6 +152,30 @@ const authSlice = createSlice({
       state.pendingTempToken  = null
       state.twoFactorSetupRequired = action.payload.twoFactorSetupRequired === true
       state.backupCodes       = action.payload.backupCodes ?? null
+      state.sessionChecked    = true
+      state.sessionCheckFailed = false
+    },
+    // A refresh renews the same session: the view state (rabbanut filter,
+    // unacknowledged backup codes) stays.
+    tokenRefreshed(state, action: PayloadAction<{
+      user: User
+      token: string
+      twoFactorSetupRequired: boolean
+    }>) {
+      state.user              = action.payload.user
+      state.token             = action.payload.token
+      state.role              = action.payload.user.role
+      state.twoFactorSetupRequired = action.payload.twoFactorSetupRequired
+      state.sessionChecked    = true
+      state.sessionCheckFailed = false
+    },
+    // A refresh the API could not answer signs nobody out. At startup the
+    // gate offers a retry; later on, the next request simply tries again.
+    sessionUnavailable(state) {
+      if (!state.sessionChecked) state.sessionCheckFailed = true
+    },
+    retrySessionCheck(state) {
+      state.sessionCheckFailed = false
     },
     setTwoFactorSetupRequired(state, action: PayloadAction<boolean>) {
       state.twoFactorSetupRequired = action.payload
@@ -162,12 +203,17 @@ const authSlice = createSlice({
       state.pendingTempToken  = null
       state.twoFactorSetupRequired = false
       state.backupCodes       = null
+      state.sessionChecked    = true
+      state.sessionCheckFailed = false
     },
   },
 })
 
 export const {
   setUser,
+  tokenRefreshed,
+  sessionUnavailable,
+  retrySessionCheck,
   setTwoFactorPending,
   clearTwoFactorPending,
   setTwoFactorSetupRequired,

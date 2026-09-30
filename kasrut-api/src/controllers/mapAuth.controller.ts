@@ -1,7 +1,7 @@
 import type { Response } from 'express'
 import { z } from 'zod'
 import { env } from '../config/env'
-import { mapCommunityRepo } from '../db/mapCommunity.repo'
+import { mapCommunityRepo, type MapUserRow } from '../db/mapCommunity.repo'
 import { serializeMapUser } from '../serializers/mapCommunity.serializer'
 import {
   getEnabledMapAuthProviders,
@@ -22,6 +22,13 @@ import { asyncHandler } from '../lib/asyncHandler'
 import { blacklistToken } from '../lib/tokenBlacklist'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { signMapAccessToken } from '../lib/jwt'
+import {
+  clearRefreshCookie,
+  revokePresentedRefreshFamily,
+  rotateRefreshToken,
+  setRefreshCookie,
+  startRefreshSession,
+} from '../lib/refreshTokens'
 import { sendMapPasswordResetToken } from '../lib/mailer'
 import { logger } from '../lib/logger'
 
@@ -105,21 +112,24 @@ export const mapAuthController = {
     const passwordHash = await hashPassword(parsed.data.password)
     res.locals.serviceLogActor = { userEmail: email, userRole: 'auth_attempt', actorType: 'auth_attempt' }
 
+    let user: MapUserRow
     try {
-      const user = await mapCommunityRepo.createPasswordUser({
+      user = await mapCommunityRepo.createPasswordUser({
         firstName: parsed.data.firstName.trim(),
         lastName: parsed.data.lastName.trim(),
         email,
         phone,
         passwordHash,
       })
-      setMapServiceLogActor(res, user)
-      res.locals.serviceLogMessage = 'Map user registered'
-      res.status(201).json({ user: serializeMapUser(user), token: signMapToken(user) })
     } catch {
       res.locals.serviceLogMessage = 'Map registration failed: duplicate email or phone'
       res.status(409).json({ error: 'User with this email or phone already exists' })
+      return
     }
+    setMapServiceLogActor(res, user)
+    await startRefreshSession(req, res, 'map', user)
+    res.locals.serviceLogMessage = 'Map user registered'
+    res.status(201).json({ user: serializeMapUser(user), token: signMapToken(user) })
   }),
 
   login: asyncHandler(async (req, res) => {
@@ -150,6 +160,7 @@ export const mapAuthController = {
 
     await recordSuccess('map', email)
     setMapServiceLogActor(res, user)
+    await startRefreshSession(req, res, 'map', user)
     res.locals.serviceLogMessage = 'Map login succeeded'
     res.json({ user: serializeMapUser(user), token: signMapToken(user) })
   }),
@@ -164,6 +175,7 @@ export const mapAuthController = {
       const profile = await verifyOAuthIdToken(parsed.data.provider, parsed.data.idToken)
       const user = await mapCommunityRepo.upsertUserFromIdentity(profile)
       setMapServiceLogActor(res, user)
+      await startRefreshSession(req, res, 'map', user)
       res.locals.serviceLogMessage = 'Map OAuth login succeeded'
       res.json({ user: serializeMapUser(user), token: signMapToken(user) })
     } catch (e) {
@@ -177,6 +189,26 @@ export const mapAuthController = {
       }
       throw e
     }
+  }),
+
+  // Cookie-authenticated (requireRefreshRequest guards the route): trades the
+  // refresh cookie for a new access token and a rotated cookie.
+  refresh: asyncHandler(async (req, res) => {
+    const outcome = await rotateRefreshToken(req, 'map', id => mapCommunityRepo.findUserById(id))
+    if (!outcome.ok) {
+      clearRefreshCookie(res, 'map')
+      if ((outcome.reason === 'reused' || outcome.reason === 'replayed') && outcome.ownerId) {
+        res.locals.serviceLogActor = { userId: outcome.ownerId, userRole: 'map_user', actorType: 'map_user' }
+        res.locals.serviceLogMessage = outcome.reason === 'reused'
+          ? 'Map refresh token reuse detected; sessions revoked'
+          : 'Map refresh token presented again within the grace window; family revoked'
+      }
+      res.status(401).json({ error: 'Session expired; sign in again' }); return
+    }
+
+    const user = outcome.account
+    setRefreshCookie(res, 'map', outcome.token, outcome.expiresAt.getTime() - Date.now())
+    res.json({ user: serializeMapUser(user), token: signMapToken(user) })
   }),
 
   me: asyncHandler(async (req, res) => {
@@ -254,6 +286,8 @@ export const mapAuthController = {
     // The reset proves control of the account: lift any login lock on it.
     await recordSuccess('map', user.email)
     setMapServiceLogActor(res, user)
+    // The reset bumped sessionVersion, which ended every earlier refresh family.
+    await startRefreshSession(req, res, 'map', user)
     res.locals.serviceLogMessage = 'Map password reset completed'
     res.json({ user: serializeMapUser(user), token: signMapToken(user) })
   }),
@@ -267,6 +301,11 @@ export const mapAuthController = {
       const remainingTtl = Math.floor(req.mapUser.exp - Date.now() / 1000)
       await blacklistToken(req.mapUser.jti, remainingTtl)
     }
+    // The version bump above already ends every refresh session of the
+    // account; revoking the family also makes a stolen copy of this cookie
+    // count as reuse.
+    await revokePresentedRefreshFamily(req, 'map', req.mapUser.sub)
+    clearRefreshCookie(res, 'map')
     res.locals.serviceLogMessage = 'Map logout succeeded'
     res.status(204).send()
   }),

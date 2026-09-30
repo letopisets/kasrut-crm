@@ -83,6 +83,13 @@ enum MapPasswordResetChannel {
   phone
 }
 
+// Which client a refresh token belongs to: the CRM (users) or the public map
+// (map_users). A CHECK constraint keeps the owner column in step with it.
+enum RefreshTokenAudience {
+  crm
+  map
+}
+
 enum SettlementType {
   city
   town
@@ -113,6 +120,7 @@ model User {
 
   rabbanut Rabbanut? @relation(fields: [rabbanutId], references: [id], onDelete: SetNull)
   mashgiach Mashgiach? @relation("UserMashgiach", fields: [mashgiachId], references: [id], onDelete: SetNull)
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }
@@ -376,6 +384,7 @@ model MapUser {
   suggestions MapRestaurantSuggestion[]
   reviews     MapRestaurantReview[]
   resetTokens MapPasswordResetToken[]
+  refreshTokens RefreshToken[]
 
   @@map("map_users")
 }
@@ -458,4 +467,31 @@ model MapPasswordResetToken {
   @@index([mapUserId])
   @@index([expiresAt])
   @@map("map_password_reset_tokens")
+}
+
+// Rotating refresh tokens (httpOnly cookie). Only the SHA-256 of the token is
+// stored. Every rotation marks the presented row used and adds its successor
+// to the same family; presenting a used or revoked row revokes the family.
+model RefreshToken {
+  id             String               @id @default(cuid())
+  tokenHash      String               @unique
+  familyId       String
+  audience       RefreshTokenAudience
+  userId         String?
+  mapUserId      String?
+  sessionVersion Int
+  createdAt      DateTime             @default(now())
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  userAgent      String?              @db.VarChar(200)
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mapUser MapUser? @relation(fields: [mapUserId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+  @@index([mapUserId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }

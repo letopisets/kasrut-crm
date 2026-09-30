@@ -25,6 +25,8 @@ jest.mock('../db/mashgichim.repo')
 jest.mock('../db/hechsherim.repo')
 jest.mock('../db/rabbanuts.repo')
 jest.mock('../db/documents.repo')
+// Refresh-token storage; its behaviour is covered in refreshTokens.test.ts.
+jest.mock('../db/refreshTokens.repo')
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('../lib/twoFactorAttempts')
 jest.mock('../lib/twoFactorChallenges')

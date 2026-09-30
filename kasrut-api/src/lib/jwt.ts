@@ -2,6 +2,7 @@ import { createSecretKey, hkdfSync, randomUUID, type KeyObject } from 'crypto'
 import jwt, { JsonWebTokenError, type JwtPayload, type SignOptions } from 'jsonwebtoken'
 import { env } from '../config/env'
 import type { JWTPayload, MapJWTPayload, Role } from '../models/types'
+import { logger } from './logger'
 
 // Every token purpose is signed with its own HMAC key derived from JWT_SECRET,
 // so a token minted for one purpose can never verify as another even if a claim
@@ -17,6 +18,14 @@ const TWO_FACTOR_PENDING_TTL = '5m'
 
 function deriveKey(purpose: JwtPurpose): KeyObject {
   return createSecretKey(Buffer.from(hkdfSync('sha256', env.JWT_SECRET, HKDF_SALT, `kashrut:${purpose}`, 32)))
+}
+
+// Access tokens live ACCESS_TOKEN_TTL (default 15 minutes); the refresh
+// cookie (lib/refreshTokens.ts) renews them. JWT_EXPIRES_IN used to set this
+// and is still in older deployments' environment, where it would suggest a
+// 7-day session that no longer exists.
+if (env.JWT_EXPIRES_IN_IGNORED) {
+  logger.warn('JWT_EXPIRES_IN is set but ignored: access tokens use ACCESS_TOKEN_TTL; remove it from the environment')
 }
 
 const KEYS: Record<JwtPurpose, KeyObject> = {
@@ -74,7 +83,7 @@ export interface CrmAccessClaims {
 }
 
 export function signCrmAccessToken({ jti = randomUUID(), ...claims }: CrmAccessClaims): string {
-  return sign('crm-access', { ...claims, typ: 'crm', jti }, env.JWT_EXPIRES_IN)
+  return sign('crm-access', { ...claims, typ: 'crm', jti }, env.ACCESS_TOKEN_TTL_SECONDS)
 }
 
 // Every verified CRM token carries a token id and a session version.
@@ -117,7 +126,7 @@ export interface MapAccessClaims {
 }
 
 export function signMapAccessToken({ jti = randomUUID(), ...claims }: MapAccessClaims): string {
-  return sign('map-access', { ...claims, typ: 'map_user', jti }, env.JWT_EXPIRES_IN)
+  return sign('map-access', { ...claims, typ: 'map_user', jti }, env.ACCESS_TOKEN_TTL_SECONDS)
 }
 
 export function verifyMapAccessToken(token: string): MapJWTPayload {

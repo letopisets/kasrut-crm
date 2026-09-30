@@ -30,6 +30,10 @@ const ru: Translations = {
   status: { ok: 'Активен', warning: 'Истекает', critical: 'Срочно' },
   back: '← Назад',
   logout: 'Выйти',
+  sessionRestoring: 'Восстанавливаем сеанс…',
+  sessionUnavailable: 'Не удалось связаться с сервером, чтобы восстановить сеанс.',
+  sessionRetry: 'Повторить',
+  sessionSignIn: 'Войти заново',
   restaurants: {
     title:  'Заведения',
     sub:    'Рестораны и точки питания',

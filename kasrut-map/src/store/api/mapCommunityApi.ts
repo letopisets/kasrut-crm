@@ -1,4 +1,5 @@
 import { baseApi } from './baseApi'
+import { REQUESTED_WITH_HEADERS } from '../sessionRefresh'
 import type {
   MapAuthConfig,
   MapAuthProvider,
@@ -46,6 +47,11 @@ interface SubmitReviewPayload {
   text?: string | null
 }
 
+// Calls that set or clear the httpOnly refresh cookie. 'include' lets the
+// cookie through when the API is on another origin (local dev); in production
+// the API is same-origin behind the map host's /api proxy.
+const WITH_COOKIE = { credentials: 'include' } as const
+
 export const mapCommunityApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getMapAuthConfig: build.query<MapAuthConfig, void>({
@@ -57,6 +63,7 @@ export const mapCommunityApi = baseApi.injectEndpoints({
         url: '/map-auth/oauth',
         method: 'POST',
         body,
+        ...WITH_COOKIE,
       }),
       invalidatesTags: ['MapAuth'],
     }),
@@ -65,6 +72,7 @@ export const mapCommunityApi = baseApi.injectEndpoints({
         url: '/map-auth/register',
         method: 'POST',
         body,
+        ...WITH_COOKIE,
       }),
       invalidatesTags: ['MapAuth'],
     }),
@@ -73,6 +81,7 @@ export const mapCommunityApi = baseApi.injectEndpoints({
         url: '/map-auth/login',
         method: 'POST',
         body,
+        ...WITH_COOKIE,
       }),
       invalidatesTags: ['MapAuth'],
     }),
@@ -88,6 +97,7 @@ export const mapCommunityApi = baseApi.injectEndpoints({
         url: '/map-auth/password-reset/confirm',
         method: 'POST',
         body,
+        ...WITH_COOKIE,
       }),
       invalidatesTags: ['MapAuth'],
     }),
@@ -96,7 +106,7 @@ export const mapCommunityApi = baseApi.injectEndpoints({
       providesTags: ['MapAuth'],
     }),
     logoutMap: build.mutation<void, void>({
-      query: () => ({ url: '/map-auth/logout', method: 'POST' }),
+      query: () => ({ url: '/map-auth/logout', method: 'POST', ...WITH_COOKIE, headers: REQUESTED_WITH_HEADERS }),
       invalidatesTags: ['MapAuth'],
     }),
     getRestaurantReviews: build.query<MapReviewsPayload, string>({

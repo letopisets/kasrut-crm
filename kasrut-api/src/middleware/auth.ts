@@ -15,10 +15,14 @@ declare global {
 }
 
 // The only CRM calls an owner who still has to enrol in 2FA (REQUIRE_OWNER_2FA)
-// may make: read the session, sign out, and complete setup. Keys are
+// may make: read, renew and end the session, and complete setup. Keys are
 // "METHOD baseUrl+path" with no query string; anything else is refused.
+// POST /api/auth/refresh authenticates by its cookie, not through
+// authenticateJWT; it is listed so the setup-only session is known to renew,
+// and the access token it returns is gated here like any other.
 export const TWO_FACTOR_SETUP_ALLOWLIST: ReadonlySet<string> = new Set([
   'GET /api/auth/me',
+  'POST /api/auth/refresh',
   'POST /api/auth/logout',
   'POST /api/auth/2fa/setup',
   'POST /api/auth/2fa/enable',
@@ -49,7 +53,7 @@ export async function authenticateJWT(req: Request, res: Response, next: NextFun
 
     // Authorization claims are only a snapshot. Resolve the current account
     // on every request so deletion, role changes, tenant moves and tenant
-    // suspension take effect immediately rather than when a 7-day JWT expires.
+    // suspension take effect immediately rather than when the JWT expires.
     const currentUser = await usersRepo.findAuthById(payload.sub)
     if (!currentUser) {
       res.status(401).json({ error: 'Account is inactive or unavailable' })

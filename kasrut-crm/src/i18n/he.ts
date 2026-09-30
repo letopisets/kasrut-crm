@@ -30,6 +30,10 @@ const he: Translations = {
   status: { ok: 'פעיל', warning: 'פוגת תוקף', critical: 'דחוף' },
   back: '→ חזרה',
   logout: 'יציאה',
+  sessionRestoring: 'משחזרים את החיבור…',
+  sessionUnavailable: 'לא ניתן להתחבר לשרת כדי לשחזר את החיבור.',
+  sessionRetry: 'לנסות שוב',
+  sessionSignIn: 'להתחבר מחדש',
   restaurants: {
     title:  'עסקים',
     sub:    'מסעדות ובתי אוכל',

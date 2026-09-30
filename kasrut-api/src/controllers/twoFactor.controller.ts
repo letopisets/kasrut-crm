@@ -11,6 +11,7 @@ import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { verifyTwoFactorPendingToken, type TwoFactorPendingPayload } from '../lib/jwt'
 import { isTwoFactorRequiredForRole } from '../lib/twoFactorPolicy'
+import { startRefreshSession } from '../lib/refreshTokens'
 
 const BACKUP_CODE_COUNT = 8
 const BACKUP_CODE_BYTES = 5
@@ -126,6 +127,8 @@ export const twoFactorController = {
     if (!updated) {
       res.status(409).json({ error: '2FA state changed; start setup again' }); return
     }
+    // Enabling bumped sessionVersion, which ended the old refresh family.
+    await startRefreshSession(req, res, 'crm', updated)
     res.locals.serviceLogMessage = '2FA enabled'
     res.json({ user: serializeUser(updated), token: signFullToken(updated), backupCodes: plainCodes })
   }),
@@ -157,6 +160,8 @@ export const twoFactorController = {
 
     const updated = await usersRepo.disableTwoFactor(req.user.sub)
     if (!updated) { res.status(409).json({ error: '2FA state changed' }); return }
+    // Disabling bumped sessionVersion, which ended the old refresh family.
+    await startRefreshSession(req, res, 'crm', updated)
     res.locals.serviceLogMessage = '2FA disabled'
     res.json({ user: serializeUser(updated), token: signFullToken(updated) })
   }),
@@ -216,6 +221,7 @@ export const twoFactorController = {
     res.locals.serviceLogActor = { userId: user.id, userEmail: user.email, userRole: user.role, actorType: 'crm_user' }
     res.locals.serviceLogMessage = `CRM backup-code login succeeded; remaining=${remaining.length}`
     const token = signFullToken(user)
+    await startRefreshSession(req, res, 'crm', user)
     res.json({ user: serializeUser(user), token, backupCodesRemaining: remaining.length })
   }),
 
@@ -262,6 +268,7 @@ export const twoFactorController = {
     res.locals.serviceLogActor = { userId: user.id, userEmail: user.email, userRole: user.role, actorType: 'crm_user' }
     res.locals.serviceLogMessage = 'CRM 2FA login succeeded'
     const token = signFullToken(user)
+    await startRefreshSession(req, res, 'crm', user)
     res.json({ user: serializeUser(user), token })
   }),
 }

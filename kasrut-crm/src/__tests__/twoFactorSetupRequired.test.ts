@@ -62,15 +62,20 @@ describe('base query — REQUIRE_OWNER_2FA', () => {
     expect(store.getState().auth.twoFactorSetupRequired).toBe(true)
   })
 
-  it('ignores answers to a token that was replaced meanwhile (2FA just enabled)', async () => {
+  it('retries with the token that replaced the one a 401 answered (2FA just enabled)', async () => {
     const store = makeStore()
-    fetchMock.mockImplementation(async () => {
-      store.dispatch(setUser({ user: { ...owner, twoFactorEnabled: true }, token: 'second-token' }))
-      return reply(401, { error: 'Authorization has changed; sign in again' })
-    })
+    fetchMock
+      .mockImplementationOnce(async () => {
+        store.dispatch(setUser({ user: { ...owner, twoFactorEnabled: true }, token: 'second-token' }))
+        return reply(401, { error: 'Authorization has changed; sign in again' })
+      })
+      .mockResolvedValueOnce(reply(200, { ...owner, twoFactorEnabled: true, twoFactorSetupRequired: false }))
 
     await store.dispatch(authApi.endpoints.getMe.initiate())
 
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const retry = fetchMock.mock.calls[1][0] as Request
+    expect(retry.headers.get('Authorization')).toBe('Bearer second-token')
     expect(store.getState().auth.token).toBe('second-token')
     expect(store.getState().auth.twoFactorSetupRequired).toBe(false)
   })

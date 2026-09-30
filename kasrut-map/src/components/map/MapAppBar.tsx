@@ -4,7 +4,7 @@ import {
   AppBar, Toolbar, Typography, Box, Button, InputBase,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
   Tooltip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
-  useMediaQuery, useTheme,
+  CircularProgress, useMediaQuery, useTheme,
 } from '@mui/material'
 import TuneIcon             from '@mui/icons-material/Tune'
 import MapIcon              from '@mui/icons-material/Map'
@@ -24,6 +24,7 @@ import { clearCredentials } from '@/store/mapAuthSlice'
 import { setMapLang, type MapLang } from '@/store/mapLangSlice'
 import { useMapLang } from '@/i18n/useMapLang'
 import { useLogoutMapMutation } from '@/store/api/mapCommunityApi'
+import { useMapSessionBootstrap } from '@/hooks/useMapSessionBootstrap'
 import type { ThemeMode } from '@/theme'
 
 const LANGS: MapLang[] = ['en', 'ru', 'he']
@@ -81,6 +82,7 @@ export function MapAppBar({
   const theme     = useTheme()
   const compact   = useMediaQuery(theme.breakpoints.down('sm'))
   const user      = useAppSelector(state => state.mapAuth.user)
+  const sessionChecked = useMapSessionBootstrap()
   const lang      = useAppSelector(state => state.mapLang.lang)
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null)
   const [moreAnchor, setMoreAnchor]       = useState<HTMLElement | null>(null)
@@ -186,7 +188,12 @@ export function MapAppBar({
           </IconButton>
         </Tooltip>
 
-        {user ? (
+        {!sessionChecked ? (
+          // A reload is restoring the session from the refresh cookie.
+          <Box role="status" aria-label={t.sessionRestoring} sx={{ display: 'flex', p: 0.75, flexShrink: 0 }}>
+            <CircularProgress size={22} />
+          </Box>
+        ) : user ? (
           <>
             <Tooltip title={user.name}>
               <IconButton onClick={(e) => setAccountAnchor(e.currentTarget)} sx={{ p: 0.5, flexShrink: 0 }}>

@@ -1,8 +1,5 @@
 import 'dotenv/config'
 import { z } from 'zod'
-import type { SignOptions } from 'jsonwebtoken'
-
-type JwtExpiresIn = SignOptions['expiresIn']
 
 const DEFAULT_CORS = 'http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174'
 
@@ -59,6 +56,36 @@ const jwtSecret = z.string()
   .refine(value => distinctChars(value) >= 12, 'JWT_SECRET must contain at least 12 distinct characters')
   .refine(value => !isNearlyPeriodic(value), 'JWT_SECRET must not be a repeated pattern')
 
+// Access-token lifetime: a whole number of seconds, minutes or hours ("15m"),
+// between one minute and one hour. The refresh cookie keeps the session alive,
+// so anything longer only widens the window of a stolen access token. A bare
+// number is refused: jsonwebtoken would read "900" as 900 milliseconds.
+const ACCESS_TOKEN_TTL_UNITS = { s: 1, m: 60, h: 3600 } as const
+const ACCESS_TOKEN_TTL_MIN_SEC = 60
+const ACCESS_TOKEN_TTL_MAX_SEC = 60 * 60
+
+function accessTokenTtlSeconds(value: string): number | null {
+  const match = /^([1-9]\d{0,5})(s|m|h)$/.exec(value.trim())
+  if (!match) return null
+  return Number(match[1]) * ACCESS_TOKEN_TTL_UNITS[match[2] as keyof typeof ACCESS_TOKEN_TTL_UNITS]
+}
+
+const accessTokenTtl = z.string()
+  .refine(
+    value => {
+      const seconds = accessTokenTtlSeconds(value)
+      return seconds !== null && seconds >= ACCESS_TOKEN_TTL_MIN_SEC && seconds <= ACCESS_TOKEN_TTL_MAX_SEC
+    },
+    'ACCESS_TOKEN_TTL must look like 15m, 900s or 1h and lie between 1 minute and 1 hour',
+  )
+  .transform(value => accessTokenTtlSeconds(value) as number)
+
+// docker-compose passes optional variables as ${VAR:-}; an empty value must
+// count as unset rather than stop the API from starting.
+function emptyAsUnset<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess(value => (typeof value === 'string' && value.trim() === '' ? undefined : value), schema)
+}
+
 const encryptionKey = z.string()
   .regex(/^[0-9a-fA-F]{64}$/, 'ENCRYPTION_KEY must be a 64-character hex string (32 bytes)')
   .refine(value => !PLACEHOLDER_SECRET.test(value), 'ENCRYPTION_KEY is a placeholder; generate a random key')
@@ -79,7 +106,15 @@ export const envSchema = z.object({
   PORT:             z.coerce.number().int().positive().default(3000),
   API_PUBLIC_URL:   z.string().min(1).default('https://api.mykoshermap.com/api'),
   JWT_SECRET:       jwtSecret,
-  JWT_EXPIRES_IN:   z.string().default('7d'),
+  // Lifetime of CRM and map access tokens. JWT_EXPIRES_IN is no longer read
+  // (see parseEnv); sessions outlive an access token through the refresh cookie.
+  ACCESS_TOKEN_TTL: emptyAsUnset(accessTokenTtl.default('15m')),
+  // A sign-in can be renewed through the refresh cookie for this many days;
+  // rotation does not extend it, so every session ends after this long.
+  REFRESH_TOKEN_TTL_DAYS: emptyAsUnset(z.coerce.number().int().min(1).max(365).default(30)),
+  // Secure attribute of the refresh cookies. Defaults to true except in
+  // development and test, which usually run over plain http.
+  COOKIE_SECURE: emptyAsUnset(z.enum(['true', 'false']).optional()),
   ENCRYPTION_KEY:   encryptionKey,
   GOOGLE_CLIENT_ID: z.string().default(''),
   APPLE_CLIENT_ID:  z.string().default(''),
@@ -108,7 +143,14 @@ export function parseEnv(source: Record<string, string | undefined>) {
     PORT:             raw.PORT,
     API_PUBLIC_URL:   raw.API_PUBLIC_URL,
     JWT_SECRET:       raw.JWT_SECRET,
-    JWT_EXPIRES_IN:   raw.JWT_EXPIRES_IN as JwtExpiresIn,
+    ACCESS_TOKEN_TTL_SECONDS: raw.ACCESS_TOKEN_TTL,
+    REFRESH_TOKEN_TTL_DAYS:   raw.REFRESH_TOKEN_TTL_DAYS,
+    COOKIE_SECURE: raw.COOKIE_SECURE === undefined
+      ? raw.NODE_ENV === 'production'
+      : raw.COOKIE_SECURE === 'true',
+    // Still set by older .env files and docker-compose (7d in production).
+    // Ignored: lib/jwt.ts logs a warning once so the stale value gets removed.
+    JWT_EXPIRES_IN_IGNORED: (source.JWT_EXPIRES_IN ?? '').trim() !== '',
     ENCRYPTION_KEY:   raw.ENCRYPTION_KEY,
     GOOGLE_CLIENT_ID: raw.GOOGLE_CLIENT_ID,
     APPLE_CLIENT_ID:  raw.APPLE_CLIENT_ID,

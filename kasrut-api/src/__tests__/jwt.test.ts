@@ -61,15 +61,51 @@ describe('per-purpose JWT signing keys', () => {
     })
   })
 
-  it('keeps the existing token lifetimes (JWT_EXPIRES_IN for sessions, 5 minutes for pre-2FA)', () => {
+  describe('token lifetimes', () => {
     const lifetime = (token: string) => {
       const { iat, exp } = jwt.decode(token) as { iat: number; exp: number }
       return exp - iat
     }
-    const sessionLifetime = lifetime(jwt.sign({}, 'lifetime-probe', { expiresIn: env.JWT_EXPIRES_IN }))
-    expect(lifetime(mint['crm-access']())).toBe(sessionLifetime)
-    expect(lifetime(mint['map-access']())).toBe(sessionLifetime)
-    expect(lifetime(mint['2fa-pending']())).toBe(5 * 60)
+
+    // The 15-minute default itself is pinned in env.test.ts.
+    it('gives access tokens ACCESS_TOKEN_TTL and pre-2FA tokens 5 minutes', () => {
+      expect(lifetime(mint['crm-access']())).toBe(env.ACCESS_TOKEN_TTL_SECONDS)
+      expect(lifetime(mint['map-access']())).toBe(env.ACCESS_TOKEN_TTL_SECONDS)
+      expect(lifetime(mint['2fa-pending']())).toBe(5 * 60)
+    })
+
+    it('warns once at startup when the ignored JWT_EXPIRES_IN is still set', () => {
+      const previous = process.env.JWT_EXPIRES_IN
+      process.env.JWT_EXPIRES_IN = '7d'
+      try {
+        jest.isolateModules(() => {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { logger } = require('../lib/logger') as typeof import('../lib/logger')
+          const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined)
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const isolated = require('../lib/jwt') as typeof import('../lib/jwt')
+          const { iat, exp } = jwt.decode(isolated.signCrmAccessToken(crmClaims)) as { iat: number; exp: number }
+
+          expect(warn).toHaveBeenCalledTimes(1)
+          expect(warn.mock.calls[0][0]).toMatch(/JWT_EXPIRES_IN is set but ignored/)
+          expect(exp - iat).not.toBe(7 * 24 * 60 * 60)
+        })
+      } finally {
+        if (previous === undefined) delete process.env.JWT_EXPIRES_IN
+        else process.env.JWT_EXPIRES_IN = previous
+      }
+    })
+
+    it('honours a configured ACCESS_TOKEN_TTL for CRM and map access tokens', () => {
+      const ttl = jest.replaceProperty(env, 'ACCESS_TOKEN_TTL_SECONDS', 7 * 60)
+      try {
+        expect(lifetime(mint['crm-access']())).toBe(7 * 60)
+        expect(lifetime(mint['map-access']())).toBe(7 * 60)
+        expect(lifetime(mint['2fa-pending']())).toBe(5 * 60)
+      } finally {
+        ttl.restore()
+      }
+    })
   })
 
   it.each(purposes)('signs %s tokens with HS256, issuer kashrut-api and the HKDF-derived key', purpose => {

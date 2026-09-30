@@ -15,6 +15,14 @@ Playwright-based end-to-end tests covering critical user flows in
 - Run the API with `REQUIRE_OWNER_2FA=false`. With the default (`true`) an
   owner without 2FA is confined to the forced `/setup-2fa` screen and cannot
   switch 2FA off, so `loginToCrm` stops with an error pointing here.
+- Page loads restore the session from the refresh cookie. An API started
+  with `NODE_ENV=production` marks that cookie `Secure`, which browsers keep
+  only over https or on `localhost`; on any other plain-http host run it with
+  `COOKIE_SECURE=false`.
+- Open the SPAs on the same host name as the API (for example `localhost`
+  for both, on different ports). The sign-in and refresh calls refuse
+  requests from other origins, and `127.0.0.1:5173` calling
+  `localhost:3000` counts as one.
 - Seed data must include at least one rabbanut/authority and one hechsher
   so the restaurant CRUD form can select required options.
 

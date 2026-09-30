@@ -113,6 +113,72 @@ WHERE email = '<owner email, lowercase>';
 SQL
 ```
 
+### Sessions and refresh cookies
+
+The CRM and the map sign in with a short-lived access token that the browser
+keeps in memory only, plus a refresh token in an httpOnly cookie that renews
+it: on every page load and whenever the access token has expired.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ACCESS_TOKEN_TTL` | `15m` | Lifetime of CRM and map access tokens: `1m` to `1h`, written as `15m`, `900s` or `1h`. |
+| `REFRESH_TOKEN_TTL_DAYS` | `30` | Days a sign-in can be renewed (1 to 365). Renewing does not extend it: every session ends this long after the password (and 2FA) sign-in. |
+| `COOKIE_SECURE` | `true` (`false` when `NODE_ENV` is `development` or `test`) | `Secure` attribute of the refresh cookies. Keep it on in production. |
+
+`JWT_EXPIRES_IN` is no longer read. While it is set the API logs
+`JWT_EXPIRES_IN is set but ignored` once at startup. `docker-compose.yml`
+still passes `JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}` to the api service, so
+the warning appears until that line is removed. The service does not
+forward the three variables above yet, so production runs on the defaults,
+which are the intended production values. To change one, add it to the api
+`environment` block, for example
+`ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}` (an empty value counts as unset).
+
+The cookies are `kashrut_crm_rt` (path `/api/auth`, sent only to
+crm.mykoshermap.com) and `kashrut_map_rt` (path `/api/map-auth`, sent only to
+mykoshermap.com). Both are `HttpOnly`, `SameSite=Strict` and host-only. The
+database stores only a SHA-256 of each token (`refresh_tokens`, created by
+migration `20260930101000_add_refresh_tokens`). Every refresh replaces the
+token. If an already used or revoked token is presented again, the API takes
+it as a stolen copy: it revokes that whole chain of tokens and bumps the
+account's `sessionVersion`, which signs the account out everywhere. The one
+exception is a token presented again within a minute of its own rotation,
+which is what a reload or a dropped connection in the middle of a refresh
+looks like: the chain is still revoked (that browser signs in again), but
+the account's other sessions stay. A new sign-in revokes the chain of the
+cookie it replaces. Expired rows are purged once a day by the API process.
+
+The calls that set a refresh cookie without an access token (CRM login,
+2FA verify and verify-backup, map login, register, OAuth and password-reset
+confirm) accept only JSON bodies, and the refresh calls require the header
+`X-Requested-With: kashrut`. All of them refuse requests that the browser
+marks as coming from another origin (`Sec-Fetch-Site`, or `Origin` compared
+with the `Host` header, which nginx passes on). mykoshermap.com and
+crm.mykoshermap.com count as different origins here even though they are the
+same site, so each SPA must call the API through its own host's `/api`
+(`VITE_API_URL=/api`, as the production builds do), not through the other
+host or api.mykoshermap.com. For local development an SPA on another port
+of the same host name (localhost:5173 calling localhost:3000) is accepted.
+
+Signing out, a password reset, enabling or disabling 2FA and role or tenant
+changes already bump `sessionVersion`, and that ends refresh sessions too.
+To sign everyone out at once (for example after a suspected leak):
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+UPDATE users SET "sessionVersion" = "sessionVersion" + 1;
+UPDATE map_users SET "sessionVersion" = "sessionVersion" + 1;
+SQL
+```
+
+After the deploy that introduces refresh cookies, every CRM and map user has
+to sign in once: the clients drop the access tokens they used to keep in
+`localStorage`, and no refresh cookie exists yet. The migration also bumps
+every account's `sessionVersion`, so the 7-day access tokens issued before
+it stop working at once instead of staying valid for up to a week. It must
+have run (`RUN_MIGRATIONS=true`), or every sign-in fails with a 500.
+
 ## Deploy
 
 ```sh

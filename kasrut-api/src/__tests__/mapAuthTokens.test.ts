@@ -13,6 +13,8 @@ import { DUMMY_PASSWORD_HASH, hashPassword } from '../services/mapPassword.servi
 // the middleware tests (which mint their own tokens) kept passing.
 jest.mock('../lib/prisma')
 jest.mock('../db/mapCommunity.repo')
+// Refresh-token storage; its behaviour is covered in refreshTokens.test.ts.
+jest.mock('../db/refreshTokens.repo')
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('../lib/tokenBlacklist')
 jest.mock('../services/mapOAuth.service', () => ({

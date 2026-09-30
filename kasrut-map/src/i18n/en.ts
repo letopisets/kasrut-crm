@@ -183,6 +183,7 @@ const en: MapTranslations = {
   donateThanks: 'Thank you for your support!',
 
   sessionExpired: 'Your session expired. Please log in again.',
+  sessionRestoring: 'Restoring your session…',
 }
 
 export default en

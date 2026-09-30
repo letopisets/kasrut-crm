@@ -1,6 +1,7 @@
 import { baseApi } from './baseApi'
 import type { RootState } from '../index'
 import { setTwoFactorSetupRequired } from '../authSlice'
+import { REQUESTED_WITH_HEADERS } from '../sessionRefresh'
 import type { User } from '@/types'
 
 // twoFactorSetupRequired: the session is confined to 2FA setup (REQUIRE_OWNER_2FA).
@@ -10,10 +11,15 @@ type LoginResponse =
 
 export type MeResponse = User & { twoFactorSetupRequired?: boolean }
 
+// Calls that set or clear the httpOnly refresh cookie. 'include' lets the
+// cookie through when the API is on another origin (local dev); in production
+// the API is same-origin behind the CRM host's /api proxy.
+const WITH_COOKIE = { credentials: 'include' } as const
+
 export const authApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     login: build.mutation<LoginResponse, { email: string; password: string }>({
-      query: (body) => ({ url: '/auth/login', method: 'POST', body }),
+      query: (body) => ({ url: '/auth/login', method: 'POST', body, ...WITH_COOKIE }),
     }),
     getMe: build.query<MeResponse, void>({
       query: () => '/auth/me',
@@ -30,19 +36,19 @@ export const authApi = baseApi.injectEndpoints({
       },
     }),
     logout: build.mutation<void, void>({
-      query: () => ({ url: '/auth/logout', method: 'POST' }),
+      query: () => ({ url: '/auth/logout', method: 'POST', ...WITH_COOKIE, headers: REQUESTED_WITH_HEADERS }),
     }),
     verify2fa: build.mutation<{ user: User; token: string }, { tempToken: string; code: string }>({
-      query: (body) => ({ url: '/auth/2fa/verify', method: 'POST', body }),
+      query: (body) => ({ url: '/auth/2fa/verify', method: 'POST', body, ...WITH_COOKIE }),
     }),
     setup2fa: build.mutation<{ secret: string; qrDataUrl: string }, { password: string }>({
       query: (body) => ({ url: '/auth/2fa/setup', method: 'POST', body }),
     }),
     enable2fa: build.mutation<{ user: User; token: string; backupCodes: string[] }, { code: string }>({
-      query: (body) => ({ url: '/auth/2fa/enable', method: 'POST', body }),
+      query: (body) => ({ url: '/auth/2fa/enable', method: 'POST', body, ...WITH_COOKIE }),
     }),
     disable2fa: build.mutation<{ user: User; token: string }, { code: string }>({
-      query: (body) => ({ url: '/auth/2fa/disable', method: 'POST', body }),
+      query: (body) => ({ url: '/auth/2fa/disable', method: 'POST', body, ...WITH_COOKIE }),
     }),
   }),
 })

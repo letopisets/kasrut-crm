@@ -176,4 +176,5 @@ export interface MapTranslations {
   donateThanks: string
 
   sessionExpired: string
+  sessionRestoring: string   // spinner label while a reload restores the session
 }

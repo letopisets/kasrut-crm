@@ -28,6 +28,12 @@ export interface Translations {
   status: { ok: string; warning: string; critical: string }
   back: string
   logout: string
+  // Screen reader label of the spinner shown while a reload restores the session
+  sessionRestoring: string
+  // Shown instead when the API could not be reached to restore it
+  sessionUnavailable: string
+  sessionRetry: string
+  sessionSignIn: string
   restaurants: {
     title: string
     sub: string

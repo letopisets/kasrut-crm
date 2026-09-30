@@ -183,6 +183,7 @@ const he: MapTranslations = {
   donateThanks: 'תודה על התמיכה!',
 
   sessionExpired: 'פג תוקף ההתחברות. יש להתחבר מחדש.',
+  sessionRestoring: 'משחזרים את החיבור…',
 }
 
 export default he
