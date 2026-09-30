@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '@/store'
-import { clearPersistedAuth, logout as logoutAction } from '@/store/authSlice'
 import { setLang as setLangAction, type Lang } from '@/store/langSlice'
 import { useLang } from '@/i18n/useLang'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useAuthController } from '@/controllers/useAuthController'
 import { TwoFactorSettings } from '@/components/auth/TwoFactorSettings'
 import { ROLE_COLORS } from '@/theme'
 import { alpha } from '@mui/material/styles'
@@ -38,7 +38,7 @@ export function Header() {
   const user     = useAppSelector(s => s.auth.user)
   const lang     = useAppSelector(s => s.lang.lang)
   const setLang  = (l: Lang) => dispatch(setLangAction(l))
-  const logout   = () => { dispatch(logoutAction()); clearPersistedAuth() }
+  const { logout } = useAuthController()
   const t        = useLang()
   const perm     = usePermissions()
   const rc       = ROLE_COLORS[role]
@@ -48,7 +48,8 @@ export function Header() {
 
   const drawerOpen = drawerPath === pathname
 
-  const handleLogout = () => { logout(); navigate('/login', { replace: true }) }
+  // Signs out on the API too, which alone can revoke the refresh cookie.
+  const handleLogout = () => { void logout() }
   const navLabels = t.nav as Record<string, string>
   const activeLabel = navLabels[activeTab] ?? t.dashboard.title
 

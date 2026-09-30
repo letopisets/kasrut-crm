@@ -7,6 +7,7 @@ const he: MapTranslations = {
   lightTheme: 'ערכת נושא בהירה',
   filtersTooltip: 'סינון',
   logout: 'יציאה',
+  logoutFailed: 'היציאה נכשלה: השרת לא הגיב. נסה שוב.',
   loginTooltip: 'כניסה',
   establishmentCount: '{n} מקומות ›',
   establishmentCountLimited: '{shown} מתוך {total} מקומות ›',

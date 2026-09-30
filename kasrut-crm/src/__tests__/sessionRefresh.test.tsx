@@ -8,6 +8,7 @@ import langReducer from '@/store/langSlice'
 import { baseApi } from '@/store/api/baseApi'
 import { authApi } from '@/store/api/authApi'
 import { refreshSession } from '@/store/sessionRefresh'
+import { signOut } from '@/store/signOut'
 import { SessionGate } from '@/components/layout/SessionGate'
 import ru from '@/i18n/ru'
 import type { User } from '@/types'
@@ -231,6 +232,81 @@ describe('refreshSession', () => {
   })
 })
 
+describe('signOut', () => {
+  const logoutCalls = () => seen.filter(call => call.url.endsWith('/auth/logout'))
+
+  // Signed in, but holding no access token (e.g. it could not be renewed).
+  function tokenlessStore() {
+    return configureStore({
+      reducer: { auth: authReducer, lang: langReducer, [baseApi.reducerPath]: baseApi.reducer },
+      middleware: getDefault => getDefault().concat(baseApi.middleware),
+      preloadedState: { auth: { ...authReducer(undefined, { type: '@@INIT' }), user, sessionChecked: true } },
+    })
+  }
+
+  function api(answer: (call: SeenCall) => Response | Promise<Response>) {
+    fetchMock.mockImplementation(async (input, init) => {
+      const call = describeCall(input, init)
+      seen.push(call)
+      return answer(call)
+    })
+  }
+
+  it('ends the session on the API with the refresh cookie alone when no access token is held', async () => {
+    const store = tokenlessStore()
+    localStorage.setItem('auth-storage', JSON.stringify({ user }))
+    api(() => new Response(null, { status: 204 }))
+
+    expect(await store.dispatch(signOut())).toBe(true)
+
+    expect(logoutCalls()).toHaveLength(1)
+    expect(logoutCalls()[0].headers.get('Authorization')).toBeNull()
+    expect(logoutCalls()[0].headers.get('X-Requested-With')).toBe('kashrut')
+    expect(logoutCalls()[0].credentials).toBe('include')
+    expect(store.getState().auth.user).toBeNull()
+    expect(localStorage.getItem('auth-storage')).toBeNull()
+  })
+
+  it('keeps the session when the API cannot be reached', async () => {
+    const store = makeStore()
+    api(() => { throw new TypeError('Failed to fetch') })
+
+    expect(await store.dispatch(signOut())).toBe(false)
+
+    expect(store.getState().auth.user).toEqual(user)
+    expect(store.getState().auth.token).toBe('old-token')
+  })
+
+  it('keeps the session when an expired access token cannot be renewed', async () => {
+    const store = makeStore()
+    api(call => call.url.endsWith('/auth/refresh')
+      ? reply(503, { error: 'Service unavailable' })
+      : reply(401, { error: 'Invalid or expired token' }))
+
+    expect(await store.dispatch(signOut())).toBe(false)
+
+    expect(store.getState().auth.user).toEqual(user)
+  })
+
+  it('counts a session the API refuses outright as signed out', async () => {
+    const store = makeStore()
+    api(() => reply(401, { error: 'Session expired; sign in again' }))
+
+    expect(await store.dispatch(signOut())).toBe(true)
+
+    expect(store.getState().auth.user).toBeNull()
+  })
+
+  it('signs out locally anyway when forced', async () => {
+    const store = makeStore()
+    api(() => reply(500, { error: 'Internal server error' }))
+
+    expect(await store.dispatch(signOut({ force: true }))).toBe(false)
+
+    expect(store.getState().auth.user).toBeNull()
+  })
+})
+
 describe('SessionGate', () => {
   function gatedStore() {
     return configureStore({
@@ -300,6 +376,22 @@ describe('SessionGate', () => {
     expect(await screen.findByText('app content')).toBeInTheDocument()
     expect(store.getState().auth.user).toBeNull()
     expect(localStorage.getItem('auth-storage')).toBeNull()
+  })
+
+  it('asks the API to end the stored session before signing in anew', async () => {
+    const store = gatedStore()
+    refreshAnswer = () => reply(503, { error: 'Service unavailable' })
+
+    render(<Provider store={store}><SessionGate><div>app content</div></SessionGate></Provider>)
+    fireEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: ru.sessionSignIn }))
+
+    expect(await screen.findByText('app content')).toBeInTheDocument()
+    const logouts = seen.filter(call => call.url.endsWith('/auth/logout'))
+    expect(logouts).toHaveLength(1)
+    expect(logouts[0].headers.get('Authorization')).toBeNull()
+    expect(logouts[0].headers.get('X-Requested-With')).toBe('kashrut')
+    expect(logouts[0].credentials).toBe('include')
+    expect(store.getState().auth.user).toBeNull()
   })
 
   it('renders at once when there is nothing to restore', () => {

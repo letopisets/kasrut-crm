@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'crypto'
-import type { CookieOptions, NextFunction, Request, Response } from 'express'
+import type { CookieOptions, NextFunction, Request, RequestHandler, Response } from 'express'
 import { env } from '../config/env'
 import { refreshTokensRepo, type RefreshTokenAudience, type RefreshTokenRow } from '../db/refreshTokens.repo'
 import { logger } from './logger'
@@ -178,6 +178,19 @@ export function requireRefreshRequest(req: Request, res: Response, next: NextFun
   next()
 }
 
+/**
+ * Guards sign-out: a request with an access token is authenticated by it as
+ * usual; one without (a client that lost its token, or could not renew it)
+ * is let through on the refresh-call guards, to end the session its refresh
+ * cookie carries. The cookie is httpOnly, so only the API can revoke it.
+ */
+export function bearerOrRefreshRequest(authenticate: RequestHandler): RequestHandler {
+  return (req, res, next) => {
+    if (req.headers.authorization !== undefined) return authenticate(req, res, next)
+    requireRefreshRequest(req, res, next)
+  }
+}
+
 // ── Tokens ────────────────────────────────────────────────────────────────────
 
 interface IssueInput {
@@ -324,6 +337,24 @@ export async function rotateRefreshToken<A extends { id: string; sessionVersion?
 /** Revokes every token of a family; presenting one of them later counts as reuse. */
 export async function revokeRefreshFamily(familyId: string): Promise<void> {
   await refreshTokensRepo.revokeFamily(familyId, new Date())
+}
+
+/**
+ * Sign-out by the refresh cookie alone (see bearerOrRefreshRequest): revokes
+ * the presented cookie's family. When that cookie was still a live session
+ * (unused, unrevoked, unexpired) the account's sessionVersion is bumped too,
+ * but only while it still equals the cookie's, which is what a sign-out with
+ * an access token does; a stale cookie cannot end anyone's other sessions.
+ * Returns the owner's id, or null when no known cookie was presented.
+ */
+export async function endPresentedRefreshSession(req: Request, audience: RefreshAudience): Promise<string | null> {
+  const token = await findPresented(req, audience)
+  if (!token) return null
+  const now = new Date()
+  const live = !token.usedAt && !token.revokedAt && token.expiresAt.getTime() > now.getTime()
+  if (live) await refreshTokensRepo.revokeFamilyAndSessions(token, now)
+  else await refreshTokensRepo.revokeFamily(token.familyId, now)
+  return ownerIdOf(token)
 }
 
 /**

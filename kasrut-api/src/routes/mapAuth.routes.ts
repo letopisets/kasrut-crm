@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { mapAuthController } from '../controllers/mapAuth.controller'
 import { authenticateMapJWT } from '../middleware/mapAuth'
 import { rateLimit } from '../middleware/rateLimit'
-import { requireRefreshRequest, requireSessionStartRequest } from '../lib/refreshTokens'
+import { bearerOrRefreshRequest, requireRefreshRequest, requireSessionStartRequest } from '../lib/refreshTokens'
 
 const router = Router()
 const authLimiter = rateLimit({ keyPrefix: 'map-auth', windowMs: 15 * 60 * 1000, max: 60 })
@@ -39,6 +39,6 @@ router.post(
 )
 router.post('/refresh', refreshLimiter, requireRefreshRequest, mapAuthController.refresh)   // refresh cookie → new access token
 router.get('/me', authenticateMapJWT, mapAuthController.me)
-router.post('/logout', authenticateMapJWT, mapAuthController.logout)
+router.post('/logout', bearerOrRefreshRequest(authenticateMapJWT), mapAuthController.logout) // access token, or the refresh cookie alone
 
 export default router

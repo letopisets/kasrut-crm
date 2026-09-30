@@ -30,6 +30,7 @@ const en: Translations = {
   status: { ok: 'Active', warning: 'Expiring', critical: 'Urgent' },
   back: '← Back',
   logout: 'Logout',
+  logoutFailed: 'Could not sign out: the server did not respond. Try again.',
   sessionRestoring: 'Restoring your session…',
   sessionUnavailable: 'Could not reach the server to restore your session.',
   sessionRetry: 'Try again',

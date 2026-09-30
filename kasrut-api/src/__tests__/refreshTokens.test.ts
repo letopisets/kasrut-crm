@@ -671,6 +671,83 @@ describe('CRM sessions', () => {
     expect((await crmRefresh(setCookie(login, CRM_COOKIE)!.value)).status).toBe(200)
   })
 
+  // A client without an access token (lost, or not renewable) signs out by
+  // its refresh cookie alone, under the same guards as a refresh.
+  function crmCookieLogout(refresh: string | null, { header = true }: { header?: boolean } = {}) {
+    const req = request(app).post('/api/auth/logout').set('X-Forwarded-For', nextIp())
+    if (header) req.set('X-Requested-With', 'kashrut')
+    if (refresh !== null) req.set('Cookie', `${CRM_COOKIE}=${refresh}`)
+    return req
+  }
+
+  it('logout by the refresh cookie alone ends the session and every access token of the account', async () => {
+    const { access, refresh } = await crmSession()
+
+    const res = await crmCookieLogout(refresh)
+
+    expect(res.status).toBe(204)
+    expectCleared(res, CRM_COOKIE, '/api/auth')
+    expect(rowFor(refresh)!.revokedAt).toBeInstanceOf(Date)
+    expect(crmVersion()).toBe(1)
+    expect((await crmRefresh(refresh)).status).toBe(401)
+    expect((await crmMe(access)).status).toBe(401)
+  })
+
+  it('logout by a cookie that was already rotated revokes its family, including the successor', async () => {
+    const { refresh } = await crmSession()
+    const rotated = await crmRefresh(refresh)
+    const successor = setCookie(rotated, CRM_COOKIE)!.value
+
+    const res = await crmCookieLogout(refresh)
+
+    expect(res.status).toBe(204)
+    expect(rowFor(successor)!.revokedAt).toBeInstanceOf(Date)
+    expect((await crmRefresh(successor)).status).toBe(401)
+  })
+
+  it('a stale refresh cookie cannot sign the account out elsewhere', async () => {
+    const stale = await crmSession()
+    fakeDb.sessionVersions.user.set(crmUser.id, 1)   // e.g. signed out on another device since
+    const current = await crmSession()
+
+    const res = await crmCookieLogout(stale.refresh)
+
+    expect(res.status).toBe(204)
+    expect(crmVersion()).toBe(1)
+    expect((await crmRefresh(current.refresh)).status).toBe(200)
+  })
+
+  it('logout without an access token answers 204 when there is nothing to end', async () => {
+    const res = await crmCookieLogout(null)
+
+    expect(res.status).toBe(204)
+    expectCleared(res, CRM_COOKIE, '/api/auth')
+    expect(mockUsers.revokeSessions).not.toHaveBeenCalled()
+  })
+
+  it('refuses a cookie-only logout without X-Requested-With or from another origin', async () => {
+    const { refresh } = await crmSession()
+
+    const bare = await crmCookieLogout(refresh, { header: false })
+    const crossSite = await crmCookieLogout(refresh).set('Sec-Fetch-Site', 'cross-site')
+
+    for (const res of [bare, crossSite]) {
+      expect(res.status).toBe(403)
+      expect(setCookie(res, CRM_COOKIE)).toBeNull()
+    }
+    expect(rowFor(refresh)!.revokedAt).toBeNull()
+    expect(crmVersion()).toBe(0)
+  })
+
+  it('an invalid access token is refused, not treated as a cookie-only logout', async () => {
+    const { refresh } = await crmSession()
+
+    const res = await crmCookieLogout(refresh).set('Authorization', 'Bearer not-a-token')
+
+    expect(res.status).toBe(401)
+    expect(rowFor(refresh)!.revokedAt).toBeNull()
+  })
+
   it('logout without a cookie still signs out and clears it', async () => {
     const { access, refresh } = await crmSession()
 
@@ -824,6 +901,31 @@ describe('map sessions', () => {
     expect(mapVersion()).toBe(1)
     expect((await mapRefresh(refresh)).status).toBe(401)
     expect((await mapMe(access)).status).toBe(401)
+  })
+
+  it('logout by the refresh cookie alone ends the session and every access token of the account', async () => {
+    const { access, refresh } = await mapSession()
+
+    const res = await request(app).post('/api/map-auth/logout').set('X-Forwarded-For', nextIp())
+      .set('X-Requested-With', 'kashrut').set('Cookie', `${MAP_COOKIE}=${refresh}`)
+
+    expect(res.status).toBe(204)
+    expectCleared(res, MAP_COOKIE, '/api/map-auth')
+    expect(rowFor(refresh)!.revokedAt).toBeInstanceOf(Date)
+    expect(mapVersion()).toBe(1)
+    expect((await mapRefresh(refresh)).status).toBe(401)
+    expect((await mapMe(access)).status).toBe(401)
+  })
+
+  it('refuses a cookie-only logout without X-Requested-With', async () => {
+    const { refresh } = await mapSession()
+
+    const res = await request(app).post('/api/map-auth/logout').set('X-Forwarded-For', nextIp())
+      .set('Cookie', `${MAP_COOKIE}=${refresh}`)
+
+    expect(res.status).toBe(403)
+    expect(rowFor(refresh)!.revokedAt).toBeNull()
+    expect(mapVersion()).toBe(0)
   })
 })
 

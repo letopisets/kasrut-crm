@@ -24,6 +24,7 @@ import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThro
 import { signMapAccessToken } from '../lib/jwt'
 import {
   clearRefreshCookie,
+  endPresentedRefreshSession,
   revokePresentedRefreshFamily,
   rotateRefreshToken,
   setRefreshCookie,
@@ -386,7 +387,18 @@ export const mapAuthController = {
   }),
 
   logout: asyncHandler(async (req, res) => {
-    if (!req.mapUser || !await mapCommunityRepo.revokeUserSessions(req.mapUser.sub)) {
+    if (!req.mapUser) {
+      // No access token: the route let the request through on the refresh
+      // guards, and the refresh cookie alone ends this browser's session.
+      const ownerId = await endPresentedRefreshSession(req, 'map')
+      clearRefreshCookie(res, 'map')
+      if (ownerId) {
+        res.locals.serviceLogActor = { userId: ownerId, userRole: 'map_user', actorType: 'map_user' }
+        res.locals.serviceLogMessage = 'Map logout succeeded (refresh cookie)'
+      }
+      res.status(204).send(); return
+    }
+    if (!await mapCommunityRepo.revokeUserSessions(req.mapUser.sub)) {
       res.status(401).json({ error: 'Unauthorized' })
       return
     }

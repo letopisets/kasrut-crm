@@ -30,6 +30,7 @@ const ru: Translations = {
   status: { ok: 'Активен', warning: 'Истекает', critical: 'Срочно' },
   back: '← Назад',
   logout: 'Выйти',
+  logoutFailed: 'Не удалось выйти: сервер не ответил. Попробуйте ещё раз.',
   sessionRestoring: 'Восстанавливаем сеанс…',
   sessionUnavailable: 'Не удалось связаться с сервером, чтобы восстановить сеанс.',
   sessionRetry: 'Повторить',

@@ -3,7 +3,7 @@ import { authController }      from '../controllers/auth.controller'
 import { twoFactorController } from '../controllers/twoFactor.controller'
 import { authenticateJWT }     from '../middleware/auth'
 import { rateLimit }           from '../middleware/rateLimit'
-import { requireRefreshRequest, requireSessionStartRequest } from '../lib/refreshTokens'
+import { bearerOrRefreshRequest, requireRefreshRequest, requireSessionStartRequest } from '../lib/refreshTokens'
 
 const router = Router()
 const authLimiter = rateLimit({ keyPrefix: 'crm-auth', windowMs: 15 * 60 * 1000, max: 60 })
@@ -20,7 +20,7 @@ const refreshLimiter = rateLimit({ keyPrefix: 'crm-refresh', windowMs: 15 * 60 *
 router.post('/login',   authLimiter, requireSessionStartRequest, authController.login)
 router.post('/refresh', refreshLimiter, requireRefreshRequest, authController.refresh)   // refresh cookie → new access token
 router.get('/me',       authenticateJWT, authController.me)
-router.post('/logout',  authenticateJWT, authController.logout)
+router.post('/logout',  bearerOrRefreshRequest(authenticateJWT), authController.logout) // access token, or the refresh cookie alone
 
 // Two-factor authentication
 router.post('/2fa/setup',   twoFactorLimiter, authenticateJWT, twoFactorController.setup)   // re-auth + QR

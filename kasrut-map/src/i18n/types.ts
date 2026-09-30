@@ -5,6 +5,7 @@ export interface MapTranslations {
   lightTheme: string
   filtersTooltip: string
   logout: string
+  logoutFailed: string
   loginTooltip: string
   establishmentCount: string       // template: "{n} …"
   establishmentCountLimited: string // template: "{shown} … {total} …"

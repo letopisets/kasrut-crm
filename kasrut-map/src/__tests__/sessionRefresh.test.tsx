@@ -7,6 +7,7 @@ import { mapAuthReducer, setCredentials } from '@/store/mapAuthSlice'
 import { baseApi } from '@/store/api/baseApi'
 import { mapCommunityApi } from '@/store/api/mapCommunityApi'
 import { refreshMapSession } from '@/store/sessionRefresh'
+import { signOutMap } from '@/store/signOut'
 import { useMapSessionBootstrap } from '@/hooks/useMapSessionBootstrap'
 import type { MapUser } from '@/types'
 
@@ -165,6 +166,57 @@ describe('map base query — expired access token', () => {
     expect(logouts).toHaveLength(2)
     expect(logouts[1].credentials).toBe('include')
     expect(logouts[1].headers.get('X-Requested-With')).toBe('kashrut')
+  })
+})
+
+describe('signOutMap', () => {
+  const logoutCalls = () => seen.filter(call => call.url.endsWith('/map-auth/logout'))
+
+  function api(answer: (call: SeenCall) => Response | Promise<Response>) {
+    fetchMock.mockImplementation(async (input, init) => {
+      const call = describeCall(input, init)
+      seen.push(call)
+      return answer(call)
+    })
+  }
+
+  it('signs out on the API with the access token, then locally', async () => {
+    const store = makeStore()
+    api(() => new Response(null, { status: 204 }))
+
+    expect(await store.dispatch(signOutMap())).toBe(true)
+
+    expect(logoutCalls()).toHaveLength(1)
+    expect(logoutCalls()[0].headers.get('Authorization')).toBe('Bearer old-token')
+    expect(store.getState().mapAuth.user).toBeNull()
+  })
+
+  it('falls back to the refresh cookie alone when the access token is refused and cannot be renewed', async () => {
+    const store = makeStore()
+    api(call => {
+      if (call.url.endsWith('/map-auth/refresh')) return reply(503, { error: 'Service unavailable' })
+      return call.headers.get('Authorization')
+        ? reply(401, { error: 'Invalid or expired token' })
+        : new Response(null, { status: 204 })
+    })
+
+    expect(await store.dispatch(signOutMap())).toBe(true)
+
+    expect(logoutCalls()).toHaveLength(2)
+    expect(logoutCalls()[1].headers.get('Authorization')).toBeNull()
+    expect(logoutCalls()[1].headers.get('X-Requested-With')).toBe('kashrut')
+    expect(logoutCalls()[1].credentials).toBe('include')
+    expect(localStorage.getItem('kasrut-map-auth')).toBeNull()
+  })
+
+  it('reports failure and keeps the stored sign-in when the API cannot be reached', async () => {
+    const store = makeStore()
+    api(() => { throw new TypeError('Failed to fetch') })
+
+    expect(await store.dispatch(signOutMap())).toBe(false)
+
+    expect(store.getState().mapAuth.user).toEqual(user)
+    expect(localStorage.getItem('kasrut-map-auth')).not.toBeNull()
   })
 })
 

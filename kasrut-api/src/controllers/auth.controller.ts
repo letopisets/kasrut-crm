@@ -12,6 +12,7 @@ import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThro
 import { isTwoFactorSetupRequired } from '../lib/twoFactorPolicy'
 import {
   clearRefreshCookie,
+  endPresentedRefreshSession,
   revokePresentedRefreshFamily,
   rotateRefreshToken,
   setRefreshCookie,
@@ -123,7 +124,18 @@ export const authController = {
   }),
 
   logout: asyncHandler(async (req, res) => {
-    if (!req.user || !await usersRepo.revokeSessions(req.user.sub)) {
+    if (!req.user) {
+      // No access token: the route let the request through on the refresh
+      // guards, and the refresh cookie alone ends this browser's session.
+      const ownerId = await endPresentedRefreshSession(req, 'crm')
+      clearRefreshCookie(res, 'crm')
+      if (ownerId) {
+        res.locals.serviceLogActor = { userId: ownerId, actorType: 'crm_user' }
+        res.locals.serviceLogMessage = 'CRM logout succeeded (refresh cookie)'
+      }
+      res.status(204).send(); return
+    }
+    if (!await usersRepo.revokeSessions(req.user.sub)) {
       res.status(401).json({ error: 'Unauthorized' })
       return
     }

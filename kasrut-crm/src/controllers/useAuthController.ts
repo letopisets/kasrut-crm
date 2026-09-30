@@ -1,13 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '@/store'
 import {
-  clearPersistedAuth,
   setUser,
   setTwoFactorPending,
   clearTwoFactorPending,
   clearBackupCodes,
-  logout as logoutAction,
 } from '@/store/authSlice'
+import { signOut } from '@/store/signOut'
+import { showSnackbar } from '@/store/uiSlice'
+import { useLang } from '@/i18n/useLang'
 import {
   useLoginMutation,
   useVerify2faMutation,
@@ -15,13 +16,13 @@ import {
   useSetup2faMutation,
   useEnable2faMutation,
   useDisable2faMutation,
-  useLogoutMutation,
 } from '@/store/api/authApi'
 import { PERMISSIONS } from '@/lib/permissions'
 
 export function useAuthController() {
   const dispatch  = useAppDispatch()
   const navigate  = useNavigate()
+  const t         = useLang()
 
   const user              = useAppSelector(s => s.auth.user)
   const token             = useAppSelector(s => s.auth.token)
@@ -38,7 +39,6 @@ export function useAuthController() {
   const [setup2faMut, { isLoading: setupLoading,   error: setupError   }] = useSetup2faMutation()
   const [enable2faMut,{ isLoading: enableLoading,  error: enableError  }] = useEnable2faMutation()
   const [disable2faMut,{isLoading: disableLoading, error: disableError }] = useDisable2faMutation()
-  const [logoutMut] = useLogoutMutation()
 
   const isLoading = loginLoading || verifyLoading || backupLoading
 
@@ -94,14 +94,16 @@ export function useAuthController() {
     return result.user
   }
 
-  const logout = async () => {
-    try {
-      if (token) await logoutMut().unwrap()
-    } finally {
-      dispatch(logoutAction())
-      clearPersistedAuth()
-      navigate('/login', { replace: true })
+  // Ends the session on the API (see signOut); when that fails the user
+  // stays signed in and is told, rather than landing on the login page with
+  // the refresh cookie still alive.
+  const logout = async (): Promise<boolean> => {
+    if (!await dispatch(signOut())) {
+      dispatch(showSnackbar({ message: t.logoutFailed, severity: 'error' }))
+      return false
     }
+    navigate('/login', { replace: true })
+    return true
   }
 
   return {

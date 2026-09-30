@@ -7,6 +7,7 @@ const en: MapTranslations = {
   lightTheme: 'Light theme',
   filtersTooltip: 'Filters',
   logout: 'Logout',
+  logoutFailed: 'Could not sign out: the server did not respond. Try again.',
   loginTooltip: 'Login',
   establishmentCount: '{n} places ›',
   establishmentCountLimited: '{shown} of {total} places ›',

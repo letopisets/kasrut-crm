@@ -171,6 +171,16 @@ same site, so each SPA must call the API through its own host's `/api`
 host or api.mykoshermap.com. For local development an SPA on another port
 of the same host name (localhost:5173 calling localhost:3000) is accepted.
 
+Sign-out (`POST /api/auth/logout`, `POST /api/map-auth/logout`) goes to the
+API even when the client holds no access token: without one, the refresh
+cookie alone ends the session it carries, under the same guards as a
+refresh. Only the API can revoke the httpOnly cookie, so the CRM and the map
+keep the user signed in and say so when the sign-out call fails, instead of
+showing the login page over a live cookie. The CRM's "Sign in again" button
+(shown when the session could not be restored at startup) tries the same
+call for up to 5 seconds; if the API is still unreachable, the next sign-in
+in that browser revokes the old cookie.
+
 Signing out, a password reset, enabling or disabling 2FA and role or tenant
 changes already bump `sessionVersion`, and that ends refresh sessions too.
 To sign everyone out at once (for example after a suspected leak):

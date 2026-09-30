@@ -4,7 +4,7 @@ import {
   AppBar, Toolbar, Typography, Box, Button, InputBase,
   IconButton, Badge, ToggleButtonGroup, ToggleButton,
   Tooltip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
-  CircularProgress, useMediaQuery, useTheme,
+  CircularProgress, Snackbar, Alert, useMediaQuery, useTheme,
 } from '@mui/material'
 import TuneIcon             from '@mui/icons-material/Tune'
 import MapIcon              from '@mui/icons-material/Map'
@@ -20,10 +20,9 @@ import SearchIcon           from '@mui/icons-material/Search'
 import ClearIcon            from '@mui/icons-material/Clear'
 import MoreVertIcon         from '@mui/icons-material/MoreVert'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
-import { clearCredentials } from '@/store/mapAuthSlice'
 import { setMapLang, type MapLang } from '@/store/mapLangSlice'
 import { useMapLang } from '@/i18n/useMapLang'
-import { useLogoutMapMutation } from '@/store/api/mapCommunityApi'
+import { signOutMap } from '@/store/signOut'
 import { useMapSessionBootstrap } from '@/hooks/useMapSessionBootstrap'
 import type { ThemeMode } from '@/theme'
 
@@ -86,15 +85,13 @@ export function MapAppBar({
   const lang      = useAppSelector(state => state.mapLang.lang)
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null)
   const [moreAnchor, setMoreAnchor]       = useState<HTMLElement | null>(null)
-  const [logoutMap] = useLogoutMapMutation()
+  const [logoutFailed, setLogoutFailed] = useState(false)
 
+  // Ends the session on the API (see signOutMap), which alone can revoke the
+  // refresh cookie; says so when it could not.
   const logout = async () => {
-    try {
-      await logoutMap().unwrap()
-    } finally {
-      dispatch(clearCredentials())
-      setAccountAnchor(null)
-    }
+    setAccountAnchor(null)
+    if (!await dispatch(signOutMap())) setLogoutFailed(true)
   }
 
   // Secondary actions: inline on desktop, collapsed into an overflow menu on
@@ -240,6 +237,16 @@ export function MapAppBar({
           </>
         )}
       </Toolbar>
+      <Snackbar
+        open={logoutFailed}
+        autoHideDuration={6000}
+        onClose={() => setLogoutFailed(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" variant="filled" onClose={() => setLogoutFailed(false)} sx={{ width: '100%' }}>
+          {t.logoutFailed}
+        </Alert>
+      </Snackbar>
     </AppBar>
   )
 }

@@ -115,8 +115,9 @@ const API_ROUTES = collectRoutes((routes as unknown as { stack: Layer[] }).stack
 const key = (route: ApiRoute) => `${route.method} ${route.path}`
 
 // CRM routes that are reachable without an access token: the login steps,
-// and the refresh call, which authenticates by its httpOnly cookie.
-const COOKIE_AUTH_ROUTES = new Set(['POST /api/auth/refresh'])
+// the refresh call, which authenticates by its httpOnly cookie, and sign-out,
+// which takes the access token or, without one, the cookie alone.
+const COOKIE_AUTH_ROUTES = new Set(['POST /api/auth/refresh', 'POST /api/auth/logout'])
 const PUBLIC_AUTH_ROUTES = new Set([
   'POST /api/auth/login',
   'POST /api/auth/2fa/verify',

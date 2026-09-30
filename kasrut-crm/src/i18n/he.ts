@@ -30,6 +30,7 @@ const he: Translations = {
   status: { ok: 'פעיל', warning: 'פוגת תוקף', critical: 'דחוף' },
   back: '→ חזרה',
   logout: 'יציאה',
+  logoutFailed: 'היציאה נכשלה: השרת לא הגיב. נסה שוב.',
   sessionRestoring: 'משחזרים את החיבור…',
   sessionUnavailable: 'לא ניתן להתחבר לשרת כדי לשחזר את החיבור.',
   sessionRetry: 'לנסות שוב',

@@ -7,6 +7,7 @@ const ru: MapTranslations = {
   lightTheme: 'Светлая тема',
   filtersTooltip: 'Фильтры',
   logout: 'Выйти',
+  logoutFailed: 'Не удалось выйти: сервер не ответил. Попробуйте ещё раз.',
   loginTooltip: 'Войти',
   establishmentCount: '{n} заведений ›',
   establishmentCountLimited: '{shown} из {total} заведений ›',
