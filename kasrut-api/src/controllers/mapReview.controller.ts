@@ -12,6 +12,7 @@ import {
 } from '../serializers/mapCommunity.serializer'
 import { asyncHandler } from '../lib/asyncHandler'
 import { ForbiddenScopeError, resolveScopeRabbanutId } from '../lib/rabbanutScope'
+import { ENTITY_ID_RE, isEntityId } from '../lib/entityId'
 
 const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
@@ -32,13 +33,17 @@ const listQuerySchema = z.object({
   cursor: z.string().min(1).max(256).optional(),
 })
 
-// Ids are cuids. Checking the charset keeps a NUL byte or an array
+// Checking the id shape keeps a NUL byte or an array
 // (?restaurantId=a&restaurantId=b) from reaching Postgres as a 500.
-const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
-
 const moderationListQuerySchema = listQuerySchema.extend({
-  restaurantId: z.string().regex(ID_PATTERN).optional(),
+  restaurantId: z.string().regex(ENTITY_ID_RE).optional(),
 })
+
+// The public review routes take the restaurant id from the path. One that
+// cannot exist 404s like the map's own by-id reads, before any query.
+function publicRestaurantId(req: Request): string | null {
+  return isEntityId(req.params.restaurantId) ? req.params.restaurantId : null
+}
 
 function listQueryError(issues: z.ZodIssue[]): string {
   const bad = (field: string) => issues.some(issue => issue.path[0] === field)
@@ -95,12 +100,14 @@ export function decodeReviewCursor(raw: string): ReviewCursor | null {
 
 export const mapReviewController = {
   listReviews: asyncHandler(async (req, res) => {
+    const restaurantId = publicRestaurantId(req)
+    if (!restaurantId) { res.status(404).json({ error: 'Restaurant not found' }); return }
+
     const query = listQuerySchema.safeParse({ limit: req.query.limit, cursor: req.query.cursor })
     if (!query.success) { res.status(400).json({ error: listQueryError(query.error.issues) }); return }
     const cursor = query.data.cursor ? decodeReviewCursor(query.data.cursor) : null
     if (query.data.cursor && !cursor) { res.status(400).json({ error: 'Invalid cursor' }); return }
 
-    const restaurantId = req.params.restaurantId
     const exists = await mapCommunityRepo.restaurantExists(restaurantId)
     if (!exists) { res.status(404).json({ error: 'Restaurant not found' }); return }
     const payload = await mapCommunityRepo.listReviews(restaurantId, {
@@ -119,7 +126,8 @@ export const mapReviewController = {
   getOwnReview: asyncHandler(async (req, res) => {
     if (!req.mapUser) { res.status(401).json({ error: 'Unauthorized' }); return }
 
-    const restaurantId = req.params.restaurantId
+    const restaurantId = publicRestaurantId(req)
+    if (!restaurantId) { res.status(404).json({ error: 'Restaurant not found' }); return }
     const exists = await mapCommunityRepo.restaurantExists(restaurantId)
     if (!exists) { res.status(404).json({ error: 'Restaurant not found' }); return }
     const review = await mapCommunityRepo.findOwnReview(req.mapUser.sub, restaurantId)
@@ -129,10 +137,13 @@ export const mapReviewController = {
   upsertReview: asyncHandler(async (req, res) => {
     if (!req.mapUser) { res.status(401).json({ error: 'Unauthorized' }); return }
 
+    const restaurantId = publicRestaurantId(req)
+    if (!restaurantId) { res.status(404).json({ error: 'Restaurant not found' }); return }
+
     const parsed = reviewSchema.safeParse(req.body)
     if (!parsed.success) { res.status(400).json({ error: 'rating must be between 1 and 5' }); return }
 
-    const review = await mapCommunityRepo.upsertReview(req.mapUser.sub, req.params.restaurantId, parsed.data)
+    const review = await mapCommunityRepo.upsertReview(req.mapUser.sub, restaurantId, parsed.data)
     if (!review) { res.status(404).json({ error: 'Restaurant not found' }); return }
     res.json(serializeMapReview(review))
   }),
@@ -168,7 +179,7 @@ export const mapReviewController = {
     const id = req.params.id
     // Out of scope, already gone and malformed all read the same, so a
     // rabbanut cannot probe which review ids exist in other tenants.
-    const deleted = ID_PATTERN.test(id)
+    const deleted = isEntityId(id)
       ? await mapCommunityRepo.deleteReviewForModeration(id, scope)
       : null
     if (!deleted) { res.status(404).json({ error: 'Review not found' }); return }

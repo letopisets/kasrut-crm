@@ -8,6 +8,7 @@ import { invalidateMapCache } from '../lib/mapCache'
 import { asyncHandler } from '../lib/asyncHandler'
 import { CoordinateValidationError } from '../lib/geoValidation'
 import { ForbiddenScopeError, resolveScopeRabbanutId } from '../lib/rabbanutScope'
+import { isEntityId } from '../lib/entityId'
 
 const MAX_SUGGESTION_IMAGE_BYTES = 512 * 1024
 const MAX_PENDING_SUGGESTIONS_PER_USER = 5
@@ -79,6 +80,9 @@ export const mapSuggestionController = {
     if (!parsed.success) { res.status(400).json({ error: 'Invalid suggestion payload' }); return }
 
     if (parsed.data.restaurantId) {
+      // Same id rule as the map's by-id reads: a shape no row can have 404s
+      // without a query.
+      if (!isEntityId(parsed.data.restaurantId)) { res.status(404).json({ error: 'Restaurant not found' }); return }
       const exists = await mapCommunityRepo.restaurantExists(parsed.data.restaurantId)
       if (!exists) { res.status(404).json({ error: 'Restaurant not found' }); return }
     }

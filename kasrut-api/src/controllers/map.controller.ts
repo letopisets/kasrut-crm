@@ -8,6 +8,7 @@ import { serializeMapRestaurant, serializeMapRestaurantsPage } from '../serializ
 import { withMapCache } from '../lib/mapCache'
 import { asyncHandler } from '../lib/asyncHandler'
 import type { KashrutLevel, MapBounds, MapFilter, MapPoint, MapRestaurantRow } from '../db/map.repo'
+import { isEntityId } from '../lib/entityId'
 
 const HECHSHERIM_CACHE_TTL = 600
 const MAP_OPTIONS_CACHE_TTL = 600
@@ -18,11 +19,6 @@ const MAX_PLACES_RESULTS = 5
 const MAX_GEOCODE_ADDRESS_LENGTH = 300
 const MAX_GEOCODE_CITY_LENGTH = 100
 
-// Every establishment id is ours: Prisma cuids, the PDF importer's
-// `r_<14 hex>`, the Machpud SQL import's `r_mach_<12 hex>` and seed ids like
-// `r1`. Anything else cannot match a row, so it 404s before it costs a cache
-// lookup or a query.
-const RESTAURANT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 
 // Public site the crawlable URLs live on (the map SPA, not the API host).
 const MAP_SITE_URL = (process.env.PUBLIC_MAP_URL ?? 'https://mykoshermap.com').replace(/\/$/, '')
@@ -208,7 +204,7 @@ function geoFromHeaders(req: Request): { lat: number; lng: number } | null {
 // cached (withCache never stores null), and ids that cannot exist never reach
 // the cache or the database, so a scraper cannot mint keys with them.
 async function findRestaurant(id: string): Promise<MapRestaurantRow | null> {
-  if (!RESTAURANT_ID_RE.test(id)) return null
+  if (!isEntityId(id)) return null
   return withMapCache(`restaurant:${id}`, CACHE_TTL, () => mapRepo.findById(id))
 }
 
