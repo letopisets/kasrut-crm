@@ -254,7 +254,10 @@ export const mapAuthController = {
   requestPasswordReset: asyncHandler(async (req, res) => {
     const parsed = passwordResetRequestSchema.safeParse(req.body)
     if (!parsed.success) {
-      res.status(400).json({ error: 'channel and identifier are required' }); return
+      // Both fields present, but the email channel got something that is not
+      // an address: say that rather than that a field is missing.
+      const notAnAddress = parsed.error.issues.find(issue => issue.code === 'custom' && issue.path[0] === 'identifier')
+      res.status(400).json({ error: notAnAddress?.message ?? 'channel and identifier are required' }); return
     }
 
     const channel    = parsed.data.channel

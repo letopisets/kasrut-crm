@@ -526,8 +526,16 @@ describe('POST /api/map-auth/password-reset/request identifier', () => {
     await new Promise(resolve => setImmediate(resolve))
 
     expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'identifier must be an email address for the email channel' })
     expect(mockRepo.findUserByResetIdentifier).not.toHaveBeenCalled()
     expect(JSON.stringify(mockServiceLog.mock.calls)).not.toContain('mysecretpassw0rd')
+  })
+
+  it('keeps the missing-field message for a request without an identifier', async () => {
+    const res = await requestReset({ channel: 'email' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'channel and identifier are required' })
   })
 
   it('still answers an address with the generic response', async () => {
