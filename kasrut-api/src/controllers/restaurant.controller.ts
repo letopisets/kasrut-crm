@@ -36,14 +36,21 @@ export const restaurantController = {
 
     if (q.limit) {
       const { limit, cursor } = q
-      const data = await withCache(
-        restaurantsCacheKey({ rabbanutId: rabbanutId ?? null, status: q.status ?? null, limit, cursor: cursor ?? null }),
-        RESTAURANTS_CACHE_TTL,
-        async () => {
-          const page = await restaurantsRepo.findPage({ rabbanutId, status: q.status, limit, cursor })
-          return { items: serializeRestaurants(page.items), nextCursor: page.nextCursor }
-        },
-      )
+      const loadPage = async () => {
+        const page = await restaurantsRepo.findPage({ rabbanutId, status: q.status, limit, cursor })
+        return { items: serializeRestaurants(page.items), nextCursor: page.nextCursor }
+      }
+      // Only the first page is cached. A cursor is any string a CRM user
+      // sends, so keying on it would let one mint unbounded restaurants:*
+      // entries, and invalidatePattern sweeps at most MAX_INVALIDATE_KEYS of
+      // them: a flood could leave other tenants' lists stale after a change.
+      const data = cursor
+        ? await loadPage()
+        : await withCache(
+          restaurantsCacheKey({ rabbanutId: rabbanutId ?? null, status: q.status ?? null, limit, cursor: null }),
+          RESTAURANTS_CACHE_TTL,
+          loadPage,
+        )
       res.json(data)
       return
     }

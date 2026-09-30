@@ -116,6 +116,20 @@ describe('GET /api/restaurants pagination', () => {
     )
   })
 
+  // A cursor is whatever the client sends: caching by it would let a CRM
+  // user mint unbounded restaurants:* keys.
+  it('never caches a page after the first', async () => {
+    mockRepo.findPage.mockResolvedValue({ items: [], nextCursor: null })
+
+    const res = await request(app)
+      .get('/api/restaurants?limit=5&cursor=doesNotExist123')
+      .set('Authorization', `Bearer ${ownerToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ items: [], nextCursor: null })
+    expect(mockWithCache).not.toHaveBeenCalled()
+  })
+
   it('returns nextCursor null when last page', async () => {
     mockRepo.findPage.mockResolvedValue({
       items: [sample('r9', 'Last')],
