@@ -185,6 +185,12 @@ describe('server.ts', () => {
       jest.doMock('../db/serviceLogs.repo', () => ({
         serviceLogsRepo: { flush, rotate: jest.fn().mockResolvedValue(0) },
       }))
+      // server.ts purges expired tokens at startup; unmocked, that opens a
+      // real pg connection which outlives the test (CI has a Postgres on
+      // localhost:5432 and no DATABASE_URL, so pg crashes the jest process).
+      jest.doMock('../lib/tokenPurge', () => ({
+        purgeExpiredTokens: jest.fn().mockResolvedValue({ deleted: {}, failed: {} }),
+      }))
       require('../server')
     })
 
