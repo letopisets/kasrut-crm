@@ -69,5 +69,9 @@ router.post('/restaurants/:restaurantId/reviews', communityWriteRateLimit, authe
 // Moderation — CRM users (owner / rabbanut) only
 router.get('/suggestions',           authenticateJWT, requireRole('owner', 'rabbanut'), mapSuggestionController.listSuggestions)
 router.post('/suggestions/:id/review', authenticateJWT, requireRole('owner', 'rabbanut'), mapSuggestionController.reviewSuggestion)
+// Most recently written first: ?restaurantId= &limit=1..50 (default 20) &cursor=<nextCursor>;
+// a rabbanut sees its own restaurants only
+router.get('/reviews',               authenticateJWT, requireRole('owner', 'rabbanut'), mapReviewController.listReviewsForModeration)
+router.delete('/reviews/:id',        authenticateJWT, requireRole('owner', 'rabbanut'), mapReviewController.deleteReview)
 
 export default router

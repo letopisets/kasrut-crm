@@ -58,7 +58,9 @@ export interface CreateReviewInput {
   text?: string | null
 }
 
-// Keyset position of the last review on a page (see listReviews).
+// Keyset position of the last review on a page (see listReviews). createdAt
+// holds the column that list sorts by: createdAt for the public list, the
+// review's updatedAt for the moderation list.
 export interface ReviewCursor {
   createdAt: Date
   id: string
@@ -67,6 +69,17 @@ export interface ReviewCursor {
 export interface ReviewPageInput {
   limit: number
   cursor?: ReviewCursor | null
+}
+
+// CRM moderator of map reviews. A rabbanut is confined to reviews of its own
+// restaurants; an owner sees every review.
+export interface ReviewModerationScope {
+  reviewerRole: 'owner' | 'rabbanut'
+  reviewerRabbanutId?: string
+}
+
+export interface ModerationReviewPageInput extends ReviewPageInput {
+  restaurantId?: string
 }
 
 const mapUserSelect = {
@@ -332,6 +345,29 @@ async function levelIdFromHechsher(tx: Prisma.TransactionClient, type: string): 
 function communityNotes(notes: string | null): string {
   const suffix = notes?.trim()
   return suffix ? `Community suggestion: ${suffix}` : 'Community suggestion'
+}
+
+// Rows strictly after `cursor` in (<sortKey> desc, id desc) order.
+function afterReviewCursor(
+  cursor: ReviewCursor | null | undefined,
+  sortKey: 'createdAt' | 'updatedAt' = 'createdAt',
+): Prisma.MapRestaurantReviewWhereInput {
+  if (!cursor) return {}
+  const at = cursor.createdAt
+  return sortKey === 'createdAt'
+    ? { OR: [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: cursor.id } }] }
+    : { OR: [{ updatedAt: { lt: at } }, { updatedAt: at, id: { lt: cursor.id } }] }
+}
+
+// Tenant predicate for review moderation. It is part of every read AND of the
+// delete itself, so a rabbanut can neither see nor remove a review of another
+// tenant's restaurant, even by a guessed id.
+function reviewModerationWhere(scope: ReviewModerationScope): Prisma.MapRestaurantReviewWhereInput {
+  if (scope.reviewerRole === 'owner') return {}
+  if (scope.reviewerRole === 'rabbanut' && scope.reviewerRabbanutId) {
+    return { restaurant: { is: { rabbanutId: scope.reviewerRabbanutId } } }
+  }
+  throw new ForbiddenScopeError()
 }
 
 export const mapCommunityRepo = {
@@ -819,17 +855,7 @@ export const mapCommunityRepo = {
     const { limit, cursor } = page
     const [rows, summary] = await Promise.all([
       prisma.mapRestaurantReview.findMany({
-        where: {
-          restaurantId,
-          ...(cursor
-            ? {
-                OR: [
-                  { createdAt: { lt: cursor.createdAt } },
-                  { createdAt: cursor.createdAt, id: { lt: cursor.id } },
-                ],
-              }
-            : {}),
-        },
+        where: { restaurantId, ...afterReviewCursor(cursor) },
         include: {
           mapUser: { select: { id: true, name: true, avatarUrl: true } },
         },
@@ -897,5 +923,57 @@ export const mapCommunityRepo = {
         mapUser: { select: { id: true, name: true, avatarUrl: true } },
       },
     })
+  },
+
+  // CRM moderation list, most recently written first: an author can rewrite
+  // (upsert) a review at any time, and ordering by updatedAt brings such an
+  // edit back to the top instead of leaving it at its original position.
+  // Unlike the public list it is not limited to publicly visible restaurants:
+  // reviews of a hidden or expired establishment still exist and can still be
+  // removed.
+  async listReviewsForModeration(scope: ReviewModerationScope, page: ModerationReviewPageInput) {
+    const { limit, cursor, restaurantId } = page
+    const rows = await prisma.mapRestaurantReview.findMany({
+      where: {
+        ...reviewModerationWhere(scope),
+        ...(restaurantId ? { restaurantId } : {}),
+        ...afterReviewCursor(cursor, 'updatedAt'),
+      },
+      select: {
+        id: true,
+        rating: true,
+        text: true,
+        createdAt: true,
+        updatedAt: true,
+        restaurant: { select: { id: true, name: true } },
+        // Never the email: a tenant moderator has no business with it.
+        mapUser: { select: { id: true, name: true } },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    })
+
+    const reviews = rows.slice(0, limit)
+    const last = reviews[reviews.length - 1]
+    const nextCursor: ReviewCursor | null = rows.length > limit && last
+      ? { createdAt: last.updatedAt, id: last.id }
+      : null
+    return { reviews, nextCursor }
+  },
+
+  // Deletes one review inside the moderator's scope. The tenant predicate is
+  // repeated on the DELETE, so a restaurant moved to another rabbanut between
+  // the read and the write fails closed (count 0 → null → 404). The read only
+  // supplies the details the audit log records.
+  async deleteReviewForModeration(id: string, scope: ReviewModerationScope) {
+    const where: Prisma.MapRestaurantReviewWhereInput = { id, ...reviewModerationWhere(scope) }
+    const review = await prisma.mapRestaurantReview.findFirst({
+      where,
+      select: { id: true, restaurantId: true, mapUserId: true, rating: true },
+    })
+    if (!review) return null
+
+    const { count } = await prisma.mapRestaurantReview.deleteMany({ where })
+    return count === 1 ? review : null
   },
 }

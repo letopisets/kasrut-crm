@@ -13,6 +13,7 @@ export interface Translations {
     rabbanuts: string
     users: string
     suggestions: string
+    reviews: string
     logs: string
   }
   roles: { owner: string; rabbanut: string; mashgiach: string }
@@ -195,6 +196,26 @@ export interface Translations {
     alreadyReviewed: string
     count: string
     reviewError: string
+  }
+  reviews: {
+    title: string
+    sub: string
+    empty: string
+    loadError: string
+    retry: string
+    restaurant: string
+    author: string
+    noText: string
+    ratingLabel: string   // {rating}
+    loadMore: string
+    delete: string
+    confirmTitle: string
+    confirmBody: string   // {author}, {restaurant}
+    confirmDelete: string
+    cancel: string
+    deleteError: string
+    deleted: string
+    edited: string        // {date}
   }
   logs?: {
     title: string

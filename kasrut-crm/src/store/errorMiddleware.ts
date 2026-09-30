@@ -1,10 +1,12 @@
 import { isRejectedWithValue, type Middleware } from '@reduxjs/toolkit'
 import { showSnackbar } from './uiSlice'
 
-// Auth flows surface their own error UI (Login page, 2FA components), so a
-// global toast on top would be redundant/confusing.
+// Auth flows surface their own error UI (Login page, 2FA components), and so
+// does the review-delete dialog, so a global toast on top would be
+// redundant/confusing (and would show the server's untranslated text).
 const SILENCED_ENDPOINTS = new Set([
   'login', 'logout', 'verify2fa', 'setup2fa', 'enable2fa', 'disable2fa',
+  'deleteReview',
 ])
 
 function extractServerMessage(payload: unknown): string {

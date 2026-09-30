@@ -91,3 +91,24 @@ export const serializeMapReviewsPayload = (payload: {
   reviews: payload.reviews.map(serializeMapReview),
   nextCursor,
 })
+
+// CRM moderation view of a review: who wrote it (id + display name, never the
+// email) and which restaurant it is about. updatedAt moves when the author
+// rewrites the review, so a moderator can tell an edited one apart.
+export const serializeModeratedReview = (r: {
+  id: string
+  rating: number
+  text: string | null
+  createdAt: Date
+  updatedAt: Date
+  restaurant: { id: string; name: string }
+  mapUser: { id: string; name: string }
+}) => ({
+  id: r.id,
+  rating: r.rating,
+  text: r.text,
+  createdAt: r.createdAt.toISOString(),
+  updatedAt: r.updatedAt.toISOString(),
+  restaurant: { id: r.restaurant.id, name: r.restaurant.name },
+  author: { id: r.mapUser.id, name: r.mapUser.name },
+})

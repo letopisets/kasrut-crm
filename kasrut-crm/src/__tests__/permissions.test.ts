@@ -31,6 +31,12 @@ describe('PERMISSIONS', () => {
     expect(p.tabs).toEqual(['dashboard', 'restaurants', 'inspections', 'documents'])
   })
 
+  it('map review moderation is for owner and rabbanut, not mashgiach', () => {
+    expect(PERMISSIONS.owner.tabs).toContain('reviews')
+    expect(PERMISSIONS.rabbanut.tabs).toContain('reviews')
+    expect(PERMISSIONS.mashgiach.tabs).not.toContain('reviews')
+  })
+
   it('all roles have dashboard, restaurants and inspections tabs', () => {
     for (const role of ['owner', 'rabbanut', 'mashgiach'] as const) {
       expect(PERMISSIONS[role].tabs).toContain('dashboard')

@@ -21,6 +21,7 @@ const Documents        = lazy(() => import('@/pages/Documents'))
 const Rabbanuts        = lazy(() => import('@/pages/Rabbanuts'))
 const Users            = lazy(() => import('@/pages/Users'))
 const Suggestions      = lazy(() => import('@/pages/Suggestions'))
+const Reviews          = lazy(() => import('@/pages/Reviews'))
 const Logs             = lazy(() => import('@/pages/Logs'))
 
 const PageFallback = () => (
@@ -63,6 +64,9 @@ function App() {
             } />
             <Route path="suggestions"   element={
               <ProtectedRoute page="suggestions"><Suggestions /></ProtectedRoute>
+            } />
+            <Route path="reviews"       element={
+              <ProtectedRoute page="reviews"><Reviews /></ProtectedRoute>
             } />
             <Route path="logs"          element={
               <ProtectedRoute page="logs"><Logs /></ProtectedRoute>

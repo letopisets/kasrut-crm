@@ -144,6 +144,7 @@ Translation files: `src/i18n/{en,ru,he}.ts`, type `Translations` in `src/i18n/ty
 | `/rabbanuts` | Rabbanuts | Owner only |
 | `/users` | Users | Owner only |
 | `/suggestions` | Suggestions | Owner, Rabbanut |
+| `/reviews` | Reviews (map review moderation) | Owner, Rabbanut |
 | `/logs` | Logs | Owner only |
 | `/login` | Login | Public |
 

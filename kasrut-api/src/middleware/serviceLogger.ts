@@ -6,6 +6,25 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const ROUTE_ACTION_SEGMENTS = new Set(['assign', 'review', 'reviews', 'toggle'])
 const SENSITIVE_METADATA_KEYS = new Set(['authorization', 'backupcode', 'code', 'idtoken', 'password', 'temptoken', 'token'])
 
+// Client-controlled values are clipped before they are queued: a JSON body may
+// be 2 MB, and one request must not be able to store a row that size.
+const MAX_EMAIL_LENGTH = 254
+const MAX_PATH_LENGTH = 512
+const MAX_MESSAGE_LENGTH = 1000
+const MAX_REQUEST_ID_LENGTH = 128
+
+function clip<T extends string | undefined>(value: T, max: number): T {
+  return (value && value.length > max ? value.slice(0, max) : value) as T
+}
+
+// Express matches routes case-insensitively and ignores a trailing slash, so
+// '/API/Map/Reviews/x/' runs the same handler as '/api/map/reviews/x'. Every
+// check below runs on this canonical form; otherwise changing the case would
+// reach a handler yet skip its audit entry.
+function routeKey(path: string): string {
+  return path.toLowerCase().replace(/\/+$/, '') || '/'
+}
+
 interface ServiceLogActor {
   userId?: string
   userEmail?: string
@@ -21,35 +40,39 @@ function inferService(path: string): string {
 
 function inferEntity(path: string): { entityType?: string; entityId?: string } {
   const parts = path.split('/').filter(Boolean)
-  if (parts[0] !== 'api') return {}
+  // Route segments compare case-insensitively, as Express matches them; ids keep their case.
+  const seg = parts.map(part => part.toLowerCase())
+  if (seg[0] !== 'api') return {}
 
-  if (parts[1] === 'map') {
-    if (parts[2] === 'restaurants' && parts[4] === 'reviews') {
-      return { entityType: 'map_reviews', entityId: parts[3] }
+  if (seg[1] === 'map') {
+    // The public review routes are keyed by restaurant; 'map_reviews' (the
+    // generic branch below) is the moderation route, keyed by review id.
+    if (seg[2] === 'restaurants' && seg[4] === 'reviews') {
+      return { entityType: 'map_restaurant_reviews', entityId: parts[3] }
     }
-    if (parts[2] === 'suggestions') {
+    if (seg[2] === 'suggestions') {
       return {
         entityType: 'map_suggestions',
-        ...(parts[3] && parts[3] !== 'review' ? { entityId: parts[3] } : {}),
+        ...(parts[3] && seg[3] !== 'review' ? { entityId: parts[3] } : {}),
       }
     }
-    return parts[2] ? { entityType: `map_${parts[2]}`, ...(parts[3] ? { entityId: parts[3] } : {}) } : { entityType: 'map' }
+    return seg[2] ? { entityType: `map_${seg[2]}`, ...(parts[3] ? { entityId: parts[3] } : {}) } : { entityType: 'map' }
   }
 
-  if (parts[1] === 'map-auth') return { entityType: 'map_auth' }
-  if (parts[1] === 'auth') {
+  if (seg[1] === 'map-auth') return { entityType: 'map_auth' }
+  if (seg[1] === 'auth') {
     return {
       entityType: 'auth',
-      ...(parts[2] ? { entityId: parts.slice(2).join('/') } : {}),
+      ...(seg[2] ? { entityId: seg.slice(2).join('/') } : {}),
     }
   }
 
-  const entityType = parts[1]
+  const entityType = seg[1]
   const entityId = parts[2]
   if (!entityType) return {}
   return {
     entityType,
-    ...(entityId && !ROUTE_ACTION_SEGMENTS.has(entityId) ? { entityId } : {}),
+    ...(entityId && !ROUTE_ACTION_SEGMENTS.has(seg[2]) ? { entityId } : {}),
   }
 }
 
@@ -95,7 +118,7 @@ function inferAttemptedActor(req: Request): ServiceLogActor | undefined {
   return undefined
 }
 
-function actorFromRequest(req: Request, res: Response): ServiceLogActor | undefined {
+function actorFromRequest(req: Request, res: Response, key: string): ServiceLogActor | undefined {
   const explicit = res.locals.serviceLogActor as ServiceLogActor | undefined
   if (explicit?.userId || explicit?.userEmail) return explicit
 
@@ -117,16 +140,19 @@ function actorFromRequest(req: Request, res: Response): ServiceLogActor | undefi
     }
   }
 
-  return isAuthActionPath(req.path) ? inferAttemptedActor(req) : undefined
+  // A rate-limited attempt is still logged, but its body is not read: the
+  // limiter never looked at it, and the rows before the limit already carry
+  // the attempted email.
+  return isAuthActionPath(key) && res.statusCode !== 429 ? inferAttemptedActor(req) : undefined
 }
 
-function shouldCapture(req: Request, statusCode: number, actor?: ServiceLogActor): boolean {
-  if (isIgnoredPath(req.path) || !isPlatformPath(req.path)) return false
+function shouldCapture(req: Request, key: string, statusCode: number, actor?: ServiceLogActor): boolean {
+  if (isIgnoredPath(key) || !isPlatformPath(key)) return false
 
   if (statusCode >= 500) return true
-  if (statusCode >= 400) return Boolean(actor) || isAuthActionPath(req.path)
+  if (statusCode >= 400) return Boolean(actor) || isAuthActionPath(key)
 
-  return MUTATING_METHODS.has(req.method) && (Boolean(actor) || isAuthActionPath(req.path))
+  return MUTATING_METHODS.has(req.method) && (Boolean(actor) || isAuthActionPath(key))
 }
 
 function sanitizedQuery(req: Request): Record<string, unknown> {
@@ -153,13 +179,19 @@ const AUTH_PATH_MESSAGES: Record<string, string> = {
   '/api/map-auth/password-reset/confirm': 'Map password reset completed',
 }
 
-function messageFor(req: Request, res: Response, entity: { entityType?: string; entityId?: string }): string {
+function messageFor(
+  req: Request,
+  res: Response,
+  path: string,
+  key: string,
+  entity: { entityType?: string; entityId?: string },
+): string {
   if (typeof res.locals.serviceLogMessage === 'string') return res.locals.serviceLogMessage
   if (typeof res.locals.serviceErrorMessage === 'string') return res.locals.serviceErrorMessage
 
-  if (res.statusCode >= 400) return `${req.method} ${req.path} returned ${res.statusCode}`
+  if (res.statusCode >= 400) return `${req.method} ${path} returned ${res.statusCode}`
 
-  const authMessage = AUTH_PATH_MESSAGES[req.path]
+  const authMessage = AUTH_PATH_MESSAGES[key]
   if (authMessage) return authMessage
 
   const verb = req.method === 'POST' ? 'Created'
@@ -174,27 +206,34 @@ function messageFor(req: Request, res: Response, entity: { entityType?: string; 
 }
 
 export function serviceLogger(req: Request, res: Response, next: NextFunction): void {
-  const requestId = req.header('x-request-id') || randomUUID()
+  const requestId = clip(req.header('x-request-id'), MAX_REQUEST_ID_LENGTH) || randomUUID()
   const startedAt = Date.now()
   res.setHeader('x-request-id', requestId)
+  // Read the path now, while it is still the full '/api/...' path. By 'finish'
+  // req.path is relative to the innermost router (Express strips each mount
+  // path and restores it only when a handler calls next()), so a response a
+  // route handler sends itself would read '/reviews/x' and never be captured.
+  // The path is stored as requested; routeKey() is what gets classified.
+  const path = clip(req.path, MAX_PATH_LENGTH)
+  const key = routeKey(path)
 
   res.on('finish', () => {
-    const actor = actorFromRequest(req, res)
-    if (!shouldCapture(req, res.statusCode, actor)) return
+    const actor = actorFromRequest(req, res, key)
+    if (!shouldCapture(req, key, res.statusCode, actor)) return
 
     const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info'
-    const entity = inferEntity(req.path)
+    const entity = inferEntity(path)
 
     void serviceLogsRepo.create({
       level,
-      service: inferService(req.path),
-      action: `${req.method} ${req.path}`,
-      message: messageFor(req, res, entity),
+      service: inferService(key),
+      action: `${req.method} ${path}`,
+      message: clip(messageFor(req, res, path, key, entity), MAX_MESSAGE_LENGTH),
       userId: actor?.userId,
-      userEmail: actor?.userEmail,
+      userEmail: clip(actor?.userEmail, MAX_EMAIL_LENGTH),
       userRole: actor?.userRole,
       method: req.method,
-      path: req.path,
+      path,
       statusCode: res.statusCode,
       requestId,
       ...entity,
