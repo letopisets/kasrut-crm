@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { randomUUID } from 'crypto'
+import { z } from 'zod'
 import { serviceLogsRepo } from '../db/serviceLogs.repo'
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -14,6 +15,15 @@ const MAX_MESSAGE_LENGTH = 1000
 
 function clip<T extends string | undefined>(value: T, max: number): T {
   return (value && value.length > max ? value.slice(0, max) : value) as T
+}
+
+const emailShape = z.string().max(MAX_EMAIL_LENGTH).email()
+
+// userEmail is kept for 90 days and shown to every owner. On auth paths it
+// comes from what a client typed, which is not always an address: a password
+// in the email field, a phone number. Only a well-formed address is stored.
+function storableEmail(value: string | undefined): string | undefined {
+  return value !== undefined && emailShape.safeParse(value).success ? value : undefined
 }
 
 // Express matches routes case-insensitively and ignores a trailing slash, so
@@ -240,7 +250,7 @@ export function serviceLogger(req: Request, res: Response, next: NextFunction): 
       action: `${req.method} ${path}`,
       message: clip(messageFor(req, res, path, key, entity), MAX_MESSAGE_LENGTH),
       userId: actor?.userId,
-      userEmail: clip(actor?.userEmail, MAX_EMAIL_LENGTH),
+      userEmail: storableEmail(actor?.userEmail),
       userRole: actor?.userRole,
       method: req.method,
       path,

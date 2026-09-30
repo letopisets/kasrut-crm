@@ -511,3 +511,32 @@ describe('emailVerified in auth responses', () => {
     expect(res.body.emailVerification).toBe(mode)
   })
 })
+
+// The email reset channel takes an address. Anything else used to be looked
+// up, and stored as the attempt's userEmail in service_logs (kept 90 days,
+// shown to every owner): a password typed into the field, say.
+describe('POST /api/map-auth/password-reset/request identifier', () => {
+  const requestReset = (body: Record<string, unknown>) => request(app)
+    .post('/api/map-auth/password-reset/request')
+    .set('X-Forwarded-For', nextIp())
+    .send(body)
+
+  it('refuses a non-address identifier on the email channel without a lookup or a stored copy', async () => {
+    const res = await requestReset({ channel: 'email', identifier: 'mysecretpassw0rd!' })
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(res.status).toBe(400)
+    expect(mockRepo.findUserByResetIdentifier).not.toHaveBeenCalled()
+    expect(JSON.stringify(mockServiceLog.mock.calls)).not.toContain('mysecretpassw0rd')
+  })
+
+  it('still answers an address with the generic response', async () => {
+    mockRepo.findUserByResetIdentifier.mockResolvedValue(null)
+
+    const res = await requestReset({ channel: 'email', identifier: 'Nobody@Example.com' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ ok: true })
+    expect(mockRepo.findUserByResetIdentifier).toHaveBeenCalledWith('email', 'nobody@example.com')
+  })
+})

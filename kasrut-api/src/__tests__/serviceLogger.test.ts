@@ -316,7 +316,7 @@ describe('serviceLogger behind mounted routers', () => {
     }))
   })
 
-  it('clips client-controlled values before storing them', async () => {
+  it('bounds client-controlled values before storing them', async () => {
     await request(app)
       .post('/api/auth/login')
       .set('x-request-id', 'r'.repeat(5000))
@@ -324,9 +324,26 @@ describe('serviceLogger behind mounted routers', () => {
     await flushServiceLog()
 
     const row = mockCreate.mock.calls[0][0]
-    expect(row.userEmail).toHaveLength(254)
+    // Longer than any address can be: not an address, so not stored at all.
+    expect(row.userEmail).toBeUndefined()
     // An oversized x-request-id is not clipped but replaced (resolveRequestId).
     expect(row.requestId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  // Rows are kept 90 days and shown to every owner: a password typed into the
+  // email field, or a phone number, must not end up in them.
+  it.each([
+    ['a password typed into the email field', { email: 'not-an-email-secret123', password: 'x' }],
+    ['a phone number', { email: '0501112222', password: 'x' }],
+    ['a non-email reset identifier', { channel: 'email', identifier: 'mysecretpassw0rd!' }],
+  ])('stores no userEmail for %s', async (_label, body) => {
+    await request(app).post('/api/auth/login').send(body)
+    await flushServiceLog()
+
+    const row = mockCreate.mock.calls[0][0]
+    expect(row).toMatchObject({ path: '/api/auth/login', statusCode: 401, userRole: 'auth_attempt' })
+    expect(row.userEmail).toBeUndefined()
+    expect(JSON.stringify(row)).not.toMatch(/secret123|0501112222|mysecretpassw0rd/)
   })
 
   it('stores a rate-limited auth attempt without reading its body', async () => {

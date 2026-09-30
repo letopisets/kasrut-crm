@@ -68,7 +68,12 @@ const loginSchema = z.object({
 const passwordResetRequestSchema = z.object({
   channel: z.enum(['email', 'phone']),
   identifier: z.string().trim().min(3).max(180),
-})
+}).refine(
+  // The email channel takes an address, as registration and login do; the
+  // identifier is also what the audit log records for the attempt.
+  body => body.channel !== 'email' || z.string().email().safeParse(body.identifier).success,
+  { path: ['identifier'], message: 'identifier must be an email address for the email channel' },
+)
 
 const passwordResetConfirmSchema = z.object({
   token: z.string().min(20).max(160),
