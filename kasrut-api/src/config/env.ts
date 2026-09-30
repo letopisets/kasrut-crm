@@ -98,6 +98,12 @@ const encryptionKey = z.string()
     'ENCRYPTION_KEY must not be a pattern such as 0123456789abcdef… or 000102…; generate a random key',
   )
 
+// Base URL of the public map; the email verification link points here.
+const mapPublicUrl = z.string()
+  .url('MAP_PUBLIC_URL must be an absolute URL such as https://mykoshermap.com')
+  .refine(value => /^https?:\/\//i.test(value), 'MAP_PUBLIC_URL must start with https:// or http://')
+  .transform(value => value.replace(/\/+$/, ''))
+
 export const envSchema = z.object({
   // Fail closed when the deployment forgets to set NODE_ENV. Development-only
   // behaviour must always be enabled explicitly rather than inferred from
@@ -132,12 +138,20 @@ export const envSchema = z.object({
     value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.enum(['true', 'false']).default('true').transform(value => value === 'true'),
   ),
+  // 'required': password-registered map users must follow the emailed link
+  // before they can post reviews or suggestions. Unset, it follows SMTP_HOST
+  // (see parseEnv): without a mail server nobody could ever verify.
+  MAP_EMAIL_VERIFICATION: emptyAsUnset(z.enum(['required', 'off']).optional()),
+  MAP_PUBLIC_URL: emptyAsUnset(mapPublicUrl.default('https://mykoshermap.com')),
 })
 
 // Pure so tests can check a configuration without mutating process.env.
 // Throws a ZodError that names the offending variable, never its value.
 export function parseEnv(source: Record<string, string | undefined>) {
   const raw = envSchema.parse(source)
+  // The mailer reads the SMTP_* variables itself; only whether a server is
+  // configured matters here.
+  const smtpConfigured = (source.SMTP_HOST ?? '').trim() !== ''
   return {
     NODE_ENV:          raw.NODE_ENV,
     PORT:             raw.PORT,
@@ -159,6 +173,12 @@ export function parseEnv(source: Record<string, string | undefined>) {
                         .split(',').map(s => s.trim()).filter(Boolean),
     EXPOSE_DEV_RESET_TOKEN: raw.EXPOSE_DEV_RESET_TOKEN,
     REQUIRE_OWNER_2FA: raw.REQUIRE_OWNER_2FA,
+    SMTP_CONFIGURED: smtpConfigured,
+    MAP_EMAIL_VERIFICATION: raw.MAP_EMAIL_VERIFICATION ?? (smtpConfigured ? 'required' : 'off'),
+    // Off only because no SMTP_HOST is set: mapEmailVerification.service.ts
+    // warns at startup in production.
+    MAP_EMAIL_VERIFICATION_DEFAULTED_OFF: raw.MAP_EMAIL_VERIFICATION === undefined && !smtpConfigured,
+    MAP_PUBLIC_URL: raw.MAP_PUBLIC_URL,
   } as const
 }
 

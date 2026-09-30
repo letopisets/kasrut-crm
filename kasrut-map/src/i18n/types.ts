@@ -159,6 +159,17 @@ export interface MapTranslations {
   googleSignInError: string
   appleSignInError: string
 
+  verifyEmailTitle: string
+  verifyEmailSent: string          // {email}
+  verifyEmailRequired: string      // {email}
+  verifyEmailResend: string
+  verifyEmailResent: string
+  verifyEmailResendError: string
+  verifyEmailConfirmText: string
+  verifyEmailConfirmBtn: string
+  emailVerifiedSuccess: string
+  emailVerifyFailed: string
+
   donate: string
   donateTitle: string
   donateIntro: string

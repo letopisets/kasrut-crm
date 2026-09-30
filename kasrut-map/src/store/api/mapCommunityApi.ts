@@ -101,6 +101,20 @@ export const mapCommunityApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['MapAuth'],
     }),
+    // Public: the token from the emailed link is the credential. Refetches
+    // /me so a signed-in account shows up verified. alreadyVerified: the link
+    // was used before, and the account is verified.
+    verifyEmail: build.mutation<{ ok: boolean; alreadyVerified?: boolean }, string>({
+      query: (token) => ({
+        url: '/map-auth/verify-email',
+        method: 'POST',
+        body: { token },
+      }),
+      invalidatesTags: ['MapAuth'],
+    }),
+    resendEmailVerification: build.mutation<void, void>({
+      query: () => ({ url: '/map-auth/verify-email/resend', method: 'POST' }),
+    }),
     getMapMe: build.query<MapUser, void>({
       query: () => '/map-auth/me',
       providesTags: ['MapAuth'],
@@ -139,6 +153,8 @@ export const {
   useLoginWithPasswordMutation,
   useRequestPasswordResetMutation,
   useConfirmPasswordResetMutation,
+  useVerifyEmailMutation,
+  useResendEmailVerificationMutation,
   useGetMapMeQuery,
   useLogoutMapMutation,
   useGetRestaurantReviewsQuery,

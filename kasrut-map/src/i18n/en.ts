@@ -166,6 +166,17 @@ const en: MapTranslations = {
   googleSignInError: 'Failed to load Google Sign-In.',
   appleSignInError: 'Failed to sign in with Apple.',
 
+  verifyEmailTitle: 'Confirm your email',
+  verifyEmailSent: 'We sent a confirmation link to {email}. Follow it to post reviews and suggest places.',
+  verifyEmailRequired: 'Confirm your email address to post reviews and suggest places. If the link for {email} has not arrived or has expired, send a new one.',
+  verifyEmailResend: 'Send the link again',
+  verifyEmailResent: 'A new link is on its way. Check your inbox and spam folder.',
+  verifyEmailResendError: 'Could not send the link. Try again later.',
+  verifyEmailConfirmText: 'Confirm that this email address is yours, so your account can post reviews and suggest places. If you did not create an account, press Cancel.',
+  verifyEmailConfirmBtn: 'Confirm email',
+  emailVerifiedSuccess: 'Your email is confirmed.',
+  emailVerifyFailed: 'This confirmation link is invalid or has expired.',
+
   donate: 'Donate',
   donateTitle: 'Support the project',
   donateIntro: 'Thank you for considering supporting the project. Choose a convenient transfer method below.',

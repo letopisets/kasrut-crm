@@ -4,6 +4,7 @@ import path from 'path'
 import { parse } from 'dotenv'
 import { ZodError } from 'zod'
 import { parseEnv } from '../config/env'
+import { emailVerificationStartupWarning } from '../services/mapEmailVerification.service'
 
 const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 
@@ -222,5 +223,78 @@ describe('REQUIRE_OWNER_2FA', () => {
     for (const template of ['.env.example', '.env.hetzner.example', path.join('kasrut-api', '.env.example')]) {
       expect([undefined, 'true']).toContain(parse(readFileSync(path.join(repoRoot, template))).REQUIRE_OWNER_2FA)
     }
+  })
+})
+
+describe('MAP_EMAIL_VERIFICATION', () => {
+  const SMTP = { SMTP_HOST: 'smtp.example.org' }
+
+  it('is required by default when a mail server is configured', () => {
+    const env = parseEnv(productionEnv(SMTP))
+    expect(env.SMTP_CONFIGURED).toBe(true)
+    expect(env.MAP_EMAIL_VERIFICATION).toBe('required')
+    expect(env.MAP_EMAIL_VERIFICATION_DEFAULTED_OFF).toBe(false)
+  })
+
+  // Production today: no SMTP_* at all, or passed through as empty values.
+  it.each([[{}], [{ SMTP_HOST: '' }], [{ SMTP_HOST: '  ', MAP_EMAIL_VERIFICATION: '' }]])(
+    'is off by default without a mail server (%j)',
+    overrides => {
+      const env = parseEnv(productionEnv(overrides))
+      expect(env.SMTP_CONFIGURED).toBe(false)
+      expect(env.MAP_EMAIL_VERIFICATION).toBe('off')
+      expect(env.MAP_EMAIL_VERIFICATION_DEFAULTED_OFF).toBe(true)
+    },
+  )
+
+  it.each([
+    [{ ...SMTP, MAP_EMAIL_VERIFICATION: 'off' }, 'off'],
+    [{ MAP_EMAIL_VERIFICATION: 'required' }, 'required'],
+  ] as const)('honours an explicit setting (%j)', (overrides, mode) => {
+    const env = parseEnv(productionEnv(overrides))
+    expect(env.MAP_EMAIL_VERIFICATION).toBe(mode)
+    expect(env.MAP_EMAIL_VERIFICATION_DEFAULTED_OFF).toBe(false)
+  })
+
+  it('rejects anything but required or off', () => {
+    const error = rejectionOf(productionEnv({ MAP_EMAIL_VERIFICATION: 'true' }))
+    expect(error.issues.map(issue => issue.path.join('.'))).toEqual(['MAP_EMAIL_VERIFICATION'])
+  })
+
+  describe('startup warning', () => {
+    const warningFor = (overrides: Record<string, string>) => emailVerificationStartupWarning(parseEnv(productionEnv(overrides)))
+
+    it('warns in production when verification is off for want of SMTP', () => {
+      expect(warningFor({})).toMatch(/SMTP_HOST is not set: map email verification is off/)
+    })
+
+    it('warns when verification is required but no mail can be delivered', () => {
+      expect(warningFor({ MAP_EMAIL_VERIFICATION: 'required' })).toMatch(/cannot be delivered/)
+    })
+
+    it.each([
+      [{ SMTP_HOST: 'smtp.example.org' }],
+      [{ MAP_EMAIL_VERIFICATION: 'off' }],
+      [{ NODE_ENV: 'development' }],
+    ])('stays quiet for %j', overrides => {
+      expect(warningFor(overrides)).toBeNull()
+    })
+  })
+})
+
+describe('MAP_PUBLIC_URL', () => {
+  it.each([
+    [undefined, 'https://mykoshermap.com'],
+    ['', 'https://mykoshermap.com'],
+    ['https://staging.mykoshermap.com/', 'https://staging.mykoshermap.com'],
+    ['http://localhost:5174', 'http://localhost:5174'],
+  ])('%p gives %p', (value, expected) => {
+    const source = productionEnv(value === undefined ? {} : { MAP_PUBLIC_URL: value })
+    expect(parseEnv(source).MAP_PUBLIC_URL).toBe(expected)
+  })
+
+  it.each(['mykoshermap.com', 'javascript:alert(1)', 'ftp://mykoshermap.com'])('rejects %p', value => {
+    const error = rejectionOf(productionEnv({ MAP_PUBLIC_URL: value }))
+    expect(new Set(error.issues.map(issue => issue.path.join('.')))).toEqual(new Set(['MAP_PUBLIC_URL']))
   })
 })

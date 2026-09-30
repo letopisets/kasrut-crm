@@ -4,7 +4,7 @@ import { mapController } from '../controllers/map.controller'
 import { mapRouteController } from '../controllers/mapRoute.controller'
 import { mapSuggestionController } from '../controllers/mapSuggestion.controller'
 import { mapReviewController } from '../controllers/mapReview.controller'
-import { authenticateMapJWT } from '../middleware/mapAuth'
+import { authenticateMapJWT, requireVerifiedMapEmail } from '../middleware/mapAuth'
 import { authenticateJWT } from '../middleware/auth'
 import { requireRole } from '../middleware/requireRole'
 import { rateLimit } from '../middleware/rateLimit'
@@ -60,9 +60,10 @@ router.get('/restaurants/:restaurantId', mapReadRateLimit, mapController.getRest
 router.get('/prerender/:restaurantId', mapReadRateLimit, mapController.getRestaurantPrerender)
 router.get('/restaurants/:restaurantId/reviews', mapReadRateLimit, mapReviewController.listReviews)
 
-// Community actions — public users authenticated via Google/Apple
-router.post('/suggestions', communityWriteRateLimit, authenticateMapJWT, mapSuggestionController.createSuggestion)
-router.post('/restaurants/:restaurantId/reviews', communityWriteRateLimit, authenticateMapJWT, mapReviewController.upsertReview)
+// Community actions — signed-in map users; with MAP_EMAIL_VERIFICATION=required
+// their email must be verified (403 EMAIL_NOT_VERIFIED otherwise)
+router.post('/suggestions', communityWriteRateLimit, authenticateMapJWT, requireVerifiedMapEmail, mapSuggestionController.createSuggestion)
+router.post('/restaurants/:restaurantId/reviews', communityWriteRateLimit, authenticateMapJWT, requireVerifiedMapEmail, mapReviewController.upsertReview)
 
 // Moderation — CRM users (owner / rabbanut) only
 router.get('/suggestions',           authenticateJWT, requireRole('owner', 'rabbanut'), mapSuggestionController.listSuggestions)

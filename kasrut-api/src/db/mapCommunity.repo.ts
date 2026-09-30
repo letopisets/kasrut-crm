@@ -23,6 +23,7 @@ export interface MapUserRow {
   name: string
   avatarUrl: string | null
   sessionVersion: number
+  emailVerifiedAt: Date | null
 }
 
 export interface MapAuthUserRow extends MapUserRow {
@@ -35,7 +36,14 @@ export interface CreatePasswordUserInput {
   email: string
   phone: string
   passwordHash: string
+  /** Verification link to issue with the account (hash only), if any. */
+  emailVerification?: { tokenHash: string; expiresAt: Date } | null
 }
+
+/** consumeEmailVerificationToken's answer; `user` is the link's account. */
+export type EmailVerificationOutcome =
+  | { status: 'verified' | 'already_verified'; user: { id: string; email: string } }
+  | { status: 'invalid'; user: { id: string; email: string } | null }
 
 export interface CreateSuggestionInput {
   type: MapSuggestionType
@@ -67,7 +75,14 @@ const mapUserSelect = {
   name: true,
   avatarUrl: true,
   sessionVersion: true,
+  emailVerifiedAt: true,
 } as const
+
+// Postgres aborted a Serializable transaction (SQLSTATE 40001); Prisma
+// reports it as P2034.
+function isWriteConflict(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2034'
+}
 
 const mapAuthUserSelect = {
   ...mapUserSelect,
@@ -363,14 +378,23 @@ export const mapCommunityRepo = {
         lastName: input.lastName,
         name,
         passwordHash: input.passwordHash,
+        // Unverified until the emailed link is followed; the token is created
+        // with the account so neither exists without the other.
+        emailVerifiedAt: null,
+        ...(input.emailVerification
+          ? { emailVerificationTokens: { create: input.emailVerification } }
+          : {}),
       },
       select: mapUserSelect,
     })
   },
 
+  // The provider has verified the email (verifyOAuthIdToken insists on it),
+  // so every account created, claimed or signed into here counts as verified.
   async upsertUserFromIdentity(profile: OAuthProfile): Promise<MapUserRow> {
     return prisma.$transaction(async tx => {
       const provider = profile.provider as PrismaMapAuthProvider
+      const now = new Date()
       const existingIdentity = await tx.mapOAuthIdentity.findUnique({
         where: {
           provider_providerUserId: {
@@ -387,6 +411,7 @@ export const mapCommunityRepo = {
           data: {
             name: profile.name,
             avatarUrl: profile.avatarUrl ?? existingIdentity.mapUser.avatarUrl,
+            emailVerifiedAt: existingIdentity.mapUser.emailVerifiedAt ?? now,
           },
           select: mapUserSelect,
         })
@@ -401,7 +426,13 @@ export const mapCommunityRepo = {
         // (victim can never use OAuth because their email was pre-registered).
         await tx.mapPasswordResetToken.updateMany({
           where: { mapUserId: userByEmail.id, usedAt: null },
-          data: { usedAt: new Date() },
+          data: { usedAt: now },
+        })
+        // Pending verification links are moot once the provider vouched for
+        // the address.
+        await tx.mapEmailVerificationToken.updateMany({
+          where: { mapUserId: userByEmail.id, usedAt: null },
+          data: { usedAt: now },
         })
         return tx.mapUser.update({
           where: { id: userByEmail.id },
@@ -411,6 +442,7 @@ export const mapCommunityRepo = {
             passwordHash: null,
             phone: null,
             sessionVersion: { increment: 1 },
+            emailVerifiedAt: userByEmail.emailVerifiedAt ?? now,
             identities: {
               create: {
                 provider,
@@ -427,6 +459,7 @@ export const mapCommunityRepo = {
           email: profile.email,
           name: profile.name,
           avatarUrl: profile.avatarUrl,
+          emailVerifiedAt: now,
           identities: {
             create: {
               provider,
@@ -503,6 +536,73 @@ export const mapCommunityRepo = {
         select: mapUserSelect,
       })
     }, { isolationLevel: 'Serializable' })
+  },
+
+  async createEmailVerificationToken(input: {
+    mapUserId: string
+    tokenHash: string
+    expiresAt: Date
+  }): Promise<void> {
+    await prisma.$transaction(async tx => {
+      // One issuer per account at a time, so the retire below sees a link a
+      // parallel resend has just committed. (Serializable would abort one of
+      // two parallel resends with a write conflict, a 500.) The lock is
+      // released with the transaction. $executeRaw: $queryRaw cannot
+      // deserialize the function's void result.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`map-email-verification:${input.mapUserId}`}, 0))`
+      // Only the newest link works: a resend retires the ones sent before.
+      await tx.mapEmailVerificationToken.updateMany({
+        where: { mapUserId: input.mapUserId, usedAt: null },
+        data: { usedAt: new Date() },
+      })
+      await tx.mapEmailVerificationToken.create({ data: input })
+    })
+  },
+
+  /**
+   * Verifies the account of an unused, unexpired link. A link whose account is
+   * verified already (opened twice, on a second device, or the address was
+   * claimed by an OAuth sign-in) says so instead of failing, without being
+   * used again. `user` is the link's account, if the link exists.
+   */
+  async consumeEmailVerificationToken(tokenHash: string): Promise<EmailVerificationOutcome> {
+    try {
+      return await prisma.$transaction(async tx => {
+        const now = new Date()
+        const token = await tx.mapEmailVerificationToken.findUnique({
+          where: { tokenHash },
+          select: {
+            id: true,
+            usedAt: true,
+            expiresAt: true,
+            mapUser: { select: { id: true, email: true, emailVerifiedAt: true } },
+          },
+        })
+        if (!token) return { status: 'invalid', user: null }
+        const user = { id: token.mapUser.id, email: token.mapUser.email }
+        if (token.mapUser.emailVerifiedAt !== null) return { status: 'already_verified', user }
+        if (token.usedAt !== null || token.expiresAt <= now) return { status: 'invalid', user }
+
+        // Same conditional claim as consumePasswordResetToken: exactly one
+        // request can move the link from unused to used.
+        const claimed = await tx.mapEmailVerificationToken.updateMany({
+          where: { id: token.id, usedAt: null, expiresAt: { gt: now } },
+          data: { usedAt: now },
+        })
+        if (claimed.count !== 1) return { status: 'invalid', user }
+
+        // An account verified meanwhile (OAuth claim) keeps its original time.
+        await tx.mapUser.updateMany({
+          where: { id: user.id, emailVerifiedAt: null },
+          data: { emailVerifiedAt: now },
+        })
+        return { status: 'verified', user }
+      }, { isolationLevel: 'Serializable' })
+    } catch (e) {
+      // A parallel use of the link, or a resend retiring it, committed first.
+      if (isWriteConflict(e)) return { status: 'invalid', user: null }
+      throw e
+    }
   },
 
   async createSuggestionWithinQuota(

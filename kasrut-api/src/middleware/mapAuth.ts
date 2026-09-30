@@ -3,11 +3,17 @@ import type { MapJWTPayload } from '../models/types'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { verifyMapAccessToken } from '../lib/jwt'
+import { isEmailVerificationRequired } from '../services/mapEmailVerification.service'
+
+export interface AuthenticatedMapUser extends MapJWTPayload {
+  // From the row loaded for this request, not from the token.
+  emailVerified: boolean
+}
 
 declare global {
   namespace Express {
     interface Request {
-      mapUser?: MapJWTPayload
+      mapUser?: AuthenticatedMapUser
     }
   }
 }
@@ -40,9 +46,20 @@ export async function authenticateMapJWT(req: Request, res: Response, next: Next
       name: current.name,
       email: current.email,
       ver: current.sessionVersion,
+      emailVerified: current.emailVerifiedAt !== null,
     }
     next()
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' })
   }
+}
+
+// Goes after authenticateMapJWT. While MAP_EMAIL_VERIFICATION is 'required',
+// only accounts whose email is verified in the database right now get through.
+export function requireVerifiedMapEmail(req: Request, res: Response, next: NextFunction): void {
+  if (!isEmailVerificationRequired() || req.mapUser?.emailVerified) {
+    next()
+    return
+  }
+  res.status(403).json({ error: 'Email not verified', code: 'EMAIL_NOT_VERIFIED' })
 }

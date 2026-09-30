@@ -179,6 +179,69 @@ every account's `sessionVersion`, so the 7-day access tokens issued before
 it stop working at once instead of staying valid for up to a week. It must
 have run (`RUN_MIGRATIONS=true`), or every sign-in fails with a 500.
 
+### Map email verification
+
+Map accounts registered with a password start with an unverified email. The
+API emails a link, `${MAP_PUBLIC_URL}/?verifyEmail=<token>`, that is valid for
+24 hours. The map removes the token from the address bar and confirms it only
+when the visitor presses "Confirm email", so mail scanners that open links do
+not verify addresses; opening a used link of a verified account just says it
+is verified.
+
+While verification is required, an unverified account gets
+`403 {"code":"EMAIL_NOT_VERIFIED"}` from `POST /api/map/suggestions` and
+`POST /api/map/restaurants/:id/reviews`, and the map shows a dialog that can
+send the link again. Google and Apple sign-ins count as verified (the provider
+vouches for the address).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MAP_EMAIL_VERIFICATION` | `required` when `SMTP_HOST` is set, otherwise `off` | `required`: reviews and suggestions need a verified email. `off`: no check (links are still sent when `SMTP_HOST` is set, so users can verify ahead of time). |
+| `MAP_PUBLIC_URL` | `https://mykoshermap.com` | Map address the emailed link points to. |
+| `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_USER`, `SMTP_PASS` | empty | Mail server. Also used for map password-reset codes and CRM expiry notices. |
+
+Production has no mail server yet, so verification is off and the API logs
+`SMTP_HOST is not set: map email verification is off …` once at startup.
+Setting `MAP_EMAIL_VERIFICATION=required` without `SMTP_HOST` logs a warning
+too: nobody could receive the link, so new accounts could never post.
+
+Migration `20260930102000_map_email_verification` marks every map account that
+exists when it runs as verified (at its creation time). Accounts registered
+after it while verification is off stay unverified: once it is turned on they
+see the dialog on their next review or suggestion and can have the link sent
+again. Each new link retires the earlier ones. Every verification email,
+whether registration or "send again" triggers it, counts against 10 per hour
+per client address and 5 per day per mailbox (`+tags`, and dots in Gmail
+addresses, are ignored). Past either budget a registration still succeeds but
+sends no email (the API logs `mail budget used up`), and "send again" answers
+429. "Send again" is also limited to 3 requests per hour per account and 10 per
+hour per address; confirming a link shares the password-reset limit of 10 per
+hour per address.
+
+To turn it on, set the `SMTP_*` values in `.env.hetzner` and forward them from
+the api service in `docker-compose.yml`, which does not pass them yet:
+
+```yaml
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAP_EMAIL_VERIFICATION: ${MAP_EMAIL_VERIFICATION:-}
+      MAP_PUBLIC_URL: ${MAP_PUBLIC_URL:-}
+```
+
+Recreate the api container and check that the startup warning is gone.
+`MAP_EMAIL_VERIFICATION=off` in `.env.hetzner` is the rollback. To verify one
+account by hand (for example when its mail never arrives):
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+UPDATE map_users SET "emailVerifiedAt" = now()
+WHERE email = '<map user email, lowercase>' AND "emailVerifiedAt" IS NULL;
+SQL
+```
+
 ## Deploy
 
 ```sh

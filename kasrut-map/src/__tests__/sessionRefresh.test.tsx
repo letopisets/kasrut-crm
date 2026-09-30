@@ -10,7 +10,7 @@ import { refreshMapSession } from '@/store/sessionRefresh'
 import { useMapSessionBootstrap } from '@/hooks/useMapSessionBootstrap'
 import type { MapUser } from '@/types'
 
-const user: MapUser = { id: 'mu1', email: 'a@b.il', phone: null, firstName: 'A', lastName: 'B', name: 'A B', avatarUrl: null }
+const user: MapUser = { id: 'mu1', email: 'a@b.il', phone: null, firstName: 'A', lastName: 'B', name: 'A B', avatarUrl: null, emailVerified: true }
 
 // A throwaway endpoint, so the tests can fire several ordinary requests at once.
 const probeApi = baseApi.injectEndpoints({
@@ -23,7 +23,7 @@ function makeStore(signedIn = true, preloaded?: { user: MapUser | null; token: s
   const store = configureStore({
     reducer: { mapAuth: mapAuthReducer, [baseApi.reducerPath]: baseApi.reducer },
     middleware: getDefault => getDefault().concat(baseApi.middleware),
-    ...(preloaded ? { preloadedState: { mapAuth: preloaded } } : {}),
+    ...(preloaded ? { preloadedState: { mapAuth: { ...preloaded, verificationPromptOpen: false } } } : {}),
   })
   if (signedIn && !preloaded) store.dispatch(setCredentials({ user, token: 'old-token' }))
   return store

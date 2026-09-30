@@ -173,7 +173,7 @@ beforeAll(async () => {
   mapUser = {
     id: 'map-user-1', email: 'user@example.com', phone: '+972500000000',
     firstName: 'Map', lastName: 'User', name: 'Map User', avatarUrl: null,
-    sessionVersion: 0, passwordHash: await hashPassword(PASSWORD),
+    sessionVersion: 0, emailVerifiedAt: null, passwordHash: await hashPassword(PASSWORD),
   }
 })
 

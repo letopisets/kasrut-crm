@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mapAuthReducer, setCredentials, setUser, clearCredentials, sessionUnavailable } from '@/store/mapAuthSlice'
+import {
+  mapAuthReducer, setCredentials, setUser, clearCredentials, sessionUnavailable,
+  emailVerificationPrompted, emailVerificationPromptClosed,
+} from '@/store/mapAuthSlice'
 import type { MapUser } from '@/types'
 
 const user: MapUser = {
@@ -10,6 +13,7 @@ const user: MapUser = {
   lastName: 'B',
   name: 'A B',
   avatarUrl: null,
+  emailVerified: true,
 }
 
 beforeEach(() => {
@@ -51,6 +55,15 @@ describe('mapAuthSlice', () => {
     state = mapAuthReducer(state, setUser(updated))
     expect(state.user?.name).toBe('C D')
     expect(state.token).toBe('t1')
+  })
+
+  it('opens and closes the email verification prompt; signing out closes it', () => {
+    let state = mapAuthReducer(undefined, setCredentials({ user, token: 't1' }))
+    expect(state.verificationPromptOpen).toBe(false)
+    state = mapAuthReducer(state, emailVerificationPrompted())
+    expect(state.verificationPromptOpen).toBe(true)
+    expect(mapAuthReducer(state, emailVerificationPromptClosed()).verificationPromptOpen).toBe(false)
+    expect(mapAuthReducer(state, clearCredentials()).verificationPromptOpen).toBe(false)
   })
 
   it('sessionUnavailable signs out for now but keeps the persisted user for the next load', () => {

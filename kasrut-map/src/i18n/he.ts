@@ -166,6 +166,17 @@ const he: MapTranslations = {
   googleSignInError: 'לא ניתן לטעון Google Sign-In.',
   appleSignInError: 'לא ניתן להיכנס עם Apple.',
 
+  verifyEmailTitle: 'אימות כתובת האימייל',
+  verifyEmailSent: 'שלחנו קישור אימות אל {email}. יש ללחוץ עליו כדי לכתוב ביקורות ולהציע מקומות.',
+  verifyEmailRequired: 'יש לאמת את כתובת האימייל כדי לכתוב ביקורות ולהציע מקומות. אם הקישור עבור {email} לא הגיע או שפג תוקפו, שלח קישור חדש.',
+  verifyEmailResend: 'שלח את הקישור שוב',
+  verifyEmailResent: 'קישור חדש נשלח. בדוק את תיבת הדואר הנכנס ואת תיקיית הספאם.',
+  verifyEmailResendError: 'לא ניתן לשלוח את הקישור. נסה שוב מאוחר יותר.',
+  verifyEmailConfirmText: 'אשר שכתובת האימייל הזו שייכת לך, כדי שהחשבון שלך יוכל לכתוב ביקורות ולהציע מקומות. אם לא יצרת חשבון, לחץ על "ביטול".',
+  verifyEmailConfirmBtn: 'אמת אימייל',
+  emailVerifiedSuccess: 'כתובת האימייל אומתה.',
+  emailVerifyFailed: 'קישור האימות אינו תקף או שפג תוקפו.',
+
   donate: 'תרומה',
   donateTitle: 'תמיכה בפרויקט',
   donateIntro: 'תודה שאתם רוצים לתמוך בפרויקט. בחרו דרך נוחה להעברה.',

@@ -1,7 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import type { RootState } from '../index'
-import { clearCredentials } from '../mapAuthSlice'
+import { clearCredentials, emailVerificationPrompted } from '../mapAuthSlice'
 import { API_BASE_URL, refreshMapSession } from '../sessionRefresh'
 
 const rawBaseQuery = fetchBaseQuery({
@@ -24,6 +24,12 @@ const NO_REFRESH_PATHS = new Set([
   '/map-auth/password-reset/confirm',
   '/map-auth/refresh',
 ])
+
+/** The API refused a review or suggestion because the email is unverified. */
+export function isEmailNotVerifiedError(error: FetchBaseQueryError | undefined): boolean {
+  return error?.status === 403 && typeof error.data === 'object' && error.data !== null &&
+    (error.data as { code?: unknown }).code === 'EMAIL_NOT_VERIFIED'
+}
 
 function requestPath(args: string | FetchArgs): string {
   const url = typeof args === 'string' ? args : args.url
@@ -50,6 +56,9 @@ const baseQueryWithAuth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQuery
       if (result.error?.status === 401 && auth().token === retryWith) api.dispatch(clearCredentials())
     }
   }
+  // Handled here for every caller: EmailVerificationHost offers to send the
+  // link again, whichever form was being submitted.
+  if (isEmailNotVerifiedError(result.error)) api.dispatch(emailVerificationPrompted())
   return result
 }
 

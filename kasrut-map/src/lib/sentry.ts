@@ -1,23 +1,38 @@
 import * as Sentry from '@sentry/react'
-import type { ErrorEvent } from '@sentry/react'
+import type { Breadcrumb, ErrorEvent, Event } from '@sentry/react'
 
-function scrubPii(event: ErrorEvent): ErrorEvent {
+function withoutQuery(url: string): string {
+  return url.split('?')[0]
+}
+
+// Strip query-strings from breadcrumb URLs — they may contain search terms,
+// city filters, or hechsher names the user hasn't consented to share, and the
+// token of an emailed ?verifyEmail= link. Navigation crumbs carry the old and
+// new URL in from/to: removing that token with history.replaceState records
+// one whose `from` still holds it.
+export function scrubBreadcrumb(crumb: Breadcrumb): Breadcrumb {
+  const data = crumb.data
+  if (data) {
+    for (const key of ['url', 'from', 'to']) {
+      if (typeof data[key] === 'string') data[key] = withoutQuery(data[key])
+    }
+  }
+  return crumb
+}
+
+// The page URL goes out with every event, transactions included.
+export function scrubRequestUrl<T extends Event>(event: T): T {
+  if (typeof event.request?.url === 'string') event.request.url = withoutQuery(event.request.url)
+  if (Array.isArray(event.breadcrumbs)) event.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb)
+  return event
+}
+
+export function scrubPii(event: ErrorEvent): ErrorEvent {
   // Public app — no account required for map view. Replace any captured user
   // context with an opaque anonymous marker so emails/phones never leave the
   // browser via Sentry.
   event.user = { id: 'anonymous' }
-
-  // Strip query-strings from breadcrumb URLs — they may contain search terms,
-  // city filters, or hechsher names the user hasn't consented to share.
-  if (Array.isArray(event.breadcrumbs)) {
-    event.breadcrumbs = event.breadcrumbs.map(crumb => {
-      if (typeof crumb.data?.url === 'string') {
-        crumb.data.url = crumb.data.url.split('?')[0]
-      }
-      return crumb
-    })
-  }
-  return event
+  return scrubRequestUrl(event)
 }
 
 /**
@@ -50,7 +65,10 @@ export function initSentry(): void {
       /^safari-extension:\/\//,
       /^webkit-masked-url:\/\//,
     ],
+    // Scrubbed when recorded, and again on the way out.
+    beforeBreadcrumb: scrubBreadcrumb,
     beforeSend: scrubPii,
+    beforeSendTransaction: scrubRequestUrl,
   })
 }
 

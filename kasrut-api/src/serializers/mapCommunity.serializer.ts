@@ -8,6 +8,7 @@ export const serializeMapUser = (u: MapUserRow) => ({
   lastName: u.lastName,
   name: u.name,
   avatarUrl: u.avatarUrl,
+  emailVerified: u.emailVerifiedAt !== null,
 })
 
 type SuggestionBase = {

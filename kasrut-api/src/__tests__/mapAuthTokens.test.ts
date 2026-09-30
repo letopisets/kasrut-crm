@@ -43,6 +43,7 @@ const mapUser: MapAuthUserRow = {
   name:           'Map User',
   avatarUrl:      null,
   sessionVersion: 4,
+  emailVerifiedAt: new Date('2026-09-01T00:00:00Z'),
   passwordHash:   bcrypt.hashSync(PASSWORD, 4),
 }
 

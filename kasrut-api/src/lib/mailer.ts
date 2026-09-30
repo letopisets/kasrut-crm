@@ -53,6 +53,33 @@ export async function sendMapPasswordResetToken(payload: {
   })
 }
 
+// No greeting with the account's name: anyone can register any address, so
+// the name is text a stranger chose.
+export async function sendMapEmailVerification(payload: {
+  recipientEmail: string
+  link: string
+}): Promise<void> {
+  const transporter = createTransport()
+  const link = escapeHtml(payload.link)
+  const notYours = 'If you did not create a Kosher Map account, do not confirm: someone else entered your address. Ignore this message and that account stays unconfirmed.'
+
+  await transporter.sendMail({
+    from: `"Kosher Map" <${process.env.SMTP_USER ?? 'noreply@kashrut.local'}>`,
+    to: payload.recipientEmail,
+    subject: 'Confirm your Kosher Map email',
+    text: `Someone registered a Kosher Map account with this email address. To confirm that it is yours, open this link and press "Confirm email":\n\n${payload.link}\n\nThe link expires in 24 hours. ${notYours}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Confirm your email</h2>
+        <p>Someone registered a Kosher Map account with this email address. Confirm that it is yours to post reviews and suggest places:</p>
+        <p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#E8A507;color:#000;text-decoration:none;border-radius:4px">Confirm email</a></p>
+        <p style="font-size:12px;color:#666;word-break:break-all">Or open this link: ${link}</p>
+        <p>The link expires in 24 hours. ${notYours}</p>
+      </div>
+    `,
+  })
+}
+
 export interface ExpiryMailPayload {
   restaurantName: string
   expires:        string   // YYYY-MM-DD

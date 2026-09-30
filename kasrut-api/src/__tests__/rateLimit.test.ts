@@ -1,6 +1,6 @@
 import express from 'express'
 import request from 'supertest'
-import { normalizeClientIp, rateLimit } from '../middleware/rateLimit'
+import { consumeRateLimit, normalizeClientIp, rateLimit, resetRateLimitMemory } from '../middleware/rateLimit'
 
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 
@@ -74,5 +74,56 @@ describe('rateLimit bucket key', () => {
 
     expect(first.status).toBe(200)
     expect(mapped.status).toBe(429)
+  })
+})
+
+describe('rateLimit keyBy', () => {
+  const app = express()
+  app.set('trust proxy', 1)
+  app.get(
+    '/per-account',
+    rateLimit({ keyPrefix: 'test-key-by', windowMs: 60_000, max: 1, keyBy: req => req.get('X-Account') }),
+    (_req, res) => { res.json({ ok: true }) },
+  )
+
+  it('counts per returned key whatever the address', async () => {
+    const first = await request(app).get('/per-account').set('X-Account', 'a').set('X-Forwarded-For', '203.0.113.1')
+    const again = await request(app).get('/per-account').set('X-Account', 'a').set('X-Forwarded-For', '203.0.113.2')
+    const other = await request(app).get('/per-account').set('X-Account', 'b').set('X-Forwarded-For', '203.0.113.2')
+
+    expect(first.status).toBe(200)
+    expect(again.status).toBe(429)
+    expect(other.status).toBe(200)
+  })
+
+  it('falls back to the client address when no key is returned', async () => {
+    const first = await request(app).get('/per-account').set('X-Forwarded-For', '198.51.100.20')
+    const second = await request(app).get('/per-account').set('X-Forwarded-For', '198.51.100.20')
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(429)
+  })
+})
+
+describe('consumeRateLimit', () => {
+  const window = { keyPrefix: 'test-consume', windowMs: 60_000, max: 2 }
+
+  it('counts each call against its bucket only', async () => {
+    const results = [
+      await consumeRateLimit(window, 'a'),
+      await consumeRateLimit(window, 'a'),
+      await consumeRateLimit(window, 'a'),
+    ]
+    expect(results.map(r => r.allowed)).toEqual([true, true, false])
+    expect(results.map(r => r.remaining)).toEqual([1, 0, 0])
+    expect(results[2].retryAfter).toBeGreaterThan(0)
+    expect((await consumeRateLimit(window, 'b')).allowed).toBe(true)
+  })
+
+  it('starts over after resetRateLimitMemory', async () => {
+    await consumeRateLimit(window, 'c')
+    await consumeRateLimit(window, 'c')
+    resetRateLimitMemory()
+    expect((await consumeRateLimit(window, 'c')).allowed).toBe(true)
   })
 })

@@ -3,10 +3,16 @@ import type { Request, Response, NextFunction } from 'express'
 import { redis } from '../lib/redis'
 import { logger } from '../lib/logger'
 
-interface RateLimitOptions {
+export interface RateLimitWindow {
   windowMs: number
   max:      number
   keyPrefix:string
+}
+
+interface RateLimitOptions extends RateLimitWindow {
+  /** Bucket id other than the client address, e.g. the signed-in account.
+   *  Falls back to the address when it returns undefined. */
+  keyBy?:   (req: Request) => string | undefined
 }
 
 // ── Client IP → bucket id ─────────────────────────────────────────────────────
@@ -89,42 +95,73 @@ async function redisCheck(key: string, windowMs: number): Promise<number> {
   return count
 }
 
+/** Bucket id of the request's client address (see normalizeClientIp). */
+export function clientAddressBucket(req: Request): string {
+  return normalizeClientIp(req.ip ?? req.socket.remoteAddress ?? 'unknown')
+}
+
+export interface RateLimitResult {
+  allowed:    boolean
+  remaining:  number
+  /** Seconds until the window resets. */
+  retryAfter: number
+}
+
+/**
+ * Counts one use of `bucket` and says whether it is still within the window's
+ * `max`. The middleware below counts every request; a controller calls this
+ * directly when only some outcomes should count (an email actually sent).
+ */
+export async function consumeRateLimit(options: RateLimitWindow, bucket: string): Promise<RateLimitResult> {
+  const now = Date.now()
+  const key = `rl:${options.keyPrefix}:${bucket}`
+
+  let count:    number
+  let resetAt:  number
+
+  try {
+    if (redis.status === 'ready') {
+      count   = await redisCheck(key, options.windowMs)
+      // Approximate resetAt from TTL
+      const ttl = await redis.ttl(key)
+      resetAt = now + (ttl > 0 ? ttl * 1000 : options.windowMs)
+    } else {
+      throw new Error('not ready')
+    }
+  } catch {
+    if (now - lastRedisWarnAt > 60_000) {
+      logger.warn('Redis unavailable — rate limiter falling back to in-memory store')
+      lastRedisWarnAt = now
+    }
+    const b = inMemoryCheck(key, options.windowMs, now)
+    count   = b.count
+    resetAt = b.resetAt
+  }
+
+  return {
+    allowed:    count <= options.max,
+    remaining:  Math.max(0, options.max - count),
+    retryAfter: Math.max(1, Math.ceil((resetAt - now) / 1000)),
+  }
+}
+
+/** Test helper: forgets the in-memory buckets (Redis keys are untouched). */
+export function resetRateLimitMemory(): void {
+  buckets.clear()
+}
+
 // ── Middleware factory ────────────────────────────────────────────────────────
 export function rateLimit(options: RateLimitOptions) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const now = Date.now()
-    const ip  = normalizeClientIp(req.ip ?? req.socket.remoteAddress ?? 'unknown')
-    const key = `rl:${options.keyPrefix}:${ip}`
+    const bucket = options.keyBy?.(req) ?? clientAddressBucket(req)
+    const result = await consumeRateLimit(options, bucket)
 
-    let count:    number
-    let resetAt:  number
-
-    try {
-      if (redis.status === 'ready') {
-        count   = await redisCheck(key, options.windowMs)
-        // Approximate resetAt from TTL
-        const ttl = await redis.ttl(key)
-        resetAt = now + (ttl > 0 ? ttl * 1000 : options.windowMs)
-      } else {
-        throw new Error('not ready')
-      }
-    } catch {
-      if (now - lastRedisWarnAt > 60_000) {
-        logger.warn('Redis unavailable — rate limiter falling back to in-memory store')
-        lastRedisWarnAt = now
-      }
-      const b = inMemoryCheck(key, options.windowMs, now)
-      count   = b.count
-      resetAt = b.resetAt
-    }
-
-    const retryAfter = Math.max(1, Math.ceil((resetAt - now) / 1000))
     res.setHeader('RateLimit-Limit',     String(options.max))
-    res.setHeader('RateLimit-Remaining', String(Math.max(0, options.max - count)))
-    res.setHeader('RateLimit-Reset',     String(retryAfter))
+    res.setHeader('RateLimit-Remaining', String(result.remaining))
+    res.setHeader('RateLimit-Reset',     String(result.retryAfter))
 
-    if (count > options.max) {
-      res.setHeader('Retry-After', String(retryAfter))
+    if (!result.allowed) {
+      res.setHeader('Retry-After', String(result.retryAfter))
       res.status(429).json({ error: 'Too many requests. Please try again later.' })
       return
     }
