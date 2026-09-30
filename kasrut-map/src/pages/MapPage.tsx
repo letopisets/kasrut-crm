@@ -13,6 +13,7 @@ import { MapAppBar }         from '@/components/map/MapAppBar'
 import { useMapController }  from '@/controllers/useMapController'
 import { useIpCenter }       from '@/hooks/useIpCenter'
 import { useGetMapMeQuery }  from '@/store/api/mapCommunityApi'
+import { isSessionRejected } from '@/store/api/baseApi'
 import { useGetMapRestaurantQuery } from '@/store/api/restaurantsApi'
 import { clearCredentials, setUser } from '@/store/mapAuthSlice'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
@@ -126,7 +127,10 @@ export default function MapPage({ themeMode, onToggleThemeMode }: Props) {
 
   const user  = useAppSelector(state => state.mapAuth.user)
   const token = useAppSelector(state => state.mapAuth.token)
-  const { data: freshUser, isError: authExpired } = useGetMapMeQuery(undefined, { skip: !token })
+  const { data: freshUser, error: meError } = useGetMapMeQuery(undefined, { skip: !token })
+  // Only a refused session signs the visitor out; a failed or rate-limited
+  // /me keeps them signed in (the next call retries).
+  const authExpired = isSessionRejected(meError)
   const [authOpen, setAuthOpen] = useState(false)
   const [sessionExpiredOpen, setSessionExpiredOpen] = useState(false)
   const [suggestionOpen, setSuggestionOpen] = useState(false)

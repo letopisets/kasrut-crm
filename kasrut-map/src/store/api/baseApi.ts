@@ -31,6 +31,15 @@ export function isEmailNotVerifiedError(error: FetchBaseQueryError | undefined):
     (error.data as { code?: unknown }).code === 'EMAIL_NOT_VERIFIED'
 }
 
+/**
+ * The API refused the session itself (401, after the refresh above could not
+ * renew it). A 5xx, a 429 or a network error says nothing about the session,
+ * so it must not sign the visitor out.
+ */
+export function isSessionRejected(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { status?: unknown }).status === 401
+}
+
 function requestPath(args: string | FetchArgs): string {
   const url = typeof args === 'string' ? args : args.url
   return url.split('?')[0]
