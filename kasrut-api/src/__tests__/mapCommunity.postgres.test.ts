@@ -219,6 +219,29 @@ describeWithPostgres('mapCommunity repository against a real Postgres', () => {
         expect((await prisma.mapRestaurantSuggestion.findUniqueOrThrow({ where: { id: suggestion.id } })).status).toBe('pending')
       })
 
+      // Any map user can propose any name, so a refusal must not tell a
+      // tenant reviewer what another tenant's registry holds beyond what the
+      // public map lists: a withdrawn name there is simply new here.
+      it("treats another tenant's withdrawn hechsher as a new name, revealing nothing", async () => {
+        const a = await fixture()
+        const b = await fixture()
+        const off = await fixture()
+        await prisma.rabbanut.update({ where: { id: off.rabbanut.id }, data: { active: false } })
+
+        for (const name of [b.withdrawn.name, off.current.name]) {
+          const suggestion = await a.suggest(name)
+          const approved = await mapCommunityRepo.reviewSuggestion(suggestion.id, {
+            status: 'approved', reviewerRole: 'rabbanut', reviewerRabbanutId: a.rabbanut.id,
+          })
+
+          expect(approved?.status).toBe('approved')
+          const place = await prisma.restaurant.findUniqueOrThrow({ where: { id: a.restaurant.id }, include: { hechsher: true } })
+          expect(place.rabbanutId).toBe(a.rabbanut.id)
+          expect(place.hechsher).toMatchObject({ name, rabbanutId: a.rabbanut.id, active: true })
+        }
+        expect(await prisma.hechsher.findUniqueOrThrow({ where: { id: b.withdrawn.id } })).toMatchObject({ active: false, rabbanutId: b.rabbanut.id })
+      })
+
       it('refuses a place of a switched-off rabbanut, so it stays off the map', async () => {
         await fixture({ label: '0-first' })
         const b = await fixture()

@@ -330,12 +330,21 @@ async function resolveHechsher(
     })
     if (withdrawn) throw withdrawnHechsherError(requestedName)
 
-    // The name belongs to another tenant: the place would really have to move
-    // there, which is an explicit CRM edit, and a same-named copy inside this
-    // tenant would only be a stray duplicate. Refuse and say why.
+    // The name is a listed hechsher of another tenant: the place would really
+    // have to move there, which is an explicit CRM edit, and a same-named copy
+    // inside this tenant would only be a stray duplicate. Refuse and say why.
+    // Only hechsherim the public map lists (GET /api/map/hechsherim) count:
+    // any map user can propose any name, so refusing on a withdrawn or
+    // switched-off tenant's name would tell a tenant reviewer that the name
+    // exists in another tenant's registry. Such a name is simply new here.
     if (input.tenantRabbanutId) {
       const foreign = await tx.hechsher.findFirst({
-        where: { ...hechsherNameWhere(requestedName), rabbanutId: { not: input.tenantRabbanutId } },
+        where: {
+          ...hechsherNameWhere(requestedName),
+          rabbanutId: { not: input.tenantRabbanutId },
+          ...publicHechsherWhere(),
+          rabbanut: publicRabbanutWhere(),
+        },
         select: { id: true },
       })
       if (foreign) {

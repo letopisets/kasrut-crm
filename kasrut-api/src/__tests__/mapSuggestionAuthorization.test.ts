@@ -478,7 +478,12 @@ describe('owner approval of an update suggestion keeps the establishment in its 
     await expect(approveAsOwner()).rejects.toThrow(
       'Cannot approve suggestion: hechsher "Badatz B" belongs to another rabbanut; move the establishment in the CRM instead',
     )
-    expect(tx.hechsher.findFirst.mock.calls[2][0].where).toMatchObject({ rabbanutId: { not: 'rb_a' } })
+    expect(tx.hechsher.findFirst.mock.calls[2][0].where).toMatchObject({
+      rabbanutId: { not: 'rb_a' },
+      // Only a hechsher the public map lists can block the approval.
+      active: true,
+      rabbanut: { active: true, deletedAt: null },
+    })
     expect(tx.hechsher.create).not.toHaveBeenCalled()
     expect(tx.restaurant.update).not.toHaveBeenCalled()
   })
