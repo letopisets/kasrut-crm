@@ -16,7 +16,10 @@ jest.mock('../db/rabbanuts.repo')
 jest.mock('../db/documents.repo')
 jest.mock('../lib/cache', () => ({
   withCache: jest.fn((_key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
-  invalidatePattern: jest.fn(),
+  withNamespaceCache: jest.fn((_ns: string, _key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
+  invalidateNamespace: jest.fn(async () => undefined),
+  invalidateKeys: jest.fn(async () => undefined),
+  invalidatePattern: jest.fn(async () => undefined),
 }))
 jest.mock('otplib', () => ({
   generateSecret: () => 'M', generateURI: () => '', verifySync: () => ({ valid: true }),

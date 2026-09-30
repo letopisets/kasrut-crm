@@ -1,7 +1,6 @@
-import jwt from 'jsonwebtoken'
 import request from 'supertest'
 import { createApp } from '../app'
-import { env } from '../config/env'
+import { signMapAccessToken } from '../lib/jwt'
 import { prisma } from '../lib/prisma'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { decodeReviewCursor, encodeReviewCursor } from '../controllers/mapReview.controller'
@@ -326,12 +325,10 @@ describe('GET /api/map/restaurants/:restaurantId/reviews/mine', () => {
     name: 'User rv01',
     avatarUrl: null,
     sessionVersion: 1,
+    emailVerifiedAt: new Date('2026-01-01T00:00:00Z'),
   }
-  const token = () => jwt.sign(
-    { sub: mapUser.id, typ: 'map_user', name: mapUser.name, email: mapUser.email, ver: 1, jti: 'j1' },
-    env.JWT_SECRET,
-    { expiresIn: '1h' },
-  )
+  const token = () =>
+    signMapAccessToken({ sub: mapUser.id, name: mapUser.name, email: mapUser.email, ver: 1, jti: 'j1' })
 
   beforeEach(() => {
     mockPrisma.mapUser.findUnique.mockResolvedValue(mapUser)

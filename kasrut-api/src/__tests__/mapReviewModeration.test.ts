@@ -1,7 +1,6 @@
-import jwt from 'jsonwebtoken'
 import request from 'supertest'
 import { createApp } from '../app'
-import { env } from '../config/env'
+import { signCrmAccessToken, signMapAccessToken } from '../lib/jwt'
 import { prisma } from '../lib/prisma'
 import { redis } from '../lib/redis'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
@@ -214,7 +213,8 @@ function installFakeRedis() {
 const USERS: Record<string, User> = {
   owner: {
     id: 'u_owner', name: 'Owner', email: 'owner@crm.il', passwordHash: 'h', role: 'owner',
-    twoFactorEnabled: false, twoFactorBackupCodes: [], sessionVersion: 0,
+    // REQUIRE_OWNER_2FA: an owner without 2FA may only reach the setup routes
+    twoFactorEnabled: true, twoFactorBackupCodes: [], sessionVersion: 0,
   },
   rabbanutA: {
     id: 'u_rb_a', name: 'Rabbanut A', email: 'a@crm.il', passwordHash: 'h', role: 'rabbanut', rabbanutId: 'rb_a',
@@ -232,24 +232,20 @@ const USERS: Record<string, User> = {
 }
 
 function crmToken(user: User): string {
-  return jwt.sign({
+  return signCrmAccessToken({
     sub: user.id,
     role: user.role,
-    typ: 'crm',
     name: user.name,
     email: user.email,
     ...(user.rabbanutId ? { rabbanutId: user.rabbanutId } : {}),
     ...(user.mashgiachId ? { mashgiachId: user.mashgiachId } : {}),
     ver: 0,
     jti: `jti_${user.id}`,
-  }, env.JWT_SECRET, { expiresIn: '1h' })
+  })
 }
 
-const mapUserToken = () => jwt.sign(
-  { sub: 'mu1', typ: 'map_user', name: 'Dana', email: 'dana@example.com', ver: 0, jti: 'jti_mu1' },
-  env.JWT_SECRET,
-  { expiresIn: '1h' },
-)
+const mapUserToken = () =>
+  signMapAccessToken({ sub: 'mu1', name: 'Dana', email: 'dana@example.com', ver: 0, jti: 'jti_mu1' })
 
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` })
 const as = (user: User) => bearer(crmToken(user))

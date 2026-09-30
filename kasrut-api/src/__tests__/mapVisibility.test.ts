@@ -25,7 +25,10 @@ jest.mock('../db/hechsherim.repo')
 jest.mock('../lib/mapCache', () => ({ invalidateMapCache: jest.fn() }))
 jest.mock('../lib/cache', () => ({
   withCache: jest.fn((_key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
-  invalidatePattern: jest.fn(),
+  withNamespaceCache: jest.fn((_ns: string, _key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
+  invalidateNamespace: jest.fn(async () => undefined),
+  invalidateKeys: jest.fn(async () => undefined),
+  invalidatePattern: jest.fn(async () => undefined),
 }))
 
 type Mocked = { [model: string]: { [op: string]: jest.Mock } }

@@ -1,7 +1,6 @@
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
-import { env } from '../config/env'
+import { signCrmAccessToken } from '../lib/jwt'
 import { documentsRepo } from '../db/documents.repo'
 import { rabbanutRepo } from '../db/rabbanuts.repo'
 import { usersRepo } from '../db/users.repo'
@@ -21,7 +20,10 @@ jest.mock('../db/rabbanuts.repo')
 jest.mock('../db/documents.repo')
 jest.mock('../lib/cache', () => ({
   withCache: jest.fn((_key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
-  invalidatePattern: jest.fn(),
+  withNamespaceCache: jest.fn((_ns: string, _key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
+  invalidateNamespace: jest.fn(async () => undefined),
+  invalidateKeys: jest.fn(async () => undefined),
+  invalidatePattern: jest.fn(async () => undefined),
 }))
 jest.mock('otplib', () => ({
   generateSecret: () => 'M', generateURI: () => '', verifySync: () => ({ valid: true }),
@@ -42,13 +44,11 @@ function token(role: Role, rabbanutId: string | null) {
   }
   const currentUser: User = {
     id: 'u1', name: 'U', email: 'u@crm.il', passwordHash: 'hash', role,
-    ...links, twoFactorEnabled: false, twoFactorBackupCodes: [],
+    // REQUIRE_OWNER_2FA: an owner without 2FA may only reach the setup routes
+    ...links, twoFactorEnabled: role === 'owner', twoFactorBackupCodes: [], sessionVersion: 0,
   }
   mockUsers.findAuthById.mockResolvedValue(currentUser)
-  return jwt.sign(
-    { sub: 'u1', role, typ: 'crm', name: 'U', email: 'u@crm.il', ...links },
-    env.JWT_SECRET, { expiresIn: '1h' } as object,
-  )
+  return signCrmAccessToken({ sub: 'u1', role, name: 'U', email: 'u@crm.il', ver: 0, ...links })
 }
 
 const auth = (role: Role, rabbanutId: string | null) => ({ Authorization: `Bearer ${token(role, rabbanutId)}` })

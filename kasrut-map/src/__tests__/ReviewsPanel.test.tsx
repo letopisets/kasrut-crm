@@ -43,6 +43,7 @@ const USER_RV1: MapUser = {
   lastName: null,
   name: 'User rv1',
   avatarUrl: null,
+  emailVerified: true,
 }
 
 function requestUrl(input: RequestInfo | URL): URL {

@@ -1,7 +1,6 @@
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
-import { env } from '../config/env'
+import { signCrmAccessToken } from '../lib/jwt'
 import { kashrutLevelsRepo } from '../db/kashrutLevels.repo'
 import { establishmentCategoriesRepo } from '../db/establishmentCategories.repo'
 import { usersRepo } from '../db/users.repo'
@@ -30,13 +29,11 @@ function auth(role: Role = 'owner') {
   const links = role === 'owner' ? {} : { rabbanutId: 'rb_1' }
   const currentUser: User = {
     id: 'u1', name: 'U', email: 'u@crm.il', passwordHash: 'hash', role,
-    ...links, twoFactorEnabled: false, twoFactorBackupCodes: [],
+    // REQUIRE_OWNER_2FA: an owner without 2FA may only reach the setup routes
+    ...links, twoFactorEnabled: role === 'owner', twoFactorBackupCodes: [], sessionVersion: 0,
   }
   mockUsers.findAuthById.mockResolvedValue(currentUser)
-  const token = jwt.sign(
-    { sub: 'u1', role, typ: 'crm', name: 'U', email: 'u@crm.il', ...links },
-    env.JWT_SECRET, { expiresIn: '1h' } as object,
-  )
+  const token = signCrmAccessToken({ sub: 'u1', role, name: 'U', email: 'u@crm.il', ver: 0, ...links })
   return { Authorization: `Bearer ${token}` }
 }
 
