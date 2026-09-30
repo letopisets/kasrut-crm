@@ -20,14 +20,15 @@ export const store = configureStore({
 export type RootState   = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
 
+// The access token is never persisted (see authSlice).
 let lastPersistedAuth = ''
 store.subscribe(() => {
-  const { user, token, role, rabbanutFilter } = store.getState().auth
-  const serialized = JSON.stringify({ user, token, role, rabbanutFilter })
+  const { user, role, rabbanutFilter, twoFactorSetupRequired } = store.getState().auth
+  const serialized = JSON.stringify({ user, role, rabbanutFilter, twoFactorSetupRequired })
   if (serialized === lastPersistedAuth) return
 
   lastPersistedAuth = serialized
-  persistAuthState({ user, token, role, rabbanutFilter })
+  persistAuthState({ user, role, rabbanutFilter, twoFactorSetupRequired })
 })
 
 // Typed hooks

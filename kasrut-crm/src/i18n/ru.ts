@@ -31,6 +31,10 @@ const ru: Translations = {
   status: { ok: 'Активен', warning: 'Истекает', critical: 'Срочно' },
   back: '← Назад',
   logout: 'Выйти',
+  sessionRestoring: 'Восстанавливаем сеанс…',
+  sessionUnavailable: 'Не удалось связаться с сервером, чтобы восстановить сеанс.',
+  sessionRetry: 'Повторить',
+  sessionSignIn: 'Войти заново',
   restaurants: {
     title:  'Заведения',
     sub:    'Рестораны и точки питания',
@@ -255,7 +259,7 @@ const ru: Translations = {
   validation: {
     required:         'Поле обязательно для заполнения',
     invalidEmail:     'Некорректный адрес электронной почты',
-    passwordTooShort: 'Пароль должен содержать минимум 8 символов',
+    passwordTooShort: 'Пароль должен содержать минимум 12 символов',
     passwordWeak:     'Пароль должен содержать буквы и цифры',
     cityNotInRegistry: 'Нет в справочнике — будет сохранено как введено',
   },
@@ -270,6 +274,7 @@ const ru: Translations = {
     roleLabel:  'Выберите роль',
     password:   'Пароль',
     enterBtn:   'Войти',
+    tooManyAttempts: 'Слишком много попыток. Повторите позже.',
     selectRole: 'Выбрать →',
   },
   twoFactor: {
@@ -289,6 +294,15 @@ const ru: Translations = {
     disableInstruction: 'Введите 6-значный код из приложения-аутентификатора для отключения 2FA.',
     codeMustBe6:      'Введите 6-значный код',
     manualSecret:     'Ключ для ручного ввода:',
+    requiredTitle:    'Требуется двухфакторная аутентификация',
+    requiredInstruction: 'Для аккаунтов с ролью Owner двухфакторная аутентификация обязательна. Настройте её в приложении-аутентификаторе, чтобы продолжить.',
+    requiredForRole:  'Для вашей роли двухфакторная аутентификация обязательна, отключить её нельзя.',
+    backupCodesTitle: 'Сохраните резервные коды',
+    backupCodesInstruction: 'Каждый код позволяет один раз войти, если у вас не будет доступа к приложению-аутентификатору. Храните их в надёжном месте: больше они показаны не будут.',
+    backupCodesCopy:  'Скопировать коды',
+    backupCodesCopied: 'Скопировано',
+    backupCodesDone:  'Коды сохранены',
+    wrongPassword:    'Неверный пароль',
   },
 }
 

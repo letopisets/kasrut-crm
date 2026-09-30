@@ -75,6 +75,8 @@ export interface MapUser {
   lastName: string | null
   name: string
   avatarUrl: string | null
+  // False for a password registration until the emailed link is followed.
+  emailVerified: boolean
 }
 
 export interface MapAuthProviderConfig {
@@ -85,6 +87,8 @@ export interface MapAuthProviderConfig {
 
 export interface MapAuthConfig {
   providers: MapAuthProviderConfig[]
+  // 'required': reviews and suggestions need a verified email.
+  emailVerification?: 'required' | 'off'
 }
 
 export interface MapAuthResponse {

@@ -1,9 +1,8 @@
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
 import { inspectionsRepo } from '../db/inspections.repo'
 import { usersRepo } from '../db/users.repo'
-import { env } from '../config/env'
+import { signCrmAccessToken } from '../lib/jwt'
 import type { Inspection } from '../models/types'
 
 jest.mock('../lib/prisma')
@@ -28,15 +27,12 @@ const ownerUser = {
   name: 'Owner',
   email: 'o@test.il',
   passwordHash: 'hash',
-  twoFactorEnabled: false,
+  // REQUIRE_OWNER_2FA: a signed-in owner has 2FA, or every call but setup is refused
+  twoFactorEnabled: true,
   twoFactorBackupCodes: [],
 }
 
-const ownerToken = jwt.sign(
-  { sub: 'u1', role: 'owner', name: 'Owner', email: 'o@test.il' },
-  env.JWT_SECRET,
-  { expiresIn: '1h' } as object,
-)
+const ownerToken = signCrmAccessToken({ sub: 'u1', role: 'owner', name: 'Owner', email: 'o@test.il', ver: 0 })
 
 const sample = (id: string): Inspection => ({
   id,

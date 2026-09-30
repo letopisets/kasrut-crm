@@ -143,11 +143,11 @@ export interface JWTPayload {
   role:       Role
   name:       string
   email:      string
-  typ?:       'crm'    // audience marker — CRM tokens only (map/2FA-pending tokens are rejected)
+  typ?:       'crm'    // CRM tokens only; backs up the per-purpose key/audience in lib/jwt.ts
   rabbanutId?:string
   mashgiachId?:string
-  ver?:       number   // server-side session generation; legacy tokens imply 0
-  jti?:       string   // unique token ID — used for blacklisting on logout
+  ver?:       number   // server-side session generation; lib/jwt.ts requires it on every token
+  jti?:       string   // unique token ID for logout blacklisting; lib/jwt.ts requires it too
   iat:        number
   exp:        number
 }

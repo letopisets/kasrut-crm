@@ -1,10 +1,9 @@
 import path from 'path'
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
 import { usersRepo, UserChangedError } from '../db/users.repo'
 import { Prisma } from '../generated/prisma/client'
-import { env } from '../config/env'
+import { signCrmAccessToken } from '../lib/jwt'
 import type { User } from '../models/types'
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -31,7 +30,8 @@ const ownerUser: User = {
   email:                'owner@test.il',
   passwordHash:         '$2a$08$hash',
   role:                 'owner',
-  twoFactorEnabled:     false,
+  // REQUIRE_OWNER_2FA: a signed-in owner has 2FA, or every call but setup is refused
+  twoFactorEnabled:     true,
   twoFactorBackupCodes: [],
 }
 
@@ -59,25 +59,20 @@ const mashgiachUser: User = {
 }
 
 function ownerToken() {
-  return jwt.sign(
-    { sub: ownerUser.id, role: ownerUser.role, name: ownerUser.name, email: ownerUser.email },
-    env.JWT_SECRET,
-    { expiresIn: '1h' } as object,
+  return signCrmAccessToken(
+    { sub: ownerUser.id, role: ownerUser.role, name: ownerUser.name, email: ownerUser.email, ver: 0 },
   )
 }
 
 function rabbanutToken() {
-  return jwt.sign(
-    {
-      sub: rabbanutUser.id,
-      role: rabbanutUser.role,
-      name: rabbanutUser.name,
-      email: rabbanutUser.email,
-      rabbanutId: rabbanutUser.rabbanutId,
-    },
-    env.JWT_SECRET,
-    { expiresIn: '1h' } as object,
-  )
+  return signCrmAccessToken({
+    sub: rabbanutUser.id,
+    role: rabbanutUser.role,
+    name: rabbanutUser.name,
+    email: rabbanutUser.email,
+    rabbanutId: rabbanutUser.rabbanutId,
+    ver: 0,
+  })
 }
 
 // ── App ────────────────────────────────────────────────────────────────────
@@ -152,7 +147,7 @@ describe('POST /api/users', () => {
       .post('/api/users')
       .set('Authorization', `Bearer ${ownerToken()}`)
       .send({
-        name: 'New User', email: 'new@test.il', password: 'password123',
+        name: 'New User', email: 'new@test.il', password: 'password1234',
         role: 'rabbanut', rabbanutId: 'rb1',
       })
 
@@ -166,7 +161,7 @@ describe('POST /api/users', () => {
       const res = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${ownerToken()}`)
-        .send({ name: 'Tenant User', email: `${role}@test.il`, password: 'password123', role })
+        .send({ name: 'Tenant User', email: `${role}@test.il`, password: 'password1234', role })
 
       expect(res.status).toBe(400)
       expect(mockRepo.create).not.toHaveBeenCalled()
@@ -178,7 +173,7 @@ describe('POST /api/users', () => {
       .post('/api/users')
       .set('Authorization', `Bearer ${ownerToken()}`)
       .send({
-        name: 'Owner Two', email: 'owner2@test.il', password: 'password123',
+        name: 'Owner Two', email: 'owner2@test.il', password: 'password1234',
         role: 'owner', rabbanutId: null,
       })
 

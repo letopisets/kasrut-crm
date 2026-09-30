@@ -4,7 +4,7 @@ import { mapController } from '../controllers/map.controller'
 import { mapRouteController } from '../controllers/mapRoute.controller'
 import { mapSuggestionController } from '../controllers/mapSuggestion.controller'
 import { mapReviewController } from '../controllers/mapReview.controller'
-import { authenticateMapJWT } from '../middleware/mapAuth'
+import { authenticateMapJWT, requireVerifiedMapEmail } from '../middleware/mapAuth'
 import { authenticateJWT } from '../middleware/auth'
 import { requireRole } from '../middleware/requireRole'
 import { rateLimit } from '../middleware/rateLimit'
@@ -70,10 +70,12 @@ router.get('/prerender/:restaurantId', mapReadRateLimit, mapController.getRestau
 // Paginated newest-first: ?limit=1..50 (default 20) &cursor=<nextCursor of the previous page>
 router.get('/restaurants/:restaurantId/reviews', mapReadRateLimit, mapReviewController.listReviews)
 
-// Community actions — public users authenticated via Google/Apple
+// Community actions — signed-in map users; with MAP_EMAIL_VERIFICATION=required
+// their email must be verified for writes (403 EMAIL_NOT_VERIFIED otherwise).
+// Reading one's own review needs only a session.
 router.get('/restaurants/:restaurantId/reviews/mine', mapReadRateLimit, authenticateMapJWT, mapReviewController.getOwnReview)
-router.post('/suggestions', communityWriteRateLimit, authenticateMapJWT, mapSuggestionController.createSuggestion)
-router.post('/restaurants/:restaurantId/reviews', communityWriteRateLimit, authenticateMapJWT, mapReviewController.upsertReview)
+router.post('/suggestions', communityWriteRateLimit, authenticateMapJWT, requireVerifiedMapEmail, mapSuggestionController.createSuggestion)
+router.post('/restaurants/:restaurantId/reviews', communityWriteRateLimit, authenticateMapJWT, requireVerifiedMapEmail, mapReviewController.upsertReview)
 
 // Moderation — CRM users (owner / rabbanut) only
 router.get('/suggestions',           authenticateJWT, requireRole('owner', 'rabbanut'), mapSuggestionController.listSuggestions)

@@ -4,7 +4,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import AppLayout from '@/components/layout/AppLayout'
-import ProtectedRoute from '@/components/layout/ProtectedRoute'
+import ProtectedRoute, { TwoFactorSetupGate } from '@/components/layout/ProtectedRoute'
+import { SessionGate } from '@/components/layout/SessionGate'
 import { GlobalSnackbar } from '@/components/ui/GlobalSnackbar'
 
 // Login is the only page that may be hit before authentication; load it eagerly
@@ -23,6 +24,8 @@ const Users            = lazy(() => import('@/pages/Users'))
 const Suggestions      = lazy(() => import('@/pages/Suggestions'))
 const Reviews          = lazy(() => import('@/pages/Reviews'))
 const Logs             = lazy(() => import('@/pages/Logs'))
+// Forced 2FA enrolment for owners (REQUIRE_OWNER_2FA), outside the app layout
+const SetupTwoFactor   = lazy(() => import('@/pages/SetupTwoFactor'))
 
 const PageFallback = () => (
   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
@@ -33,49 +36,53 @@ const PageFallback = () => (
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
-          <Route path="/" element={<AppLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard"       element={<Dashboard />} />
-            <Route path="restaurants"     element={
-              <ProtectedRoute page="restaurants"><Restaurants /></ProtectedRoute>
-            } />
-            <Route path="restaurants/:id" element={
-              <ProtectedRoute page="restaurants"><RestaurantDetail /></ProtectedRoute>
-            } />
-            <Route path="inspections"   element={
-              <ProtectedRoute page="inspections"><Inspections /></ProtectedRoute>
-            } />
-            <Route path="mashgichim"    element={
-              <ProtectedRoute page="mashgichim"><Mashgichim /></ProtectedRoute>
-            } />
-            <Route path="hechsherim"    element={
-              <ProtectedRoute page="hechsherim"><Hechsherim /></ProtectedRoute>
-            } />
-            <Route path="documents"     element={
-              <ProtectedRoute page="documents"><Documents /></ProtectedRoute>
-            } />
-            <Route path="rabbanuts"     element={
-              <ProtectedRoute page="rabbanuts"><Rabbanuts /></ProtectedRoute>
-            } />
-            <Route path="users"         element={
-              <ProtectedRoute page="users"><Users /></ProtectedRoute>
-            } />
-            <Route path="suggestions"   element={
-              <ProtectedRoute page="suggestions"><Suggestions /></ProtectedRoute>
-            } />
-            <Route path="reviews"       element={
-              <ProtectedRoute page="reviews"><Reviews /></ProtectedRoute>
-            } />
-            <Route path="logs"          element={
-              <ProtectedRoute page="logs"><Logs /></ProtectedRoute>
-            } />
-          </Route>
-          <Route path="/login" element={<Login />} />
-          <Route path="*"      element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Suspense>
+      {/* Restores the in-memory access token after a reload before any route renders */}
+      <SessionGate>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/" element={<TwoFactorSetupGate><AppLayout /></TwoFactorSetupGate>}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard"       element={<Dashboard />} />
+              <Route path="restaurants"     element={
+                <ProtectedRoute page="restaurants"><Restaurants /></ProtectedRoute>
+              } />
+              <Route path="restaurants/:id" element={
+                <ProtectedRoute page="restaurants"><RestaurantDetail /></ProtectedRoute>
+              } />
+              <Route path="inspections"   element={
+                <ProtectedRoute page="inspections"><Inspections /></ProtectedRoute>
+              } />
+              <Route path="mashgichim"    element={
+                <ProtectedRoute page="mashgichim"><Mashgichim /></ProtectedRoute>
+              } />
+              <Route path="hechsherim"    element={
+                <ProtectedRoute page="hechsherim"><Hechsherim /></ProtectedRoute>
+              } />
+              <Route path="documents"     element={
+                <ProtectedRoute page="documents"><Documents /></ProtectedRoute>
+              } />
+              <Route path="rabbanuts"     element={
+                <ProtectedRoute page="rabbanuts"><Rabbanuts /></ProtectedRoute>
+              } />
+              <Route path="users"         element={
+                <ProtectedRoute page="users"><Users /></ProtectedRoute>
+              } />
+              <Route path="suggestions"   element={
+                <ProtectedRoute page="suggestions"><Suggestions /></ProtectedRoute>
+              } />
+              <Route path="reviews"       element={
+                <ProtectedRoute page="reviews"><Reviews /></ProtectedRoute>
+              } />
+              <Route path="logs"          element={
+                <ProtectedRoute page="logs"><Logs /></ProtectedRoute>
+              } />
+            </Route>
+            <Route path="/login" element={<Login />} />
+            <Route path="/setup-2fa" element={<SetupTwoFactor />} />
+            <Route path="*"      element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Suspense>
+      </SessionGate>
       <GlobalSnackbar />
     </BrowserRouter>
   )

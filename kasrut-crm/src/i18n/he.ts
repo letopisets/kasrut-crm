@@ -31,6 +31,10 @@ const he: Translations = {
   status: { ok: 'פעיל', warning: 'פוגת תוקף', critical: 'דחוף' },
   back: '→ חזרה',
   logout: 'יציאה',
+  sessionRestoring: 'משחזרים את החיבור…',
+  sessionUnavailable: 'לא ניתן להתחבר לשרת כדי לשחזר את החיבור.',
+  sessionRetry: 'לנסות שוב',
+  sessionSignIn: 'להתחבר מחדש',
   restaurants: {
     title:  'עסקים',
     sub:    'מסעדות ובתי אוכל',
@@ -255,7 +259,7 @@ const he: Translations = {
   validation: {
     required:         'שדה חובה',
     invalidEmail:     'כתובת דוא"ל לא תקינה',
-    passwordTooShort: 'הסיסמה חייבת להכיל לפחות 8 תווים',
+    passwordTooShort: 'הסיסמה חייבת להכיל לפחות 12 תווים',
     passwordWeak:     'הסיסמה חייבת להכיל אותיות וספרות',
     cityNotInRegistry: 'לא נמצא במאגר — יישמר כפי שהוקלד',
   },
@@ -270,6 +274,7 @@ const he: Translations = {
     roleLabel:  'בחר תפקיד',
     password:   'סיסמה',
     enterBtn:   'כניסה',
+    tooManyAttempts: 'יותר מדי ניסיונות. נסו שוב מאוחר יותר.',
     selectRole: '← בחר',
   },
   twoFactor: {
@@ -289,6 +294,15 @@ const he: Translations = {
     disableInstruction: 'הכנס את הקוד בן 6 הספרות מאפליקציית האימות לכיבוי האימות הדו-שלבי.',
     codeMustBe6:      'הכנס קוד בן 6 ספרות',
     manualSecret:     'מפתח להזנה ידנית:',
+    requiredTitle:    'נדרש אימות דו-שלבי',
+    requiredInstruction: 'בחשבונות בתפקיד Owner אימות דו-שלבי הוא חובה. הגדר אותו באפליקציית אימות כדי להמשיך.',
+    requiredForRole:  'אימות דו-שלבי הוא חובה עבור התפקיד שלך ולא ניתן לכבות אותו.',
+    backupCodesTitle: 'שמור את קודי הגיבוי',
+    backupCodesInstruction: 'כל קוד מאפשר כניסה אחת אם תאבד גישה לאפליקציית האימות. שמור אותם במקום בטוח: הם לא יוצגו שוב.',
+    backupCodesCopy:  'העתק קודים',
+    backupCodesCopied: 'הועתק',
+    backupCodesDone:  'שמרתי את הקודים',
+    wrongPassword:    'סיסמה שגויה',
   },
 }
 

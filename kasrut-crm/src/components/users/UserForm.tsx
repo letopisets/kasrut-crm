@@ -7,6 +7,9 @@ import Button from '@mui/material/Button'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// Mirrors createUserSchema in the API.
+const MIN_PASSWORD_LENGTH = 12
+
 const ROLES: Role[] = ['owner', 'rabbanut', 'mashgiach']
 
 interface SelectOption { value: string; label: string }
@@ -52,7 +55,7 @@ export function UserForm({ rabbanutOptions, mashgiachOptions, onSave, onClose }:
     : !EMAIL_RE.test(form.email)    ? t.validation.invalidEmail
     : undefined
   const passwordError = !form.password               ? t.validation.required
-    : form.password.length < 8                       ? t.validation.passwordTooShort
+    : form.password.length < MIN_PASSWORD_LENGTH     ? t.validation.passwordTooShort
     : !/[a-zA-Zа-яА-ЯёЁ]/.test(form.password) || !/\d/.test(form.password) ? t.validation.passwordWeak
     : undefined
   const canSave = !form.name || !!emailError || !!passwordError ||

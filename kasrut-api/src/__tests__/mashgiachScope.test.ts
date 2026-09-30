@@ -1,10 +1,9 @@
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import { createApp } from '../app'
-import { env } from '../config/env'
 import { mashgichimRepo } from '../db/mashgichim.repo'
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { usersRepo } from '../db/users.repo'
+import { signCrmAccessToken } from '../lib/jwt'
 import type { Mashgiach, User } from '../models/types'
 
 // The mashgiach controller used to skip rabbanut-scoping entirely, so a rabbanut
@@ -42,23 +41,21 @@ function token(role: 'owner' | 'rabbanut' | 'mashgiach', rabbanutId?: string) {
     role,
     ...(rabbanutId ? { rabbanutId } : {}),
     ...(role === 'mashgiach' ? { mashgiachId: 'm_mine' } : {}),
-    twoFactorEnabled: false,
+    // REQUIRE_OWNER_2FA: a signed-in owner has 2FA, or every call but setup is refused
+    twoFactorEnabled: role === 'owner',
     twoFactorBackupCodes: [],
   }
   mockUsers.findAuthById.mockResolvedValue(currentUser)
 
-  return jwt.sign(
-    {
-      sub: 'u1',
-      role,
-      typ: 'crm',
-      name: 'U',
-      email: 'u@crm.il',
-      ...(rabbanutId ? { rabbanutId } : {}),
-      ...(role === 'mashgiach' ? { mashgiachId: 'm_mine' } : {}),
-    },
-    env.JWT_SECRET, { expiresIn: '1h' } as object,
-  )
+  return signCrmAccessToken({
+    sub: 'u1',
+    role,
+    name: 'U',
+    email: 'u@crm.il',
+    ver: 0,
+    ...(rabbanutId ? { rabbanutId } : {}),
+    ...(role === 'mashgiach' ? { mashgiachId: 'm_mine' } : {}),
+  })
 }
 
 describe('GET /api/mashgichim/:id tenant scoping', () => {

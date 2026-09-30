@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthController } from '@/controllers/useAuthController'
 import { useLang } from '@/i18n/useLang'
+import { isTooManyAttempts } from '@/lib/isTooManyAttempts'
+import { isInvalidPasswordError, isTwoFactorRequiredForRoleError } from '@/lib/twoFactorErrors'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
@@ -14,15 +16,80 @@ import LockOpenIcon from '@mui/icons-material/LockOpen'
 import LockIcon from '@mui/icons-material/Lock'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 
-interface Props { onClose: () => void }
+interface Props {
+  onClose: () => void
+  // Forced setup (REQUIRE_OWNER_2FA): no way to dismiss the panel; onClose
+  // runs once the backup codes are acknowledged.
+  forced?: boolean
+}
 type Step = 'status' | 'setup' | 'disable'
 
-function TwoFactorHeader({ title, onClose }: { title: string; onClose: () => void }) {
+function TwoFactorHeader({ title, onClose }: { title: string; onClose?: () => void }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.primary' }}>{title}</Typography>
-      <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+      {onClose && <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>}
     </Box>
+  )
+}
+
+// One-time backup codes, shown once right after 2FA is enabled.
+function BackupCodes({
+  codes,
+  onDone,
+  closable,
+}: {
+  codes: string[]
+  onDone: () => void
+  closable: boolean
+}) {
+  const tf = useLang().twoFactor
+  const [copied, setCopied] = useState(false)
+
+  // The codes live only in memory and cannot be shown again: ask before a
+  // reload or tab close throws them away unsaved.
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(codes.join('\n'))
+      setCopied(true)
+    } catch { /* no clipboard access: the codes stay selectable */ }
+  }
+
+  return (
+    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <TwoFactorHeader title={tf?.backupCodesTitle ?? 'Save your backup codes'} onClose={closable ? onDone : undefined} />
+      <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.5 }}>
+        {tf?.backupCodesInstruction}
+      </Typography>
+      <Box
+        data-testid="backup-codes"
+        dir="ltr"
+        sx={{
+          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px 16px',
+          fontFamily: 'monospace', fontSize: 14, letterSpacing: '1px', textAlign: 'center',
+          background: '#1E2235', borderRadius: 1.5, p: '12px 14px', userSelect: 'all',
+        }}
+      >
+        {codes.map(code => <Box key={code} component="span">{code}</Box>)}
+      </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Button variant="outlined" onClick={() => void copy()}>
+          {copied ? (tf?.backupCodesCopied ?? 'Copied') : (tf?.backupCodesCopy ?? 'Copy codes')}
+        </Button>
+        <Button variant="contained" onClick={onDone}>
+          {tf?.backupCodesDone ?? 'I have saved these codes'}
+        </Button>
+      </Box>
+    </Paper>
   )
 }
 
@@ -64,10 +131,15 @@ function OtpInput({
   )
 }
 
-export function TwoFactorSettings({ onClose }: Props) {
+export function TwoFactorSettings({ onClose, forced = false }: Props) {
   const t  = useLang()
   const tf = t.twoFactor
-  const { user, setup2fa, setupLoading, enable2fa, enableLoading, disable2fa, disableLoading } = useAuthController()
+  const tooManyAttempts = t.login?.tooManyAttempts ?? 'Too many attempts. Try again later.'
+  const {
+    user, setup2fa, setupLoading, enable2fa, enableLoading, disable2fa, disableLoading,
+    backupCodes, acknowledgeBackupCodes,
+  } = useAuthController()
+  const close = forced ? undefined : onClose
 
   const [step, setStep]           = useState<Step>('status')
   const [qrDataUrl, setQrDataUrl] = useState('')
@@ -75,28 +147,40 @@ export function TwoFactorSettings({ onClose }: Props) {
   const [code, setCode]           = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [codeError, setCodeError] = useState('')
+  const [setupError, setSetupError] = useState('')
   const [success, setSuccess]     = useState(false)
 
   const isEnabled = user?.twoFactorEnabled ?? false
 
   const handleSetup = async () => {
     try {
+      setSetupError('')
       const data = await setup2fa(currentPassword)
       setQrDataUrl(data.qrDataUrl)
       setSecret(data.secret)
       setCode(''); setCodeError('')
       setStep('setup')
-    } catch { /* handled by RTK */ }
+    } catch (err) {
+      // The password re-check shares the sign-in lockout.
+      if (isTooManyAttempts(err)) setSetupError(tooManyAttempts)
+      else if (isInvalidPasswordError(err)) setSetupError(tf?.wrongPassword ?? 'Wrong password')
+    }
   }
 
   const handleEnable = async () => {
     if (code.length !== 6) { setCodeError(tf?.codeMustBe6 ?? 'Enter 6-digit code'); return }
     try {
       setCodeError('')
-      await enable2fa(code)
-      setSuccess(true)
-      setTimeout(onClose, 1200)
-    } catch { setCodeError(tf?.codeMustBe6 ?? 'Invalid code') }
+      const result = await enable2fa(code)
+      // The store now holds the backup codes, which replace this panel.
+      if (!result.backupCodes?.length) {
+        setSuccess(true)
+        setTimeout(onClose, 1200)
+      }
+    } catch (err) {
+      // Code guesses share the per-account 2FA lockout.
+      setCodeError(isTooManyAttempts(err) ? tooManyAttempts : (tf?.codeMustBe6 ?? 'Invalid code'))
+    }
   }
 
   const handleDisable = async () => {
@@ -106,7 +190,23 @@ export function TwoFactorSettings({ onClose }: Props) {
       await disable2fa(code)
       setSuccess(true)
       setTimeout(onClose, 1200)
-    } catch { setCodeError(tf?.codeMustBe6 ?? 'Invalid code') }
+    } catch (err) {
+      if (isTwoFactorRequiredForRoleError(err)) {
+        setCodeError(tf?.requiredForRole ?? 'Two-factor authentication is mandatory for your role.')
+        return
+      }
+      setCodeError(isTooManyAttempts(err) ? tooManyAttempts : (tf?.codeMustBe6 ?? 'Invalid code'))
+    }
+  }
+
+  if (backupCodes?.length) {
+    return (
+      <BackupCodes
+        codes={backupCodes}
+        closable={!forced}
+        onDone={() => { acknowledgeBackupCodes(); onClose() }}
+      />
+    )
   }
 
   if (success) {
@@ -120,7 +220,7 @@ export function TwoFactorSettings({ onClose }: Props) {
   if (step === 'setup') {
     return (
       <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TwoFactorHeader title={tf?.setupTitle ?? 'Set up 2FA'} onClose={onClose} />
+        <TwoFactorHeader title={tf?.setupTitle ?? 'Set up 2FA'} onClose={close} />
         <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.5 }}>
           {tf?.setupInstruction}
         </Typography>
@@ -169,7 +269,7 @@ export function TwoFactorSettings({ onClose }: Props) {
   if (step === 'disable') {
     return (
       <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TwoFactorHeader title={tf?.disableTitle ?? 'Disable 2FA'} onClose={onClose} />
+        <TwoFactorHeader title={tf?.disableTitle ?? 'Disable 2FA'} onClose={close} />
         <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.5 }}>
           {tf?.disableInstruction}
         </Typography>
@@ -200,7 +300,7 @@ export function TwoFactorSettings({ onClose }: Props) {
 
   return (
     <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <TwoFactorHeader title={tf?.settingsTitle ?? 'Two-Factor Authentication'} onClose={onClose} />
+      <TwoFactorHeader title={tf?.settingsTitle ?? 'Two-Factor Authentication'} onClose={close} />
       <Box sx={{
         display: 'flex', alignItems: 'center', gap: 1.5,
         p: '12px 14px', background: '#1E2235', borderRadius: 1.5,
@@ -223,6 +323,7 @@ export function TwoFactorSettings({ onClose }: Props) {
               label={t.login?.password ?? 'Current password'}
               autoComplete="current-password"
             />
+            {setupError && <Alert severity="error" sx={{ fontSize: 12 }}>{setupError}</Alert>}
             <Button
               variant="contained"
               onClick={() => void handleSetup()}

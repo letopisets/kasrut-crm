@@ -7,7 +7,8 @@ import Box                   from '@mui/material/Box'
 import { detectScript, scriptToNameField } from '@/lib/detectScript'
 import type { InputScript }  from '@/lib/detectScript'
 import { useLang } from '@/i18n/useLang'
-import { useAppSelector } from '@/store'
+import { useAppDispatch, useAppSelector } from '@/store'
+import { API_BASE_URL, refreshSession } from '@/store/sessionRefresh'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -57,19 +58,25 @@ function altNames(opt: SettlementOption, primaryScript: InputScript): string {
 // ── Minimal inline fetch (no RTK Query dependency here) ───────────────────
 // Replace with useSearchSettlementsQuery once settlementsApi is wired up.
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
-
 async function fetchSettlements(
   q: string,
   lang: InputScript,
   token: string | null,
+  renewToken: () => Promise<string | null>,
 ): Promise<SettlementOption[]> {
   const params = new URLSearchParams({ q, lang: lang === 'unknown' ? 'he' : lang })
   // /settlements/search requires auth — without the token it 401s and the
   // dropdown silently stays empty (which is why the list never loaded).
-  const res = await fetch(`${BASE_URL}/settlements/search?${params}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  const search = (bearer: string | null) => fetch(`${API_BASE_URL}/settlements/search?${params}`, {
+    headers: bearer ? { Authorization: `Bearer ${bearer}` } : undefined,
   })
+  let res = await search(token)
+  // Access tokens are short-lived: renew once (shared with the base query's
+  // refresh) and retry, as RTK Query requests do.
+  if (res.status === 401 && token) {
+    const renewed = await renewToken()
+    if (renewed) res = await search(renewed)
+  }
   if (!res.ok) return []
   return res.json() as Promise<SettlementOption[]>
 }
@@ -82,6 +89,7 @@ export function SettlementAutocomplete({
 }: Props) {
   const t = useLang()
   const token = useAppSelector(s => s.auth.token)
+  const dispatch = useAppDispatch()
   const [inputValue, setInputValue] = useState(
     // Seed the visible text from the current value if editing an existing
     // record; fall back to the plain-text city when there is no linked
@@ -124,7 +132,7 @@ export function SettlementAutocomplete({
     setTimer(setTimeout(async () => {
       setLoading(true)
       try {
-        const results = await fetchSettlements(newInput, script, token)
+        const results = await fetchSettlements(newInput, script, token, () => refreshSession(dispatch))
         setOptions(results)
       } finally {
         setLoading(false)

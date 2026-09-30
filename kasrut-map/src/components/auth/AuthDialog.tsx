@@ -7,6 +7,7 @@ import { OAuthButtons } from './OAuthButtons'
 import { PasswordLoginForm } from './PasswordLoginForm'
 import { PasswordResetForm } from './PasswordResetForm'
 import { RegistrationForm, type RegistrationFormData } from './RegistrationForm'
+import { EmailVerificationNotice } from './EmailVerificationNotice'
 import {
   useConfirmPasswordResetMutation,
   useGetMapAuthConfigQuery,
@@ -32,11 +33,20 @@ interface Props {
 
 type AuthMode = 'login' | 'register' | 'reset'
 
+// 429: the IP limiter or the per-account lockout after repeated failures.
+function isTooManyAttempts(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'status' in err &&
+    (err as { status: unknown }).status === 429
+}
+
 export function AuthDialog({ open, onClose }: Props) {
   const dispatch = useAppDispatch()
   const t = useMapLang()
   const [mode, setMode] = useState<AuthMode>('login')
   const [error, setError] = useState<string | null>(null)
+  // Set after a registration that still has to confirm its email: the
+  // dialog then shows "check your email" instead of the forms.
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
 
   const { data: config, isLoading: configLoading } = useGetMapAuthConfigQuery(undefined, { skip: !open })
   const [oauthLogin, oauthState] = useOauthLoginMutation()
@@ -83,18 +93,27 @@ export function AuthDialog({ open, onClose }: Props) {
     setError(null)
     try {
       finishAuth(await loginWithPassword({ email, password }).unwrap())
-    } catch {
-      setError(t.wrongCredentials)
+    } catch (err) {
+      setError(isTooManyAttempts(err) ? t.tooManyAttempts : t.wrongCredentials)
     }
   }
 
   const handleRegister = async (data: RegistrationFormData) => {
     setError(null)
+    let result: MapAuthResponse
     try {
-      finishAuth(await registerWithPassword(data).unwrap())
+      result = await registerWithPassword(data).unwrap()
     } catch {
       setError(t.registerError)
+      return
     }
+    if (config?.emailVerification === 'required' && !result.user.emailVerified) {
+      // Signed in already; reviews and suggestions wait for the link.
+      dispatch(setCredentials({ user: result.user, token: result.token }))
+      setUnverifiedEmail(result.user.email)
+      return
+    }
+    finishAuth(result)
   }
 
   const handleRequestReset = async (
@@ -117,6 +136,20 @@ export function AuthDialog({ open, onClose }: Props) {
     } catch {
       setError(t.resetConfirmError)
     }
+  }
+
+  if (unverifiedEmail) {
+    return (
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+        <DialogTitle>{t.verifyEmailTitle}</DialogTitle>
+        <DialogContent>
+          <EmailVerificationNotice message={t.verifyEmailSent.replace('{email}', unverifiedEmail)} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose} sx={{ borderRadius: 1 }}>{t.closeBtn}</Button>
+        </DialogActions>
+      </Dialog>
+    )
   }
 
   return (

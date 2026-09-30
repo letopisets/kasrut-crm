@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
-import { env } from '../config/env'
 import type { JWTPayload } from '../models/types'
+import { verifyCrmAccessToken } from '../lib/jwt'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { usersRepo } from '../db/users.repo'
+import { isTwoFactorSetupRequired } from '../lib/twoFactorPolicy'
 
 declare global {
   namespace Express {
@@ -14,6 +14,24 @@ declare global {
   }
 }
 
+// The only CRM calls an owner who still has to enrol in 2FA (REQUIRE_OWNER_2FA)
+// may make: read, renew and end the session, and complete setup. Keys are
+// "METHOD baseUrl+path" with no query string; anything else is refused.
+// POST /api/auth/refresh authenticates by its cookie, not through
+// authenticateJWT; it is listed so the setup-only session is known to renew,
+// and the access token it returns is gated here like any other.
+export const TWO_FACTOR_SETUP_ALLOWLIST: ReadonlySet<string> = new Set([
+  'GET /api/auth/me',
+  'POST /api/auth/refresh',
+  'POST /api/auth/logout',
+  'POST /api/auth/2fa/setup',
+  'POST /api/auth/2fa/enable',
+])
+
+function isTwoFactorSetupRequest(req: Request): boolean {
+  return TWO_FACTOR_SETUP_ALLOWLIST.has(`${req.method} ${req.baseUrl}${req.path}`)
+}
+
 export async function authenticateJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization
   if (!header?.startsWith('Bearer ')) {
@@ -22,29 +40,20 @@ export async function authenticateJWT(req: Request, res: Response, next: NextFun
   }
   const token = header.slice(7)
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as JWTPayload
-
-    // Reject tokens minted for a different audience. Public map-user tokens
-    // (typ='map_user') and pre-2FA temp tokens (typ='2fa_pending', no role) are
-    // signed with the same secret but must NEVER authenticate CRM endpoints.
-    // A valid CRM token carries a role and — once re-issued after this change —
-    // typ='crm'. Requiring a role also rejects legacy temp tokens that predate
-    // the typ marker, since neither map nor 2FA-pending tokens ever carry one.
-    const claims = payload as { typ?: string; role?: string }
-    if ((claims.typ !== undefined && claims.typ !== 'crm') || !claims.role) {
-      res.status(401).json({ error: 'Invalid token type' })
-      return
-    }
+    // Only CRM access tokens verify here: public map-user and pre-2FA tokens
+    // are signed with different derived keys and audiences, and the verifier
+    // still requires typ='crm', a role, a jti and a session version.
+    const payload = verifyCrmAccessToken(token)
 
     // Reject revoked tokens (logout blacklist)
-    if (payload.jti && await isTokenBlacklisted(payload.jti)) {
+    if (await isTokenBlacklisted(payload.jti)) {
       res.status(401).json({ error: 'Token has been revoked' })
       return
     }
 
     // Authorization claims are only a snapshot. Resolve the current account
     // on every request so deletion, role changes, tenant moves and tenant
-    // suspension take effect immediately rather than when a 7-day JWT expires.
+    // suspension take effect immediately rather than when the JWT expires.
     const currentUser = await usersRepo.findAuthById(payload.sub)
     if (!currentUser) {
       res.status(401).json({ error: 'Account is inactive or unavailable' })
@@ -55,18 +64,31 @@ export async function authenticateJWT(req: Request, res: Response, next: NextFun
     const currentRabbanutId = currentUser.rabbanutId ?? null
     const tokenMashgiachId = payload.mashgiachId ?? null
     const currentMashgiachId = currentUser.mashgiachId ?? null
-    const tokenVersion = payload.ver === undefined ? 0 : payload.ver
     const currentVersion = currentUser.sessionVersion ?? 0
     if (
-      typeof tokenVersion !== 'number' ||
-      !Number.isInteger(tokenVersion) ||
-      tokenVersion < 0 ||
-      tokenVersion !== currentVersion ||
+      payload.ver !== currentVersion ||
       payload.role !== currentUser.role ||
       tokenRabbanutId !== currentRabbanutId ||
       tokenMashgiachId !== currentMashgiachId
     ) {
       res.status(401).json({ error: 'Authorization has changed; sign in again' })
+      return
+    }
+
+    if (isTwoFactorSetupRequired(currentUser) && !isTwoFactorSetupRequest(req)) {
+      // req.user is not set on this path, so name the account for the audit
+      // log: a refused call is exactly what the log should show.
+      res.locals.serviceLogActor = {
+        userId:    currentUser.id,
+        userEmail: currentUser.email,
+        userRole:  currentUser.role,
+        actorType: 'crm_user',
+      }
+      res.locals.serviceLogMessage = 'Blocked: 2FA setup required'
+      res.status(403).json({
+        error: 'Two-factor authentication setup required',
+        code:  'TWO_FACTOR_SETUP_REQUIRED',
+      })
       return
     }
 

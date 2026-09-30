@@ -29,6 +29,12 @@ export interface Translations {
   status: { ok: string; warning: string; critical: string }
   back: string
   logout: string
+  // Screen reader label of the spinner shown while a reload restores the session
+  sessionRestoring: string
+  // Shown instead when the API could not be reached to restore it
+  sessionUnavailable: string
+  sessionRetry: string
+  sessionSignIn: string
   restaurants: {
     title: string
     sub: string
@@ -261,6 +267,7 @@ export interface Translations {
     password:   string
     enterBtn:   string
     selectRole: string
+    tooManyAttempts: string
   }
   twoFactor?: {
     title: string
@@ -279,5 +286,14 @@ export interface Translations {
     disableInstruction: string
     codeMustBe6: string
     manualSecret: string
+    requiredTitle: string
+    requiredInstruction: string
+    requiredForRole: string
+    backupCodesTitle: string
+    backupCodesInstruction: string
+    backupCodesCopy: string
+    backupCodesCopied: string
+    backupCodesDone: string
+    wrongPassword: string
   }
 }

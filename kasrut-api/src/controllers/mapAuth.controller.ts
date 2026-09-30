@@ -1,9 +1,7 @@
 import type { Response } from 'express'
-import jwt from 'jsonwebtoken'
-import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { env } from '../config/env'
-import { mapCommunityRepo } from '../db/mapCommunity.repo'
+import { mapCommunityRepo, type MapUserRow } from '../db/mapCommunity.repo'
 import { serializeMapUser } from '../serializers/mapCommunity.serializer'
 import {
   getEnabledMapAuthProviders,
@@ -22,8 +20,25 @@ import {
 } from '../services/mapPassword.service'
 import { asyncHandler } from '../lib/asyncHandler'
 import { blacklistToken } from '../lib/tokenBlacklist'
+import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
+import { signMapAccessToken } from '../lib/jwt'
+import {
+  clearRefreshCookie,
+  revokePresentedRefreshFamily,
+  rotateRefreshToken,
+  setRefreshCookie,
+  startRefreshSession,
+} from '../lib/refreshTokens'
 import { sendMapPasswordResetToken } from '../lib/mailer'
 import { logger } from '../lib/logger'
+import {
+  deliverEmailVerification,
+  hashEmailVerificationToken,
+  isEmailVerificationRequired,
+  isVerificationMailEnabled,
+  newEmailVerificationToken,
+  reserveVerificationMail,
+} from '../services/mapEmailVerification.service'
 
 const oauthSchema = z.object({
   provider: z.enum(['google', 'apple']),
@@ -60,19 +75,17 @@ const passwordResetConfirmSchema = z.object({
   password: passwordSchema,
 })
 
+const verifyEmailSchema = z.object({
+  token: z.string().min(20).max(160),
+})
+
 function signMapToken(user: { id: string; name: string; email: string; sessionVersion: number }): string {
-  return jwt.sign(
-    {
-      sub: user.id,
-      typ: 'map_user',
-      name: user.name,
-      email: user.email,
-      ver: user.sessionVersion,
-      jti: randomUUID(),
-    },
-    env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN },
-  )
+  return signMapAccessToken({
+    sub: user.id,
+    name: user.name,
+    email: user.email,
+    ver: user.sessionVersion,
+  })
 }
 
 function setMapServiceLogActor(res: Response, user: { id: string; email: string }): void {
@@ -96,7 +109,11 @@ function genericResetResponse(devResetToken?: string) {
 
 export const mapAuthController = {
   config: asyncHandler(async (_req, res) => {
-    res.json({ providers: getEnabledMapAuthProviders() })
+    res.json({
+      providers: getEnabledMapAuthProviders(),
+      // Lets the map say "check your email" only when that is needed.
+      emailVerification: isEmailVerificationRequired() ? 'required' : 'off',
+    })
   }),
 
   register: asyncHandler(async (req, res) => {
@@ -110,22 +127,36 @@ export const mapAuthController = {
     const phone = normalizePhone(parsed.data.phone)
     const passwordHash = await hashPassword(parsed.data.password)
     res.locals.serviceLogActor = { userEmail: email, userRole: 'auth_attempt', actorType: 'auth_attempt' }
+    const verification = isVerificationMailEnabled() ? newEmailVerificationToken() : null
 
+    let user: MapUserRow
     try {
-      const user = await mapCommunityRepo.createPasswordUser({
+      user = await mapCommunityRepo.createPasswordUser({
         firstName: parsed.data.firstName.trim(),
         lastName: parsed.data.lastName.trim(),
         email,
         phone,
         passwordHash,
+        emailVerification: verification && { tokenHash: verification.tokenHash, expiresAt: verification.expiresAt },
       })
-      setMapServiceLogActor(res, user)
-      res.locals.serviceLogMessage = 'Map user registered'
-      res.status(201).json({ user: serializeMapUser(user), token: signMapToken(user) })
     } catch {
       res.locals.serviceLogMessage = 'Map registration failed: duplicate email or phone'
       res.status(409).json({ error: 'User with this email or phone already exists' })
+      return
     }
+    setMapServiceLogActor(res, user)
+    if (verification) {
+      // Past the mail budget the account is still created with its (unsent)
+      // link, and the answer is the same; the user can ask for a new one.
+      if ((await reserveVerificationMail(req, email)).allowed) {
+        deliverEmailVerification(user, verification.token)
+      } else {
+        logger.warn({ mapUserId: user.id }, 'Map email verification not sent: mail budget used up')
+      }
+    }
+    await startRefreshSession(req, res, 'map', user)
+    res.locals.serviceLogMessage = 'Map user registered'
+    res.status(201).json({ user: serializeMapUser(user), token: signMapToken(user) })
   }),
 
   login: asyncHandler(async (req, res) => {
@@ -137,19 +168,26 @@ export const mapAuthController = {
 
     const email = normalizeEmail(parsed.data.email)
     res.locals.serviceLogActor = { userEmail: email, userRole: 'auth_attempt', actorType: 'auth_attempt' }
+    // Reserved before the lookup: same answer for existing and unknown
+    // accounts, a locked identifier never gets a password check, and the
+    // attempt already counts as a failure so parallel guesses cannot race it.
+    const lock = await reserveAttempt('map', email)
+    if (lock.locked) {
+      res.locals.serviceLogMessage = 'Map login locked after repeated failures'
+      sendLoginLocked(res, lock); return
+    }
+
     const user = await mapCommunityRepo.findAuthUserByEmail(email)
-    if (!user?.passwordHash) {
+    // Unknown and password-less (OAuth-only) accounts still pay one bcrypt compare.
+    const passwordOk = await verifyPassword(parsed.data.password, user?.passwordHash)
+    if (!user || !passwordOk) {
       res.locals.serviceLogMessage = 'Map login failed'
       res.status(401).json({ error: 'Invalid email or password' }); return
     }
 
-    const passwordOk = await verifyPassword(parsed.data.password, user.passwordHash)
-    if (!passwordOk) {
-      res.locals.serviceLogMessage = 'Map login failed'
-      res.status(401).json({ error: 'Invalid email or password' }); return
-    }
-
+    await recordSuccess('map', email)
     setMapServiceLogActor(res, user)
+    await startRefreshSession(req, res, 'map', user)
     res.locals.serviceLogMessage = 'Map login succeeded'
     res.json({ user: serializeMapUser(user), token: signMapToken(user) })
   }),
@@ -164,6 +202,7 @@ export const mapAuthController = {
       const profile = await verifyOAuthIdToken(parsed.data.provider, parsed.data.idToken)
       const user = await mapCommunityRepo.upsertUserFromIdentity(profile)
       setMapServiceLogActor(res, user)
+      await startRefreshSession(req, res, 'map', user)
       res.locals.serviceLogMessage = 'Map OAuth login succeeded'
       res.json({ user: serializeMapUser(user), token: signMapToken(user) })
     } catch (e) {
@@ -177,6 +216,26 @@ export const mapAuthController = {
       }
       throw e
     }
+  }),
+
+  // Cookie-authenticated (requireRefreshRequest guards the route): trades the
+  // refresh cookie for a new access token and a rotated cookie.
+  refresh: asyncHandler(async (req, res) => {
+    const outcome = await rotateRefreshToken(req, 'map', id => mapCommunityRepo.findUserById(id))
+    if (!outcome.ok) {
+      clearRefreshCookie(res, 'map')
+      if ((outcome.reason === 'reused' || outcome.reason === 'replayed') && outcome.ownerId) {
+        res.locals.serviceLogActor = { userId: outcome.ownerId, userRole: 'map_user', actorType: 'map_user' }
+        res.locals.serviceLogMessage = outcome.reason === 'reused'
+          ? 'Map refresh token reuse detected; sessions revoked'
+          : 'Map refresh token presented again within the grace window; family revoked'
+      }
+      res.status(401).json({ error: 'Session expired; sign in again' }); return
+    }
+
+    const user = outcome.account
+    setRefreshCookie(res, 'map', outcome.token, outcome.expiresAt.getTime() - Date.now())
+    res.json({ user: serializeMapUser(user), token: signMapToken(user) })
   }),
 
   me: asyncHandler(async (req, res) => {
@@ -251,9 +310,74 @@ export const mapAuthController = {
       res.status(400).json({ error: 'Invalid or expired reset token' }); return
     }
 
+    // The reset proves control of the account: lift any login lock on it.
+    await recordSuccess('map', user.email)
     setMapServiceLogActor(res, user)
+    // The reset bumped sessionVersion, which ended every earlier refresh family.
+    await startRefreshSession(req, res, 'map', user)
     res.locals.serviceLogMessage = 'Map password reset completed'
     res.json({ user: serializeMapUser(user), token: signMapToken(user) })
+  }),
+
+  // Public: the link in the email is the credential.
+  verifyEmail: asyncHandler(async (req, res) => {
+    const parsed = verifyEmailSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'A valid verification token is required' }); return
+    }
+
+    const outcome = await mapCommunityRepo.consumeEmailVerificationToken(hashEmailVerificationToken(parsed.data.token))
+    if (outcome.status === 'invalid') {
+      // The service log records only requests with an actor: the link's
+      // account, when the link exists (expired or replaced).
+      if (outcome.user) {
+        res.locals.serviceLogActor = {
+          userId: outcome.user.id,
+          userEmail: outcome.user.email,
+          userRole: 'auth_attempt',
+          actorType: 'auth_attempt',
+        }
+      }
+      res.locals.serviceLogMessage = 'Map email verification failed'
+      res.status(400).json({ error: 'Invalid or expired verification link' }); return
+    }
+
+    setMapServiceLogActor(res, outcome.user)
+    if (outcome.status === 'already_verified') {
+      res.locals.serviceLogMessage = 'Map email verification link opened again; already verified'
+      res.json({ ok: true, alreadyVerified: true }); return
+    }
+    res.locals.serviceLogMessage = 'Map email verified'
+    res.json({ ok: true })
+  }),
+
+  // 204 also when there is nothing to send: the account is verified, or no
+  // mail can go out. The route caps requests per account and per address;
+  // the mail budget (shared with registration) caps the emails.
+  resendEmailVerification: asyncHandler(async (req, res) => {
+    if (!req.mapUser) { res.status(401).json({ error: 'Unauthorized' }); return }
+    const user = { id: req.mapUser.sub, email: req.mapUser.email }
+    setMapServiceLogActor(res, user)
+    if (req.mapUser.emailVerified || !isVerificationMailEnabled()) {
+      res.status(204).send(); return
+    }
+
+    const budget = await reserveVerificationMail(req, user.email)
+    if (!budget.allowed) {
+      res.locals.serviceLogMessage = 'Map email verification not resent: mail budget used up'
+      res.setHeader('Retry-After', String(budget.retryAfter))
+      res.status(429).json({ error: 'Too many requests. Please try again later.' }); return
+    }
+
+    const verification = newEmailVerificationToken()
+    await mapCommunityRepo.createEmailVerificationToken({
+      mapUserId: user.id,
+      tokenHash: verification.tokenHash,
+      expiresAt: verification.expiresAt,
+    })
+    deliverEmailVerification(user, verification.token)
+    res.locals.serviceLogMessage = 'Map email verification resent'
+    res.status(204).send()
   }),
 
   logout: asyncHandler(async (req, res) => {
@@ -265,6 +389,11 @@ export const mapAuthController = {
       const remainingTtl = Math.floor(req.mapUser.exp - Date.now() / 1000)
       await blacklistToken(req.mapUser.jti, remainingTtl)
     }
+    // The version bump above already ends every refresh session of the
+    // account; revoking the family also makes a stolen copy of this cookie
+    // count as reuse.
+    await revokePresentedRefreshFamily(req, 'map', req.mapUser.sub)
+    clearRefreshCookie(res, 'map')
     res.locals.serviceLogMessage = 'Map logout succeeded'
     res.status(204).send()
   }),

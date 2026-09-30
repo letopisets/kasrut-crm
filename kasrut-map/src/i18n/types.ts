@@ -124,6 +124,7 @@ export interface MapTranslations {
   resetTab: string
   oauthError: string
   wrongCredentials: string
+  tooManyAttempts: string
   registerError: string
   resetRequestError: string
   resetConfirmError: string
@@ -161,6 +162,17 @@ export interface MapTranslations {
   googleSignInError: string
   appleSignInError: string
 
+  verifyEmailTitle: string
+  verifyEmailSent: string          // {email}
+  verifyEmailRequired: string      // {email}
+  verifyEmailResend: string
+  verifyEmailResent: string
+  verifyEmailResendError: string
+  verifyEmailConfirmText: string
+  verifyEmailConfirmBtn: string
+  emailVerifiedSuccess: string
+  emailVerifyFailed: string
+
   donate: string
   donateTitle: string
   donateIntro: string
@@ -178,4 +190,5 @@ export interface MapTranslations {
   donateThanks: string
 
   sessionExpired: string
+  sessionRestoring: string   // spinner label while a reload restores the session
 }

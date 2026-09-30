@@ -42,16 +42,206 @@ Fill strong values for:
 - `POSTGRES_PASSWORD`
 - `REDIS_PASSWORD` — `openssl rand -hex 32` (see [Redis password](#redis-password))
 - `JWT_SECRET`
+- `ENCRYPTION_KEY`
 - `CORS_ORIGINS`
 - `GOOGLE_CLIENT_ID`
 - `APPLE_CLIENT_ID`
 - `VITE_APPLE_REDIRECT_URI`
+
+Generate the two API secrets on the server:
+
+```sh
+openssl rand -hex 48   # JWT_SECRET
+openssl rand -hex 32   # ENCRYPTION_KEY (exactly 64 hex characters)
+```
+
+The API refuses to start when either one is a template placeholder or has an
+obvious pattern (for example `0123456789abcdef…`). Every JWT signing key is
+derived from `JWT_SECRET`, so changing it signs every CRM and map user out.
+`ENCRYPTION_KEY` encrypts CRM users' TOTP secrets: rotating it breaks 2FA for
+any user who has it enabled, so they must set 2FA up again.
 
 Optional, server-side geocoders (api service only): `LOCATIONIQ_API_KEY` and
 `GOVMAP_API_KEY` — see [GovMap](#govmap-geocoder-server-side-israeli-addresses)
 and [LocationIQ](#locationiq-geocoder-server-side) below.
 
 Keep `SEED_DB=false` in production unless you intentionally want to reset seed data.
+
+### Mandatory 2FA for CRM owners
+
+`REQUIRE_OWNER_2FA` (`true` or `false`, default `true`) makes two-factor
+authentication mandatory for CRM owners, who administer every rabbanut. An
+owner without 2FA can still sign in, but until they enrol the API answers
+everything except `GET /api/auth/me`, `POST /api/auth/logout`,
+`POST /api/auth/2fa/setup` and `POST /api/auth/2fa/enable` with
+`403 TWO_FACTOR_SETUP_REQUIRED`, and the CRM shows a setup screen that cannot
+be skipped (signing out still works). While the flag is on, owners cannot
+switch 2FA off (`403 TWO_FACTOR_REQUIRED_FOR_ROLE`). Rabbanut and mashgiach
+accounts are not affected.
+
+Once this is deployed, every owner without 2FA lands on the setup screen with
+their next request. They need their password, an authenticator app (Google
+Authenticator, Authy, …) and a safe place for the 8 one-time backup codes,
+which are shown only once. Owners should enrol right after the deploy: until
+an owner does, anyone who knows that owner's password can enrol their own
+authenticator on the account. Wrong codes on the setup screen count against
+the same per-account lockout as the 2FA sign-in step.
+
+The api service in `docker-compose.yml` has to forward the variable, or
+production always runs with the default `true` and setting it in `.env.hetzner`
+has no effect. Add it to that service's `environment` block as
+`REQUIRE_OWNER_2FA: ${REQUIRE_OWNER_2FA:-true}` (an empty value also counts as
+unset, i.e. `true`). With that in place, setting `REQUIRE_OWNER_2FA=false` in
+`.env.hetzner` and recreating the api container
+(`docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d api`)
+is the rollback that needs no SQL.
+
+While the flag is on, an owner who already has 2FA cannot move it to a new
+authenticator or get new backup codes: setup refuses while 2FA is on, and
+switching it off is refused for owners (the CRM says so). The only way is the
+reset below, after which the owner should sign in and enrol again at once.
+
+An owner who has lost both the authenticator and the backup codes cannot switch
+2FA off themselves either. Reset it in the database; this also signs them out,
+and their next sign-in starts at the setup screen:
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+UPDATE users SET "twoFactorEnabled" = false, "twoFactorSecret" = NULL,
+  "twoFactorBackupCodes" = '{}', "sessionVersion" = "sessionVersion" + 1
+WHERE email = '<owner email, lowercase>';
+SQL
+```
+
+### Sessions and refresh cookies
+
+The CRM and the map sign in with a short-lived access token that the browser
+keeps in memory only, plus a refresh token in an httpOnly cookie that renews
+it: on every page load and whenever the access token has expired.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ACCESS_TOKEN_TTL` | `15m` | Lifetime of CRM and map access tokens: `1m` to `1h`, written as `15m`, `900s` or `1h`. |
+| `REFRESH_TOKEN_TTL_DAYS` | `30` | Days a sign-in can be renewed (1 to 365). Renewing does not extend it: every session ends this long after the password (and 2FA) sign-in. |
+| `COOKIE_SECURE` | `true` (`false` when `NODE_ENV` is `development` or `test`) | `Secure` attribute of the refresh cookies. Keep it on in production. |
+
+`JWT_EXPIRES_IN` is no longer read. While it is set the API logs
+`JWT_EXPIRES_IN is set but ignored` once at startup. `docker-compose.yml`
+still passes `JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}` to the api service, so
+the warning appears until that line is removed. The service does not
+forward the three variables above yet, so production runs on the defaults,
+which are the intended production values. To change one, add it to the api
+`environment` block, for example
+`ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}` (an empty value counts as unset).
+
+The cookies are `kashrut_crm_rt` (path `/api/auth`, sent only to
+crm.mykoshermap.com) and `kashrut_map_rt` (path `/api/map-auth`, sent only to
+mykoshermap.com). Both are `HttpOnly`, `SameSite=Strict` and host-only. The
+database stores only a SHA-256 of each token (`refresh_tokens`, created by
+migration `20260930101000_add_refresh_tokens`). Every refresh replaces the
+token. If an already used or revoked token is presented again, the API takes
+it as a stolen copy: it revokes that whole chain of tokens and bumps the
+account's `sessionVersion`, which signs the account out everywhere. The one
+exception is a token presented again within a minute of its own rotation,
+which is what a reload or a dropped connection in the middle of a refresh
+looks like: the chain is still revoked (that browser signs in again), but
+the account's other sessions stay. A new sign-in revokes the chain of the
+cookie it replaces. Expired rows are purged once a day by the API process.
+
+The calls that set a refresh cookie without an access token (CRM login,
+2FA verify and verify-backup, map login, register, OAuth and password-reset
+confirm) accept only JSON bodies, and the refresh calls require the header
+`X-Requested-With: kashrut`. All of them refuse requests that the browser
+marks as coming from another origin (`Sec-Fetch-Site`, or `Origin` compared
+with the `Host` header, which nginx passes on). mykoshermap.com and
+crm.mykoshermap.com count as different origins here even though they are the
+same site, so each SPA must call the API through its own host's `/api`
+(`VITE_API_URL=/api`, as the production builds do), not through the other
+host or api.mykoshermap.com. For local development an SPA on another port
+of the same host name (localhost:5173 calling localhost:3000) is accepted.
+
+Signing out, a password reset, enabling or disabling 2FA and role or tenant
+changes already bump `sessionVersion`, and that ends refresh sessions too.
+To sign everyone out at once (for example after a suspected leak):
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+UPDATE users SET "sessionVersion" = "sessionVersion" + 1;
+UPDATE map_users SET "sessionVersion" = "sessionVersion" + 1;
+SQL
+```
+
+After the deploy that introduces refresh cookies, every CRM and map user has
+to sign in once: the clients drop the access tokens they used to keep in
+`localStorage`, and no refresh cookie exists yet. The migration also bumps
+every account's `sessionVersion`, so the 7-day access tokens issued before
+it stop working at once instead of staying valid for up to a week. It must
+have run (`RUN_MIGRATIONS=true`), or every sign-in fails with a 500.
+
+### Map email verification
+
+Map accounts registered with a password start with an unverified email. The
+API emails a link, `${MAP_PUBLIC_URL}/?verifyEmail=<token>`, that is valid for
+24 hours. The map removes the token from the address bar and confirms it only
+when the visitor presses "Confirm email", so mail scanners that open links do
+not verify addresses; opening a used link of a verified account just says it
+is verified.
+
+While verification is required, an unverified account gets
+`403 {"code":"EMAIL_NOT_VERIFIED"}` from `POST /api/map/suggestions` and
+`POST /api/map/restaurants/:id/reviews`, and the map shows a dialog that can
+send the link again. Google and Apple sign-ins count as verified (the provider
+vouches for the address).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MAP_EMAIL_VERIFICATION` | `required` when `SMTP_HOST` is set, otherwise `off` | `required`: reviews and suggestions need a verified email. `off`: no check (links are still sent when `SMTP_HOST` is set, so users can verify ahead of time). |
+| `MAP_PUBLIC_URL` | `https://mykoshermap.com` | Map address the emailed link points to. |
+| `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_USER`, `SMTP_PASS` | empty | Mail server. Also used for map password-reset codes and CRM expiry notices. |
+
+Production has no mail server yet, so verification is off and the API logs
+`SMTP_HOST is not set: map email verification is off …` once at startup.
+Setting `MAP_EMAIL_VERIFICATION=required` without `SMTP_HOST` logs a warning
+too: nobody could receive the link, so new accounts could never post.
+
+Migration `20260930102000_map_email_verification` marks every map account that
+exists when it runs as verified (at its creation time). Accounts registered
+after it while verification is off stay unverified: once it is turned on they
+see the dialog on their next review or suggestion and can have the link sent
+again. Each new link retires the earlier ones. Every verification email,
+whether registration or "send again" triggers it, counts against 10 per hour
+per client address and 5 per day per mailbox (`+tags`, and dots in Gmail
+addresses, are ignored). Past either budget a registration still succeeds but
+sends no email (the API logs `mail budget used up`), and "send again" answers
+429. "Send again" is also limited to 3 requests per hour per account and 10 per
+hour per address; confirming a link shares the password-reset limit of 10 per
+hour per address.
+
+To turn it on, set the `SMTP_*` values in `.env.hetzner` and forward them from
+the api service in `docker-compose.yml`, which does not pass them yet:
+
+```yaml
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAP_EMAIL_VERIFICATION: ${MAP_EMAIL_VERIFICATION:-}
+      MAP_PUBLIC_URL: ${MAP_PUBLIC_URL:-}
+```
+
+Recreate the api container and check that the startup warning is gone.
+`MAP_EMAIL_VERIFICATION=off` in `.env.hetzner` is the rollback. To verify one
+account by hand (for example when its mail never arrives):
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+UPDATE map_users SET "emailVerifiedAt" = now()
+WHERE email = '<map user email, lowercase>' AND "emailVerifiedAt" IS NULL;
+SQL
+```
 
 ## Deploy
 
@@ -64,6 +254,9 @@ Equivalent manual commands:
 ```sh
 git pull --ff-only
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml build
+# Preflight: exits non-zero if the API would reject JWT_SECRET / ENCRYPTION_KEY.
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  run --rm --no-deps --entrypoint node api -e "require('./dist/kasrut-api/src/config/env')"
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import MapPage from '@/pages/MapPage'
 import DonatePage from '@/pages/DonatePage'
+import { EmailVerificationHost } from '@/components/auth/EmailVerificationHost'
 import type { ThemeMode } from '@/theme'
 
 interface Props {
@@ -18,6 +19,8 @@ export default function App({ themeMode, onToggleThemeMode }: Props) {
         <Route path="/donate" element={<DonatePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {/* Emailed ?verifyEmail= links and the "confirm your email" dialog */}
+      <EmailVerificationHost />
     </BrowserRouter>
   )
 }

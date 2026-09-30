@@ -4,6 +4,7 @@ import { env } from './config/env'
 import { serviceLogsRepo } from './db/serviceLogs.repo'
 import { logger } from './lib/logger'
 import { installProcessErrorHandlers } from './lib/processErrorHandlers'
+import { purgeExpiredRefreshTokens } from './lib/refreshTokens'
 import './jobs/expiryNotifier'
 
 // Assigned once listening. The handlers are installed before that so they also
@@ -40,8 +41,18 @@ async function rotateLogs(): Promise<void> {
     logger.error({ err }, 'service_logs rotation failed')
   }
 }
+// Expired refresh tokens go on the same schedule.
+async function purgeRefreshTokens(): Promise<void> {
+  try {
+    const deleted = await purgeExpiredRefreshTokens()
+    if (deleted > 0) logger.info({ deleted }, 'expired refresh tokens purged')
+  } catch (err) {
+    logger.error({ err }, 'refresh token purge failed')
+  }
+}
 void rotateLogs()
-const rotationTimer = setInterval(() => { void rotateLogs() }, MS_PER_DAY)
+void purgeRefreshTokens()
+const rotationTimer = setInterval(() => { void rotateLogs(); void purgeRefreshTokens() }, MS_PER_DAY)
 if (typeof rotationTimer.unref === 'function') rotationTimer.unref()
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
