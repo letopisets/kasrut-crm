@@ -24,6 +24,25 @@ jobs:
     defaults:
       run:
         working-directory: kasrut-api
+    # Throwaway servers for the opt-in suites that need the real driver
+    # (mapCommunity.postgres, loginThrottle.redis): mocked suites cannot see
+    # what Postgres or Redis actually return.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: kasrut_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kasrut_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,11 +64,20 @@ jobs:
         run: |
           echo "JWT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
           echo "ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Apply migrations and check drift (throwaway Postgres)
+        env:
+          DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5432/kasrut_ci
+        run: |
+          npx prisma migrate deploy
+          # Exit 2 if the migrated database differs from schema.prisma.
+          npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
       - name: Tests
         run: npx jest --ci --runInBand
         env:
           NODE_ENV: test
           CORS_ORIGINS: http://localhost:5173
+          POSTGRES_TEST_DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5432/kasrut_ci
+          LOGIN_THROTTLE_REDIS_URL: redis://localhost:6379
 
   crm:
     name: CRM (kasrut-crm)
