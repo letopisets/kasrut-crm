@@ -38,7 +38,7 @@ export const REFRESH_COOKIES: Readonly<Record<RefreshAudience, RefreshCookie>> =
 // custom header. It is not enough on its own, because CORS lets the API's
 // other origins send it too (see isSameOriginRequest).
 export const REFRESH_REQUEST_HEADER = 'X-Requested-With'
-export const REFRESH_REQUEST_HEADER_VALUE = 'kashrut'
+const REFRESH_REQUEST_HEADER_VALUE = 'kashrut'
 
 const TOKEN_BYTES = 32
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/   // 32 bytes as unpadded base64url
@@ -53,7 +53,7 @@ const MS_PER_DAY = 86_400_000
 // sessions are left alone.
 export const REUSE_GRACE_MS = 60_000
 
-export function hashRefreshToken(token: string): string {
+function hashRefreshToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
@@ -98,7 +98,7 @@ function cookieOptions(audience: RefreshAudience): CookieOptions {
   }
 }
 
-export function readRefreshCookie(req: Request, audience: RefreshAudience): string | null {
+function readRefreshCookie(req: Request, audience: RefreshAudience): string | null {
   return readCookie(req.headers.cookie, REFRESH_COOKIES[audience].name)
 }
 
@@ -135,7 +135,7 @@ function hostnameOf(url: string): string | null {
  * which a CORS request could set. A request with neither header did not come
  * from a browser page.
  */
-export function isSameOriginRequest(req: Request): boolean {
+function isSameOriginRequest(req: Request): boolean {
   const site = req.get('sec-fetch-site')
   if (site === 'same-origin') return true
   if (site !== undefined && site !== 'same-site') return false
@@ -146,7 +146,7 @@ export function isSameOriginRequest(req: Request): boolean {
   return originHost !== null && originHost === hostnameOf(`http://${req.get('host') ?? ''}`)
 }
 
-export function hasRefreshRequestHeader(req: Request): boolean {
+function hasRefreshRequestHeader(req: Request): boolean {
   return req.get(REFRESH_REQUEST_HEADER) === REFRESH_REQUEST_HEADER_VALUE
 }
 

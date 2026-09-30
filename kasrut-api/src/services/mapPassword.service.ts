@@ -5,8 +5,6 @@ import { dummyPasswordCompare } from '../lib/dummyPassword'
 const PASSWORD_HASH_ROUNDS = 12
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000
 
-export { DUMMY_PASSWORD_HASH } from '../lib/dummyPassword'
-
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }

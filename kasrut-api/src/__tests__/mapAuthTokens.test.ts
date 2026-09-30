@@ -6,7 +6,8 @@ import { verifyCrmAccessToken, verifyMapAccessToken, verifyTwoFactorPendingToken
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { resetLoginThrottleMemory } from '../lib/loginThrottle'
 import { verifyOAuthIdToken } from '../services/mapOAuth.service'
-import { DUMMY_PASSWORD_HASH, hashPassword } from '../services/mapPassword.service'
+import { hashPassword } from '../services/mapPassword.service'
+import { DUMMY_PASSWORD_HASH } from '../lib/dummyPassword'
 
 // Every map sign-in flow must issue a token signed for the map-access purpose:
 // one minted with another purpose's key would lock every map user out while
