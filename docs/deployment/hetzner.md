@@ -78,6 +78,19 @@ tables.
 sh scripts/import-kashrut-export.sh
 ```
 
+## Public map cache
+
+The API caches public-map responses in Redis under `map:v<gen>:*` and
+invalidates them all by incrementing `map:gen` whenever the CRM changes
+something (ADR-0005). SQL run by hand, including the import above, bypasses
+that, and so does a re-geocode run whose own bump failed (it logs
+`cache generation bump failed`). The map then serves the old data for up to an
+hour. To drop it at once:
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli INCR map:gen
+```
+
 ## GitHub Actions CD
 
 The `.github/workflows/cd.yml` workflow deploys production after the `CI`

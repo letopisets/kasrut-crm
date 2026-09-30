@@ -5,8 +5,7 @@ import { geocodeAddress, searchNominatimPlaces } from '../lib/nominatim'
 import { govmapConfigured, searchGovmapPlaces, type PlacesLang } from '../lib/govmap'
 import { looksLikeIsraeliAddress } from '../lib/geoValidation'
 import { serializeMapRestaurant, serializeMapRestaurantsPage } from '../serializers/map.serializer'
-import { withCache } from '../lib/cache'
-import { MAP_CACHE_KEYS } from '../lib/mapCache'
+import { withMapCache } from '../lib/mapCache'
 import { asyncHandler } from '../lib/asyncHandler'
 import type { KashrutLevel, MapBounds, MapFilter, MapPoint, MapRestaurantRow } from '../db/map.repo'
 
@@ -18,6 +17,12 @@ const MAX_PLACES_QUERY_LENGTH = 200
 const MAX_PLACES_RESULTS = 5
 const MAX_GEOCODE_ADDRESS_LENGTH = 300
 const MAX_GEOCODE_CITY_LENGTH = 100
+
+// Every establishment id is ours: Prisma cuids, the PDF importer's
+// `r_<14 hex>`, the Machpud SQL import's `r_mach_<12 hex>` and seed ids like
+// `r1`. Anything else cannot match a row, so it 404s before it costs a cache
+// lookup or a query.
+const RESTAURANT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 
 // Public site the crawlable URLs live on (the map SPA, not the API host).
 const MAP_SITE_URL = (process.env.PUBLIC_MAP_URL ?? 'https://mykoshermap.com').replace(/\/$/, '')
@@ -133,7 +138,7 @@ function restaurantsCacheKey(filter: MapFilter): string {
   }
   const ordered = Object.keys(normalized).sort().map(k => [k, normalized[k]] as const)
   const hash = createHash('sha1').update(JSON.stringify(ordered)).digest('hex').slice(0, 16)
-  return `map:restaurants:${hash}`
+  return `restaurants:${hash}`
 }
 
 function parseNumber(value: unknown, min: number, max: number): number | undefined {
@@ -197,6 +202,14 @@ function geoFromHeaders(req: Request): { lat: number; lng: number } | null {
   return tryPair('cf-iplatitude', 'cf-iplongitude')
     ?? tryPair('x-vercel-ip-latitude', 'x-vercel-ip-longitude')
     ?? tryPair('x-appengine-citylatlong-lat', 'x-appengine-citylatlong-lng')
+}
+
+// Shared by the JSON deep link and the crawler prerender. Only found rows are
+// cached (withCache never stores null), and ids that cannot exist never reach
+// the cache or the database, so a scraper cannot mint keys with them.
+async function findRestaurant(id: string): Promise<MapRestaurantRow | null> {
+  if (!RESTAURANT_ID_RE.test(id)) return null
+  return withMapCache(`restaurant:${id}`, CACHE_TTL, () => mapRepo.findById(id))
 }
 
 export const mapController = {
@@ -275,17 +288,17 @@ export const mapController = {
   }),
 
   listHechsherim: asyncHandler(async (_req, res) => {
-    const data = await withCache(MAP_CACHE_KEYS.hechsherim, HECHSHERIM_CACHE_TTL, () => mapRepo.findHechsherim())
+    const data = await withMapCache('hechsherim', HECHSHERIM_CACHE_TTL, () => mapRepo.findHechsherim())
     res.json(data)
   }),
 
   listOptions: asyncHandler(async (_req, res) => {
-    const data = await withCache(MAP_CACHE_KEYS.options, MAP_OPTIONS_CACHE_TTL, () => mapRepo.findMapOptions())
+    const data = await withMapCache('options', MAP_OPTIONS_CACHE_TTL, () => mapRepo.findMapOptions())
     res.json(data)
   }),
 
   getSitemap: asyncHandler(async (_req, res) => {
-    const xml = await withCache(MAP_CACHE_KEYS.sitemap, SITEMAP_CACHE_TTL, async () =>
+    const xml = await withMapCache('sitemap', SITEMAP_CACHE_TTL, async () =>
       buildSitemapXml(await mapRepo.findSitemapEntries()))
     res.set('Content-Type', 'application/xml; charset=utf-8')
     res.set('Cache-Control', 'public, max-age=3600')
@@ -293,8 +306,7 @@ export const mapController = {
   }),
 
   getRestaurant: asyncHandler(async (req, res) => {
-    const id = req.params.restaurantId
-    const data = await withCache(`map:restaurant:${id}`, CACHE_TTL, () => mapRepo.findById(id))
+    const data = await findRestaurant(req.params.restaurantId)
     if (!data) { res.status(404).json({ error: 'Not found' }); return }
     res.json(serializeMapRestaurant(data))
   }),
@@ -302,14 +314,16 @@ export const mapController = {
   // Crawler-facing prerender for /r/:id (nginx routes bots here). Reuses the
   // cached single-restaurant lookup so it costs no extra DB hit on a warm cache.
   getRestaurantPrerender: asyncHandler(async (req, res) => {
-    const id = req.params.restaurantId
-    const data = await withCache(`map:restaurant:${id}`, CACHE_TTL, () => mapRepo.findById(id))
+    const data = await findRestaurant(req.params.restaurantId)
     res.set('Content-Type', 'text/html; charset=utf-8')
-    res.set('Cache-Control', 'public, max-age=3600')
     if (!data) {
+      // A hidden place can come back (renewed certificate); don't let a shared
+      // cache pin its 404.
+      res.set('Cache-Control', 'no-store')
       res.status(404).send('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Не найдено | KashrutMap</title><meta name="robots" content="noindex"></head><body><p>Заведение не найдено.</p><p><a href="' + MAP_SITE_URL + '/">KashrutMap</a></p></body></html>')
       return
     }
+    res.set('Cache-Control', 'public, max-age=3600')
     res.send(buildRestaurantPrerenderHtml(data))
   }),
 
@@ -328,7 +342,7 @@ export const mapController = {
         radius:       parseNumber(q.radius, 1, 100_000),
         limit:        parseLimit(q.limit),
       }
-      const data = await withCache(restaurantsCacheKey(filter), CACHE_TTL, () => mapRepo.findForMap(filter))
+      const data = await withMapCache(restaurantsCacheKey(filter), CACHE_TTL, () => mapRepo.findForMap(filter))
       res.json(serializeMapRestaurantsPage(data))
     } catch (e) {
       if (e instanceof Error && e.message.startsWith('Invalid map')) {
