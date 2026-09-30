@@ -174,7 +174,7 @@ export const restaurantsRepo = {
         if (changed) geoReset = { geoAccuracy: 'approximate', geocodeAttemptedAt: null }
       }
 
-      const r = await prisma.restaurant.update({
+      const write = (client: Prisma.TransactionClient | typeof prisma) => client.restaurant.update({
         where: { id },
         data: {
           ...rest,
@@ -188,7 +188,23 @@ export const restaurantsRepo = {
         },
         include: includeLatestInspection,
       })
-      return toRestaurant(r)
+
+      const newRabbanutId = rest.rabbanutId
+      if (newRabbanutId === undefined) return toRestaurant(await write(prisma))
+
+      // A (possible) tenant move. The inspection history moves with the
+      // place, but an inspection may only name a mashgiach of the place's own
+      // rabbanut (the restaurants_tenant_move_guard trigger refuses the move
+      // otherwise). Detach the old tenant's mashgichim from that history, as
+      // the tenant-invariant migration did for legacy rows, in the same
+      // transaction as the move. A no-op when the rabbanut does not change.
+      return toRestaurant(await prisma.$transaction(async tx => {
+        await tx.inspection.updateMany({
+          where: { restaurantId: id, mashgiach: { rabbanutId: { not: newRabbanutId } } },
+          data: { mashgiachId: null },
+        })
+        return write(tx)
+      }))
     } catch (e) {
       // P2025 = record not found; surface as null. Anything else (DB down,
       // unique-violation, FK error) must propagate so the API returns a real

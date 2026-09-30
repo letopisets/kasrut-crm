@@ -89,7 +89,7 @@ export function postgresSqlState(err: unknown): string | undefined {
 // reported as a cross-rabbanut conflict.
 const TENANT_TRIGGER_MESSAGE = new RegExp([
   'must belong to the same rabbanut$',
-  '^Cannot move a (?:mashgiach|hechsher) while cross-tenant dependants remain$',
+  '^Cannot move a (?:mashgiach|hechsher|restaurant) while cross-tenant dependants remain$',
   '^Mashgiach users require rabbanutId and mashgiachId$',
   '^Only mashgiach users may reference a mashgiach profile$',
 ].join('|'))

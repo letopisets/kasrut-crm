@@ -144,7 +144,8 @@ describe('postgresSqlState', () => {
 describe('errorHandler: tenant trigger violations', () => {
   afterEach(() => jest.restoreAllMocks())
 
-  // Every RAISE text in migration 20260714100000_enforce_tenant_invariants.
+  // Every RAISE text in migrations 20260714100000_enforce_tenant_invariants
+  // and 20260930211000_restaurant_tenant_move_guard.
   it.each([
     'Restaurant and mashgiach must belong to the same rabbanut',
     'Restaurant and hechsher must belong to the same rabbanut',
@@ -155,6 +156,7 @@ describe('errorHandler: tenant trigger violations', () => {
     'Only mashgiach users may reference a mashgiach profile',
     'Cannot move a mashgiach while cross-tenant dependants remain',
     'Cannot move a hechsher while cross-tenant dependants remain',
+    'Cannot move a restaurant while cross-tenant dependants remain',
   ])('maps "%s" (23514) to 409 without echoing the DB message', message => {
     const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined)
     const res = run(triggerViolation(message))
