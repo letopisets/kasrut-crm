@@ -237,31 +237,41 @@ function hechsherTypeFromText(value: string | null): 'Rabbanut' | 'Badatz' | 'Me
 // worse, revive a withdrawn name. Resolution therefore only picks active,
 // non-deleted rows and refuses the approval (a 400 via the
 // 'Cannot approve suggestion' prefix) rather than falling back to one.
+//
+// `tenantRabbanutId` pins the resolution to one tenant: an update suggestion
+// always resolves inside its establishment's own rabbanut, whoever reviews it,
+// so public input can never move a place (with its inspections, reviews and
+// suggestions) into another tenant. A tenant move stays an explicit CRM edit.
 async function resolveRabbanutId(
   tx: Prisma.TransactionClient,
   city: string,
-  reviewerRabbanutId?: string | null,
+  tenantRabbanutId?: string | null,
 ): Promise<string> {
-  if (reviewerRabbanutId) {
-    const reviewerRabbanut = await tx.rabbanut.findFirst({
-      where: { id: reviewerRabbanutId, ...publicRabbanutWhere() },
+  if (tenantRabbanutId) {
+    const tenant = await tx.rabbanut.findFirst({
+      where: { id: tenantRabbanutId, ...publicRabbanutWhere() },
       select: { id: true },
     })
-    if (reviewerRabbanut) return reviewerRabbanut.id
-    // A tenant reviewer never falls through to another tenant's rabbanut.
-    throw new Error('Cannot approve suggestion: your rabbanut is inactive or removed')
+    if (tenant) return tenant.id
+    // Never falls through to another tenant's rabbanut.
+    throw new Error('Cannot approve suggestion: the rabbanut is inactive or removed')
   }
 
-  const cityRabbanut = await tx.rabbanut.findFirst({
-    where: {
-      ...publicRabbanutWhere(),
-      city: { equals: city, mode: 'insensitive' },
-    },
-    select: { id: true },
+  // A new place goes to its city's rabbanut. When the city has one but it is
+  // switched off or removed, that withdrawal must not be sidestepped by
+  // filing the place under an unrelated rabbanut elsewhere.
+  const cityRabbanuts = await tx.rabbanut.findMany({
+    where: { city: { equals: city, mode: 'insensitive' } },
+    select: { id: true, active: true, deletedAt: true },
     orderBy: { name: 'asc' },
   })
+  const cityRabbanut = cityRabbanuts.find(r => r.active && r.deletedAt === null)
   if (cityRabbanut) return cityRabbanut.id
+  if (cityRabbanuts.length > 0) {
+    throw new Error(`Cannot approve suggestion: the rabbanut of "${city}" is inactive or removed`)
+  }
 
+  // A city no rabbanut covers yet: the first active one takes the place.
   const activeRabbanut = await tx.rabbanut.findFirst({
     where: publicRabbanutWhere(),
     select: { id: true },
@@ -291,13 +301,12 @@ async function resolveHechsher(
     name: string | null
     city: string
     kashrutStatus: string | null
-    reviewerRabbanutId?: string | null
+    tenantRabbanutId?: string | null
   },
 ): Promise<{ id: string; rabbanutId: string; type: string }> {
-  // Tenant reviewers must never resolve a same-named hechsher from a peer
-  // rabbanut and thereby move a restaurant across tenants.
-  const tenantScope: Prisma.HechsherWhereInput = input.reviewerRabbanutId
-    ? { rabbanutId: input.reviewerRabbanutId }
+  // Inside a tenant, a same-named hechsher of a peer rabbanut never matches.
+  const tenantScope: Prisma.HechsherWhereInput = input.tenantRabbanutId
+    ? { rabbanutId: input.tenantRabbanutId }
     : {}
   const requestedName = input.name?.trim()
   if (requestedName) {
@@ -320,9 +329,25 @@ async function resolveHechsher(
       select: { id: true },
     })
     if (withdrawn) throw withdrawnHechsherError(requestedName)
+
+    // The name belongs to another tenant: the place would really have to move
+    // there, which is an explicit CRM edit, and a same-named copy inside this
+    // tenant would only be a stray duplicate. Refuse and say why.
+    if (input.tenantRabbanutId) {
+      const foreign = await tx.hechsher.findFirst({
+        where: { ...hechsherNameWhere(requestedName), rabbanutId: { not: input.tenantRabbanutId } },
+        select: { id: true },
+      })
+      if (foreign) {
+        throw new Error(
+          `Cannot approve suggestion: hechsher "${requestedName}" belongs to another rabbanut; ` +
+          'move the establishment in the CRM instead',
+        )
+      }
+    }
   }
 
-  const rabbanutId = await resolveRabbanutId(tx, input.city, input.reviewerRabbanutId)
+  const rabbanutId = await resolveRabbanutId(tx, input.city, input.tenantRabbanutId)
   const fallbackName = requestedName || `Community review ${input.city}`.trim()
   const existingFallback = await tx.hechsher.findFirst({
     where: {
@@ -770,42 +795,56 @@ export const mapCommunityRepo = {
     reviewerRole: 'owner' | 'rabbanut'
     reviewerRabbanutId?: string | null
   }) {
+    const reviewerRabbanutId = data.reviewerRole === 'rabbanut'
+      ? data.reviewerRabbanutId
+      : undefined
+    if (data.reviewerRole === 'rabbanut' && !reviewerRabbanutId) throw new ForbiddenScopeError()
+
+    // Peek before anything else. A missing, already reviewed or (for a tenant
+    // reviewer) out-of-scope suggestion all answer the same null (404), so a
+    // rabbanut learns nothing about another tenant's ids, and no geocoding
+    // budget is spent on a suggestion the reviewer may not touch. Add
+    // suggestions are deliberately owner-only.
+    const peek = await prisma.mapRestaurantSuggestion.findUnique({
+      where: { id },
+      select: {
+        status: true, type: true, restaurantId: true,
+        proposedAddress: true, proposedCity: true, proposedLat: true, proposedLng: true,
+        restaurant: { select: { rabbanutId: true } },
+      },
+    })
+    if (!peek || peek.status !== 'pending') return null
+    if (reviewerRabbanutId && (peek.type !== 'update' || peek.restaurant?.rabbanutId !== reviewerRabbanutId)) {
+      return null
+    }
+
     // Geocoding is a network call (GovMap ≤5 s, then LocationIQ / Nominatim up
     // to 8 s each) and must not hold the transaction open, so resolve
-    // coordinates BEFORE the transaction. The
-    // transaction re-reads the suggestion and re-checks status, so a racing
-    // review at worst wastes this lookup.
+    // coordinates BEFORE the transaction. The transaction re-reads the
+    // suggestion and re-checks status, so a racing review at worst wastes this
+    // lookup.
     let resolvedPoint: SuggestedPoint | null = null
     let addressChanged = false
     let pinMoved = false
     let currentExact = false
     if (data.status === 'approved') {
-      const peek = await prisma.mapRestaurantSuggestion.findUnique({
-        where: { id },
-        select: {
-          status: true, type: true, restaurantId: true,
-          proposedAddress: true, proposedCity: true, proposedLat: true, proposedLng: true,
-        },
-      })
-      const hasPin = isFiniteNumber(peek?.proposedLat) && isFiniteNumber(peek?.proposedLng)
-      if (peek?.status === 'pending') {
-        if (peek.type === 'add') {
-          // Always, even with a proposed point (see the rule above).
-          resolvedPoint = await geocodeSuggestedAddress(peek.proposedAddress ?? '', peek.proposedCity ?? '')
-        } else if (peek.type === 'update' && peek.restaurantId && (peek.proposedAddress || peek.proposedCity || hasPin)) {
-          const current = await prisma.restaurant.findUnique({
-            where: { id: peek.restaurantId },
-            select: { address: true, city: true, lat: true, lng: true, geoAccuracy: true },
-          })
-          currentExact = current?.geoAccuracy === 'exact'
-          const nextAddress = peek.proposedAddress ?? current?.address ?? ''
-          const nextCity    = peek.proposedCity ?? current?.city ?? ''
-          addressChanged = Boolean(current) && (nextAddress !== current!.address || nextCity !== current!.city)
-          // The edit form sends the stored pin back; anything else is a moved pin.
-          pinMoved = !addressChanged && Boolean(current) && hasPin
-            && !isSamePin(current, peek.proposedLat as number, peek.proposedLng as number)
-          if (addressChanged || pinMoved) resolvedPoint = await geocodeSuggestedAddress(nextAddress, nextCity)
-        }
+      const hasPin = isFiniteNumber(peek.proposedLat) && isFiniteNumber(peek.proposedLng)
+      if (peek.type === 'add') {
+        // Always, even with a proposed point (see the rule above).
+        resolvedPoint = await geocodeSuggestedAddress(peek.proposedAddress ?? '', peek.proposedCity ?? '')
+      } else if (peek.type === 'update' && peek.restaurantId && (peek.proposedAddress || peek.proposedCity || hasPin)) {
+        const current = await prisma.restaurant.findUnique({
+          where: { id: peek.restaurantId },
+          select: { address: true, city: true, lat: true, lng: true, geoAccuracy: true },
+        })
+        currentExact = current?.geoAccuracy === 'exact'
+        const nextAddress = peek.proposedAddress ?? current?.address ?? ''
+        const nextCity    = peek.proposedCity ?? current?.city ?? ''
+        addressChanged = Boolean(current) && (nextAddress !== current!.address || nextCity !== current!.city)
+        // The edit form sends the stored pin back; anything else is a moved pin.
+        pinMoved = !addressChanged && Boolean(current) && hasPin
+          && !isSamePin(current, peek.proposedLat as number, peek.proposedLng as number)
+        if (addressChanged || pinMoved) resolvedPoint = await geocodeSuggestedAddress(nextAddress, nextCity)
       }
     }
 
@@ -813,34 +852,41 @@ export const mapCommunityRepo = {
       const suggestion = await tx.mapRestaurantSuggestion.findUnique({ where: { id } })
       if (!suggestion || suggestion.status !== 'pending') return null
 
-      const reviewerRabbanutId = data.reviewerRole === 'rabbanut'
-        ? data.reviewerRabbanutId
-        : undefined
+      // The establishment an update suggestion targets, read inside the same
+      // transaction as the mutation. For a tenant reviewer the check repeats
+      // the peek's scope (a tenant move may have raced it), and the final
+      // UPDATEs repeat the predicate, so such a race fails closed.
+      const target = suggestion.type === 'update' && suggestion.restaurantId
+        ? await tx.restaurant.findUnique({
+            where: { id: suggestion.restaurantId },
+            select: {
+              rabbanutId: true,
+              city: true,
+              deletedAt: true,
+              rabbanut: { select: { active: true, deletedAt: true } },
+            },
+          })
+        : null
 
-      if (data.reviewerRole === 'rabbanut') {
-        if (!reviewerRabbanutId || suggestion.type !== 'update' || !suggestion.restaurantId) {
-          throw new ForbiddenScopeError()
-        }
-
-        // This check intentionally lives inside the same transaction as the
-        // mutation. The final UPDATE below repeats the predicate so a tenant
-        // move racing this review also fails closed at write time.
-        const target = await tx.restaurant.findUnique({
-          where: { id: suggestion.restaurantId },
-          select: { rabbanutId: true },
-        })
-        if (!target || target.rabbanutId !== reviewerRabbanutId) {
+      if (reviewerRabbanutId) {
+        if (suggestion.type !== 'update' || !target || target.rabbanutId !== reviewerRabbanutId) {
           throw new ForbiddenScopeError()
         }
       }
 
       let linkedRestaurantId: string | undefined
 
-      if (
-        data.status === 'approved' &&
-        suggestion.type === 'update' &&
-        suggestion.restaurantId
-      ) {
+      if (data.status === 'approved' && suggestion.type === 'update') {
+        if (!target) {
+          throw new Error('Cannot approve suggestion: the establishment no longer exists')
+        }
+        // A removed place, or one of a switched-off or removed rabbanut, is
+        // hidden from the public map; approving an edit must not bring it back
+        // or quietly re-home it.
+        if (target.deletedAt || !target.rabbanut.active || target.rabbanut.deletedAt) {
+          throw new Error('Cannot approve suggestion: the establishment or its rabbanut has been withdrawn')
+        }
+
         const patch: Prisma.RestaurantUpdateInput = {}
         if (suggestion.proposedName)    patch.name    = suggestion.proposedName
         if (suggestion.proposedAddress) patch.address = suggestion.proposedAddress
@@ -883,14 +929,16 @@ export const mapCommunityRepo = {
           }
         }
         if (suggestion.proposedHechsher) {
+          // Resolved inside the establishment's own rabbanut, for owners too:
+          // the place keeps its tenant, so no rabbanut is ever connected here.
+          // Moving a place to another rabbanut stays an explicit CRM edit.
           const hechsher = await resolveHechsher(tx, {
             name: suggestion.proposedHechsher,
-            city: suggestion.proposedCity ?? '',
+            city: suggestion.proposedCity ?? target.city,
             kashrutStatus: suggestion.proposedKashrutStatus,
-            reviewerRabbanutId,
+            tenantRabbanutId: target.rabbanutId,
           })
           patch.hechsher = { connect: { id: hechsher.id } }
-          patch.rabbanut = { connect: { id: hechsher.rabbanutId } }
           patch.level = { connect: { id: await levelIdFromHechsher(tx, hechsher.type) } }
         }
         if (suggestion.proposedKashrutStatus) {
@@ -899,10 +947,7 @@ export const mapCommunityRepo = {
         }
         if (Object.keys(patch).length > 0) {
           await tx.restaurant.update({
-            where: {
-              id: suggestion.restaurantId,
-              ...(reviewerRabbanutId ? { rabbanutId: reviewerRabbanutId } : {}),
-            },
+            where: { id: suggestion.restaurantId!, rabbanutId: target.rabbanutId },
             data: patch,
           })
         }
@@ -930,7 +975,6 @@ export const mapCommunityRepo = {
           name: suggestion.proposedHechsher,
           city: suggestion.proposedCity,
           kashrutStatus: suggestion.proposedKashrutStatus,
-          reviewerRabbanutId,
         })
         const certStatus = toCertStatus(suggestion.proposedKashrutStatus)
         const categoryId = await resolveCategoryId(tx, suggestion.proposedCategory)
@@ -959,10 +1003,10 @@ export const mapCommunityRepo = {
         where: {
           id,
           status: 'pending' as PrismaMapSuggestionStatus,
-          ...(data.reviewerRole === 'rabbanut'
+          ...(reviewerRabbanutId
             ? {
                 type: 'update' as PrismaMapSuggestionType,
-                restaurant: { is: { rabbanutId: reviewerRabbanutId! } },
+                restaurant: { is: { rabbanutId: reviewerRabbanutId } },
               }
             : {}),
         },

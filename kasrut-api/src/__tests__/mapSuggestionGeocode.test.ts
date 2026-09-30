@@ -48,7 +48,7 @@ const ROAD  = { lat: 31.7801, lng: 35.2175, addresstype: 'road', displayName: '�
 const settled = (point: unknown) => ({ point, govmapTransient: false, fallbackTransient: false })
 
 function given(s: ReturnType<typeof suggestion>) {
-  mockPrisma.mapRestaurantSuggestion.findUnique.mockResolvedValue(s)
+  mockPrisma.mapRestaurantSuggestion.findUnique.mockResolvedValue({ ...s, restaurant: s.restaurantId ? { rabbanutId: 'rb1' } : null })
   tx.mapRestaurantSuggestion.findUnique.mockResolvedValue(s)
 }
 
@@ -64,6 +64,8 @@ describe('suggestion approval coordinates', () => {
     tx.kashrutLevel.findUnique.mockResolvedValue({ id: 'kl1' })
     tx.restaurant.create.mockResolvedValue({ id: 'r_new' })
     tx.restaurant.update.mockResolvedValue({ id: 'r1' })
+    // The update target, read in the transaction: live, in an active rabbanut.
+    tx.restaurant.findUnique.mockResolvedValue({ rabbanutId: 'rb1', city: 'ירושלים', deletedAt: null, rabbanut: { active: true, deletedAt: null } })
     tx.mapRestaurantSuggestion.update.mockResolvedValue(suggestion())
   })
 
