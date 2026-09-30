@@ -53,9 +53,11 @@ router.get('/summary', authenticateJWT, asyncHandler(async (req, res) => {
       // ServiceLog has no rabbanutId or reliable tenant relation. Returning the
       // global count to a tenant would leak cross-tenant activity, so expose it
       // only to the global owner until the log model gains explicit tenancy.
+      // The card counts issues: routine info rows (successful changes, logins)
+      // are audit trail, not problems.
       isOwner
         ? prisma.serviceLog.count({
-            where: { createdAt: { gte: todayStart, lte: todayEnd } },
+            where: { createdAt: { gte: todayStart, lte: todayEnd }, level: { in: ['warn', 'error'] } },
           })
         : Promise.resolve(undefined),
     ])

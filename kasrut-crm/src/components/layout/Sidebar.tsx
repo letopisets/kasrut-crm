@@ -16,6 +16,7 @@ import DescriptionIcon from '@mui/icons-material/Description'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
+import RateReviewIcon from '@mui/icons-material/RateReview'
 import TroubleshootIcon from '@mui/icons-material/Troubleshoot'
 
 const SIDEBAR_WIDTH = 232
@@ -30,6 +31,7 @@ const ICONS: Record<string, typeof DashboardIcon> = {
   rabbanuts: AccountBalanceIcon,
   users: ManageAccountsIcon,
   suggestions: FactCheckIcon,
+  reviews: RateReviewIcon,
   logs: TroubleshootIcon,
 }
 

@@ -62,6 +62,9 @@ export interface MapTranslations {
   saveReview: string
   loginAndReview: string
   loadingReviews: string
+  showMoreReviews: string
+  loadOwnReviewError: string
+  retryBtn: string
 
   suggestNewTitle: string
   suggestEditTitle: string

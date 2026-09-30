@@ -64,6 +64,9 @@ const en: MapTranslations = {
   saveReview: 'Save review',
   loginAndReview: 'Login and leave a review',
   loadingReviews: 'Loading reviews',
+  showMoreReviews: 'Show more reviews',
+  loadOwnReviewError: 'Could not load your review. Saving is paused so it is not overwritten.',
+  retryBtn: 'Retry',
 
   suggestNewTitle: 'Suggest a new place',
   suggestEditTitle: 'Suggest an edit',

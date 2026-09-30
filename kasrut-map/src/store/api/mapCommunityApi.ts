@@ -7,6 +7,7 @@ import type {
   PasswordResetRequestResponse,
   MapReview,
   MapReviewsPayload,
+  MapOwnReviewPayload,
   MapSuggestion,
   MapSuggestionPayload,
   MapUser,
@@ -99,9 +100,25 @@ export const mapCommunityApi = baseApi.injectEndpoints({
       query: () => ({ url: '/map-auth/logout', method: 'POST' }),
       invalidatesTags: ['MapAuth'],
     }),
-    getRestaurantReviews: build.query<MapReviewsPayload, string>({
-      query: (restaurantId) => `/map/restaurants/${restaurantId}/reviews`,
+    // Cursor-paginated, newest first. Invalidation (e.g. after saving a
+    // review) refetches every loaded page from the first one, so the list
+    // stays contiguous.
+    getRestaurantReviews: build.infiniteQuery<MapReviewsPayload, string, string | null>({
+      infiniteQueryOptions: {
+        initialPageParam: null,
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
+      },
+      query: ({ queryArg: restaurantId, pageParam }) => ({
+        url: `/map/restaurants/${restaurantId}/reviews`,
+        params: pageParam ? { cursor: pageParam } : undefined,
+      }),
       providesTags: (_result, _error, restaurantId) => [{ type: 'Review', id: restaurantId }],
+    }),
+    // userId only keys the cache, so one account never sees another's review
+    // after a re-login; the server resolves the user from the token.
+    getMyRestaurantReview: build.query<MapOwnReviewPayload, { restaurantId: string; userId: string }>({
+      query: ({ restaurantId }) => `/map/restaurants/${restaurantId}/reviews/mine`,
+      providesTags: (_result, _error, { restaurantId }) => [{ type: 'Review', id: restaurantId }],
     }),
     submitRestaurantReview: build.mutation<MapReview, SubmitReviewPayload>({
       query: ({ restaurantId, ...body }) => ({
@@ -131,7 +148,8 @@ export const {
   useConfirmPasswordResetMutation,
   useGetMapMeQuery,
   useLogoutMapMutation,
-  useGetRestaurantReviewsQuery,
+  useGetRestaurantReviewsInfiniteQuery,
+  useGetMyRestaurantReviewQuery,
   useSubmitRestaurantReviewMutation,
   useSubmitSuggestionMutation,
 } = mapCommunityApi

@@ -67,14 +67,20 @@ router.get('/route', routeRateLimit, mapRouteController.getRoute)
 router.get('/restaurants', mapReadRateLimit, mapController.listRestaurants)
 router.get('/restaurants/:restaurantId', mapReadRateLimit, mapController.getRestaurant)
 router.get('/prerender/:restaurantId', mapReadRateLimit, mapController.getRestaurantPrerender)
+// Paginated newest-first: ?limit=1..50 (default 20) &cursor=<nextCursor of the previous page>
 router.get('/restaurants/:restaurantId/reviews', mapReadRateLimit, mapReviewController.listReviews)
 
 // Community actions — public users authenticated via Google/Apple
+router.get('/restaurants/:restaurantId/reviews/mine', mapReadRateLimit, authenticateMapJWT, mapReviewController.getOwnReview)
 router.post('/suggestions', communityWriteRateLimit, authenticateMapJWT, mapSuggestionController.createSuggestion)
 router.post('/restaurants/:restaurantId/reviews', communityWriteRateLimit, authenticateMapJWT, mapReviewController.upsertReview)
 
 // Moderation — CRM users (owner / rabbanut) only
 router.get('/suggestions',           authenticateJWT, requireRole('owner', 'rabbanut'), mapSuggestionController.listSuggestions)
 router.post('/suggestions/:id/review', authenticateJWT, requireRole('owner', 'rabbanut'), mapSuggestionController.reviewSuggestion)
+// Most recently written first: ?restaurantId= &limit=1..50 (default 20) &cursor=<nextCursor>;
+// a rabbanut sees its own restaurants only
+router.get('/reviews',               authenticateJWT, requireRole('owner', 'rabbanut'), mapReviewController.listReviewsForModeration)
+router.delete('/reviews/:id',        authenticateJWT, requireRole('owner', 'rabbanut'), mapReviewController.deleteReview)
 
 export default router
