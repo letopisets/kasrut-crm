@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { CRM_PASSWORD, loginToCrm } from './helpers/crm'
-import { generateTotp } from './helpers/totp'
+import { generateTotp, waitForNextTotpWindow } from './helpers/totp'
 
 const TWO_FACTOR_BUTTON = /two-factor|2fa|двухфактор|אימות דו/i
 const ENABLE_BUTTON = /enable 2fa|включить 2fa|הפעל/i
@@ -12,6 +12,8 @@ test.describe('CRM 2FA settings', () => {
   test.describe.configure({ mode: 'serial' })
 
   test('user can enable and disable 2FA', async ({ page }) => {
+    // Up to one TOTP window (30 s) is spent waiting for a fresh code.
+    test.setTimeout(90_000)
     await loginToCrm(page)
 
     await page.getByRole('button', { name: TWO_FACTOR_BUTTON }).click()
@@ -36,6 +38,8 @@ test.describe('CRM 2FA settings', () => {
 
     await page.getByRole('button', { name: TWO_FACTOR_BUTTON }).click()
     await page.getByRole('button', { name: DISABLE_BUTTON }).click()
+    // The code that enabled 2FA cannot be used again: wait for the next one.
+    await waitForNextTotpWindow()
     await page.getByPlaceholder(/000000/).fill(generateTotp(secret))
     await page.getByRole('button', { name: DISABLE_BUTTON }).click()
     await expect(page.getByTestId('two-factor-success')).toBeVisible()

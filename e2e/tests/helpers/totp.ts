@@ -20,9 +20,21 @@ function decodeBase32(secret: string): Buffer {
   return Buffer.from(bytes)
 }
 
+const TOTP_PERIOD_MS = 30_000
+
+/**
+ * Resolves just after the next 30 s TOTP window starts. The API accepts each
+ * code once per account (RFC 6238 section 5.2), so a second 2FA step for the
+ * same account needs a code from a later window than the previous one.
+ */
+export async function waitForNextTotpWindow(marginMs = 500): Promise<void> {
+  const wait = TOTP_PERIOD_MS - (Date.now() % TOTP_PERIOD_MS) + marginMs
+  await new Promise(resolve => setTimeout(resolve, wait))
+}
+
 export function generateTotp(secret: string, timestamp = Date.now()): string {
   const key = decodeBase32(secret)
-  const counter = Math.floor(timestamp / 30_000)
+  const counter = Math.floor(timestamp / TOTP_PERIOD_MS)
   const buffer = Buffer.alloc(8)
   buffer.writeUInt32BE(Math.floor(counter / 0x100000000), 0)
   buffer.writeUInt32BE(counter & 0xffffffff, 4)
