@@ -10,17 +10,22 @@ import {
 } from '../lib/loginThrottle'
 
 // Runs the throttle's Lua script against a real Redis. Opt-in, since the
-// suite has no Redis: point LOGIN_THROTTLE_REDIS_URL at a throwaway server,
-// e.g. `docker run -d --rm -p 6390:6379 redis:7-alpine` and
-// LOGIN_THROTTLE_REDIS_URL=redis://127.0.0.1:6390. Skipped otherwise.
-const REDIS_URL = process.env.LOGIN_THROTTLE_REDIS_URL
+// suite has no Redis: point REDIS_TEST_URL (or its older name
+// LOGIN_THROTTLE_REDIS_URL) at a throwaway server, e.g.
+// `docker run -d --rm -p 6390:6379 redis:7-alpine` and
+// REDIS_TEST_URL=redis://127.0.0.1:6390. Skipped otherwise. The suite pauses
+// that server.
+const REDIS_URL = process.env.REDIS_TEST_URL ?? process.env.LOGIN_THROTTLE_REDIS_URL
 
 jest.mock('../lib/redis', () => {
   const ioredis = jest.requireActual('ioredis')
   const Redis = ioredis.default ?? ioredis
   return {
-    redis: new Redis(process.env.LOGIN_THROTTLE_REDIS_URL ?? 'redis://127.0.0.1:1', {
+    // The API's client settings, including the 500 ms command timeout
+    // (REDIS_COMMAND_TIMEOUT_MS in lib/redis.ts).
+    redis: new Redis(process.env.REDIS_TEST_URL ?? process.env.LOGIN_THROTTLE_REDIS_URL ?? 'redis://127.0.0.1:1', {
       lazyConnect: true, enableOfflineQueue: false, maxRetriesPerRequest: 0, retryStrategy: () => null,
+      commandTimeout: 500,
     }),
   }
 })
@@ -83,6 +88,45 @@ describeWithRedis('login throttle against a real Redis', () => {
     for (let i = 0; i < 6; i += 1) await reserveAttempt('crm', id)
     await redis.del(loginThrottleKey('crm', id))
     expect(await reserveAttempt('crm', id)).toEqual(UNLOCKED)
+  })
+
+  it('counts an attempt once when its call timed out but Redis ran it after the stall', async () => {
+    await reserveAttempt('crm', id)
+    const admin = redis.duplicate()
+    await admin.connect()
+    try {
+      // The server stops answering for 1.2 s: the attempt's script call times
+      // out after 500 ms and the attempt is counted in memory, but Redis runs
+      // the script once the stall ends.
+      await admin.call('CLIENT', 'PAUSE', '1200', 'ALL')
+      expect(await reserveAttempt('crm', id)).toEqual(UNLOCKED)
+      await new Promise(resolve => setTimeout(resolve, 1_000))
+      expect(await hget('failures')).toBe('2')
+
+      // The next attempt carries the memory count; Redis already has it.
+      expect(await reserveAttempt('crm', id)).toEqual(UNLOCKED)
+      expect(await hget('failures')).toBe('3')
+      for (let i = 0; i < 3; i += 1) expect(await reserveAttempt('crm', id)).toEqual(UNLOCKED)
+      expect(await reserveAttempt('crm', id)).toEqual({ locked: true, retryAfterSec: 60 })
+      expect(await hget('failures')).toBe('6')
+    } finally {
+      admin.disconnect()
+    }
+  }, 10_000)
+
+  it('keeps the ids of counted attempts only for the window', async () => {
+    const attemptIds = async () => Object.keys(await redis.hgetall(loginThrottleKey('crm', id))).filter(f => f.startsWith('a:'))
+    await reserveAttempt('crm', id)
+    const [first] = await attemptIds()
+    advance(23 * 60 * 60)
+    await reserveAttempt('crm', id)
+    advance(23 * 60 * 60)
+    await reserveAttempt('crm', id)
+
+    const ids = await attemptIds()
+    expect(ids).toHaveLength(2)
+    expect(ids).not.toContain(first)
+    expect(await hget('failures')).toBe('3')
   })
 
   it('adds failures counted during an outage once Redis is back', async () => {

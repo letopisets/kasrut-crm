@@ -12,7 +12,9 @@ import {
 // Minimal in-process stand-in for the Redis commands the throttle uses. `eval`
 // re-implements the throttle's Lua script (loginThrottle.redis.test.ts runs
 // the real one against Redis); like Redis, each call runs without interleaving.
-// `broken` makes every command reject, like a connection dropped mid-request.
+// `broken` makes every command reject, like a connection dropped mid-request;
+// `timeOut` makes the next eval run and then reject, like a call that timed
+// out on the client while the server still executed it.
 jest.mock('../lib/redis', () => {
   const hashes = new Map<string, Map<string, string>>()
   const expiresAt = new Map<string, number>()
@@ -23,21 +25,41 @@ jest.mock('../lib/redis', () => {
   const fake = {
     status: 'end',
     broken: false,
+    timeOut: false,
     hashes,
     expiresAt,
-    eval: jest.fn(async (_script: string, _numKeys: number, key: string, ...args: number[]) => {
+    eval: jest.fn(async (_script: string, _numKeys: number, key: string, ...args: Array<number | string>) => {
       if (fake.broken) throw new Error('connection lost')
-      const [now, force, carry, carryAt, windowMs, free, ...steps] = args.map(Number)
-      const hash = live(key)
-      let failures = Number(hash?.get('failures') ?? 0) + carry
-      let last = Math.max(Number(hash?.get('lastFailureAt') ?? 0), carryAt)
+      const [now, force, carryAt, windowMs, free, stepCount] = args.slice(0, 6).map(Number)
+      const steps = args.slice(6, 6 + stepCount).map(Number)
+      const [id, ...carriedIds] = args.slice(6 + stepCount).map(String)
+      const hash = live(key) ?? new Map<string, string>()
+      let failures = Number(hash.get('failures') ?? 0)
+      let last = Number(hash.get('lastFailureAt') ?? 0)
+      let carried = 0
+      for (const carriedId of carriedIds) {
+        if (hash.has(`a:${carriedId}`)) continue
+        hash.set(`a:${carriedId}`, String(now))
+        carried += 1
+      }
+      if (carried > 0) { failures += carried; last = Math.max(last, carryAt) }
       const locked = failures > free && last + steps[Math.min(failures - free, steps.length) - 1] * 1000 > now
       const refused = locked && force !== 1
-      if (!refused) { failures += 1; last = now }
-      if (carry > 0 || !refused) {
-        hashes.set(key, new Map([['failures', String(failures)], ['lastFailureAt', String(last)]]))
+      if (!refused) {
+        failures += 1
+        last = now
+        hash.set(`a:${id}`, String(now))
+        for (const [field, value] of hash) {
+          if (field.startsWith('a:') && Number(value) + windowMs <= now) hash.delete(field)
+        }
+      }
+      if (carried > 0 || !refused) {
+        hash.set('failures', String(failures))
+        hash.set('lastFailureAt', String(last))
+        hashes.set(key, hash)
         expiresAt.set(key, last + windowMs)
       }
+      if (fake.timeOut) { fake.timeOut = false; throw new Error('Command timed out') }
       return [refused ? 1 : 0, failures, last]
     }),
     hmget: jest.fn(async (key: string, ...fields: string[]) => {
@@ -56,6 +78,7 @@ jest.mock('../lib/redis', () => {
 type FakeRedis = {
   status: string
   broken: boolean
+  timeOut: boolean
   hashes: Map<string, Map<string, string>>
   expiresAt: Map<string, number>
   eval: jest.Mock
@@ -89,6 +112,7 @@ beforeEach(() => {
   jest.spyOn(Date, 'now').mockImplementation(() => now)
   fakeRedis.status = 'end'
   fakeRedis.broken = false
+  fakeRedis.timeOut = false
   fakeRedis.hashes.clear()
   fakeRedis.expiresAt.clear()
   resetLoginThrottleMemory()
@@ -237,6 +261,45 @@ describe('login throttle storage', () => {
     await reserve(2)
     expect(await reserveAttempt('crm', ID)).toEqual({ locked: true, retryAfterSec: 60 })
     expect(fakeRedis.hashes.get(loginThrottleKey('crm', ID))?.get('failures')).toBe('6')
+  })
+
+  it('counts an attempt once when its Redis call timed out but still ran', async () => {
+    fakeRedis.status = 'ready'
+    await reserve(2)
+    fakeRedis.timeOut = true
+    expect(await reserveAttempt('crm', ID)).toEqual(UNLOCKED)   // counted in Redis and in memory
+    expect(fakeRedis.hashes.get(loginThrottleKey('crm', ID))?.get('failures')).toBe('3')
+
+    await reserve(1)   // carries the memory count: Redis already has that attempt
+    expect(fakeRedis.hashes.get(loginThrottleKey('crm', ID))?.get('failures')).toBe('4')
+    expect(await reserve(2)).toEqual([UNLOCKED, UNLOCKED])
+    expect(await reserveAttempt('crm', ID)).toEqual({ locked: true, retryAfterSec: 60 })
+  })
+
+  it('counts each attempt once across consecutive timed-out calls', async () => {
+    fakeRedis.status = 'ready'
+    await reserve(1)
+    for (let i = 0; i < 3; i += 1) {
+      fakeRedis.timeOut = true
+      expect(await reserveAttempt('crm', ID)).toEqual(UNLOCKED)
+    }
+    await reserve(1)
+    expect(fakeRedis.hashes.get(loginThrottleKey('crm', ID))?.get('failures')).toBe('5')
+  })
+
+  it('forgets attempt ids older than the window while the counter lives on', async () => {
+    fakeRedis.status = 'ready'
+    const attemptIds = () => [...fakeRedis.hashes.get(loginThrottleKey('crm', ID))!.keys()].filter(f => f.startsWith('a:'))
+    await reserve(1)
+    const [first] = attemptIds()
+    advance(23 * 60 * 60)
+    await reserve(1)
+    advance(23 * 60 * 60)
+    await reserve(1)
+
+    expect(attemptIds()).toHaveLength(2)
+    expect(attemptIds()).not.toContain(first)
+    expect(fakeRedis.hashes.get(loginThrottleKey('crm', ID))?.get('failures')).toBe('3')
   })
 
   it('still honours a lock taken in Redis while Redis is down', async () => {

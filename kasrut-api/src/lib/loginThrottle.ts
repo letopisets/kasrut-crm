@@ -1,4 +1,4 @@
-import { createHash } from 'crypto'
+import { createHash, randomBytes } from 'crypto'
 import type { Response } from 'express'
 import { redis } from './redis'
 import { logger } from './logger'
@@ -25,6 +25,12 @@ import { logger } from './logger'
  * middleware/rateLimit.ts), and failures counted there move into Redis once it
  * is back. The in-process store also mirrors the Redis counters, so a lock
  * taken while Redis was up still holds if Redis drops.
+ *
+ * Every attempt carries an id, and Redis counts each id at most once. A
+ * script call that times out on the client (REDIS_COMMAND_TIMEOUT_MS) may
+ * still run on the server once a stall ends, while the attempt is also
+ * counted in memory; when that memory count is carried over later, Redis
+ * recognises the id and does not count the attempt a second time.
  */
 
 export type LoginThrottleScope = 'crm' | 'crm-2fa' | 'map'
@@ -70,38 +76,64 @@ interface Counter { failures: number; lastFailureAt: number }
 interface Attempt extends Counter { refused: boolean }
 
 // ── Redis store ───────────────────────────────────────────────────────────────
-// One atomic step per attempt: merge failures carried over from the in-memory
-// store, refuse while locked (unless forced), otherwise count the attempt and
-// push the expiry to WINDOW after the latest failure. Mirrors lockState().
-// KEYS[1] counter hash; ARGV: now, force, carry, carryAt, windowMs, free, steps…
+// One atomic step per attempt: merge the failures carried over from the
+// in-memory store, refuse while locked (unless forced), otherwise count the
+// attempt and push the expiry to WINDOW after the latest failure. Mirrors
+// lockState(). Each counted attempt leaves its id as a hash field `a:<id>`
+// (value: when it was counted), and a carried id already there is skipped;
+// ids older than the window are dropped, since memory forgets its entries
+// by then too.
+// KEYS[1] counter hash
+// ARGV: now, force, carryAt, windowMs, free, #steps, steps…, attempt id, carried ids…
 const ATTEMPT_SCRIPT = `
 local now, force = tonumber(ARGV[1]), ARGV[2] == '1'
-local carry, carryAt = tonumber(ARGV[3]), tonumber(ARGV[4])
-local windowMs, free = tonumber(ARGV[5]), tonumber(ARGV[6])
+local carryAt, windowMs, free = tonumber(ARGV[3]), tonumber(ARGV[4]), tonumber(ARGV[5])
+local steps = tonumber(ARGV[6])
 local h = redis.call('HMGET', KEYS[1], 'failures', 'lastFailureAt')
-local failures = (tonumber(h[1]) or 0) + carry
-local last = math.max(tonumber(h[2]) or 0, carryAt)
+local failures = tonumber(h[1]) or 0
+local last = tonumber(h[2]) or 0
+local carried = 0
+for i = 8 + steps, #ARGV do
+  if redis.call('HSETNX', KEYS[1], 'a:' .. ARGV[i], now) == 1 then carried = carried + 1 end
+end
+if carried > 0 then
+  failures = failures + carried
+  last = math.max(last, carryAt)
+end
 local locked = false
 if failures > free then
-  local step = math.min(failures - free, #ARGV - 6)
+  local step = math.min(failures - free, steps)
   locked = last + tonumber(ARGV[6 + step]) * 1000 > now
 end
 local refused = locked and not force
 if not refused then
   failures = failures + 1
   last = now
+  redis.call('HSET', KEYS[1], 'a:' .. ARGV[7 + steps], now)
+  local fields = redis.call('HGETALL', KEYS[1])
+  for i = 1, #fields, 2 do
+    if string.sub(fields[i], 1, 2) == 'a:' and tonumber(fields[i + 1]) + windowMs <= now then
+      redis.call('HDEL', KEYS[1], fields[i])
+    end
+  end
 end
-if carry > 0 or not refused then
+if carried > 0 or not refused then
   redis.call('HSET', KEYS[1], 'failures', failures, 'lastFailureAt', last)
   redis.call('PEXPIREAT', KEYS[1], last + windowMs)
 end
 return { refused and 1 or 0, failures, last }
 `
 
+// Attempt ids: unique per process (random tag) and per attempt (counter).
+const PROCESS_TAG = randomBytes(6).toString('hex')
+let attemptSeq = 0
+const nextAttemptId = () => `${PROCESS_TAG}.${(attemptSeq += 1).toString(36)}`
+
 // ── In-memory store (single-process) ─────────────────────────────────────────
-// `unsynced` counts the failures recorded here while Redis was unavailable;
-// the rest of `failures` mirrors what Redis last reported.
-interface MemoryEntry extends Counter { unsynced: number }
+// `unsynced` holds the ids of the failures recorded here that Redis may not
+// have counted (it was unavailable, or a call timed out); the rest of
+// `failures` mirrors what Redis last reported.
+interface MemoryEntry extends Counter { unsynced: string[] }
 const memory = new Map<string, MemoryEntry>()
 let lastRedisWarnAt = 0
 
@@ -134,43 +166,46 @@ function memoryPut(key: string, entry: MemoryEntry, now: number): void {
 }
 
 // Synchronous check-and-count: atomic within this process.
-function memoryAttempt(key: string, now: number, force: boolean): Attempt {
-  const entry = memoryEntry(key, now) ?? { failures: 0, lastFailureAt: 0, unsynced: 0 }
+function memoryAttempt(key: string, now: number, force: boolean, id: string): Attempt {
+  const entry = memoryEntry(key, now) ?? { failures: 0, lastFailureAt: 0, unsynced: [] }
   if (lockState(entry.failures, entry.lastFailureAt, now).locked && !force) {
     return { refused: true, failures: entry.failures, lastFailureAt: entry.lastFailureAt }
   }
   entry.failures += 1
-  entry.unsynced += 1
+  entry.unsynced.push(id)
   entry.lastFailureAt = now
   memoryPut(key, entry, now)
   return { refused: false, failures: entry.failures, lastFailureAt: entry.lastFailureAt }
 }
 
-async function redisAttempt(key: string, now: number, force: boolean): Promise<Attempt> {
+async function redisAttempt(key: string, now: number, force: boolean, id: string): Promise<Attempt> {
   // Taken synchronously, so two parallel requests cannot both carry the same
   // outage failures into Redis.
   const entry = memoryEntry(key, now)
-  const carry = entry?.unsynced ?? 0
-  if (entry) entry.unsynced = 0
+  const carried = entry?.unsynced ?? []
+  if (entry) entry.unsynced = []
   let reply: [number, number, number]
   try {
     reply = await redis.eval(
       ATTEMPT_SCRIPT, 1, key,
-      now, force ? 1 : 0, carry, carry > 0 ? entry!.lastFailureAt : 0,
-      WINDOW_MS, FREE_FAILURES, ...LOCKOUT_STEPS_SEC,
+      now, force ? 1 : 0, carried.length > 0 ? entry!.lastFailureAt : 0,
+      WINDOW_MS, FREE_FAILURES, LOCKOUT_STEPS_SEC.length, ...LOCKOUT_STEPS_SEC,
+      id, ...carried,
     ) as [number, number, number]
   } catch (err) {
-    if (entry && memory.get(key) === entry) entry.unsynced += carry
+    // Unknown whether the script ran: keep the ids, Redis counts each once.
+    if (entry && memory.get(key) === entry) entry.unsynced = [...carried, ...entry.unsynced]
     throw err
   }
 
   const attempt: Attempt = { refused: reply[0] === 1, failures: Number(reply[1]), lastFailureAt: Number(reply[2]) }
   // Mirror, keeping anything counted in memory while this call was in flight.
   const current = memoryEntry(key, now)
+  const unsynced = current?.unsynced ?? []
   memoryPut(key, {
-    failures:      attempt.failures + (current?.unsynced ?? 0),
+    failures:      attempt.failures + unsynced.length,
     lastFailureAt: Math.max(attempt.lastFailureAt, current?.lastFailureAt ?? 0),
-    unsynced:      current?.unsynced ?? 0,
+    unsynced,
   }, now)
   return attempt
 }
@@ -183,16 +218,18 @@ function warnRedisUnavailable(now: number): void {
 }
 
 async function attempt(key: string, now: number, force: boolean): Promise<Attempt> {
+  const id = nextAttemptId()
   if (redis.status === 'ready') {
     try {
-      return await redisAttempt(key, now, force)
+      return await redisAttempt(key, now, force, id)
     } catch {
       warnRedisUnavailable(now)
     }
   } else {
     warnRedisUnavailable(now)
   }
-  return memoryAttempt(key, now, force)
+  // The same id: if the failed call did run in Redis, the carry skips it.
+  return memoryAttempt(key, now, force, id)
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -215,7 +252,9 @@ export async function checkLocked(scope: LoginThrottleScope, identifier: string)
   if (redis.status === 'ready') {
     try {
       const [failures, lastFailureAt] = await redis.hmget(key, 'failures', 'lastFailureAt')
-      const unsynced = entry?.unsynced ?? 0
+      // May include an attempt Redis counted after a timed-out call: errs
+      // toward locking until the next attempt reconciles it.
+      const unsynced = entry?.unsynced.length ?? 0
       return lockState(
         (Number(failures) || 0) + unsynced,
         Math.max(Number(lastFailureAt) || 0, unsynced > 0 ? entry!.lastFailureAt : 0),
