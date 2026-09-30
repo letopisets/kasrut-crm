@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isHttpsUrl } from '../lib/httpsUrl'
+import { ENTITY_ID_RE } from '../lib/entityId'
 
 // Shared primitives
 // IDs are Prisma cuids (@default(cuid())) plus custom seed ids like
@@ -147,6 +148,15 @@ export const createInspectionSchema = z.object({
   notes:        z.string().max(2000).trim().optional(),
 })
 export const updateInspectionSchema = createInspectionSchema.partial()
+// Filters of GET /inspections. Raw query values would reach Prisma as they
+// are: qs turns `?mashgiachId[not]=x` into a filter operator and a repeated
+// key into an array (a 500). Only plain ids and the known enum values pass.
+export const listInspectionQuerySchema = paginationSchema.extend({
+  restaurantId: z.string().regex(ENTITY_ID_RE, 'Invalid id').optional(),
+  mashgiachId:  z.string().regex(ENTITY_ID_RE, 'Invalid id').optional(),
+  result:       inspectionResult.optional(),
+  type:         inspectionType.optional(),
+})
 
 // Hechsher
 export const createHechsherSchema = z.object({

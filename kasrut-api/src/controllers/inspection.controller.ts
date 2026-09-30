@@ -1,7 +1,7 @@
 import { inspectionsRepo } from '../db/inspections.repo'
 import { serializeInspection, serializeInspections } from '../serializers/inspection.serializer'
 import { validate } from '../lib/validate'
-import { createInspectionSchema, updateInspectionSchema, paginationSchema } from '../schemas'
+import { createInspectionSchema, updateInspectionSchema, listInspectionQuerySchema } from '../schemas'
 import { asyncHandler } from '../lib/asyncHandler'
 import { ForbiddenScopeError, resolveScopeRabbanutId } from '../lib/rabbanutScope'
 
@@ -29,25 +29,24 @@ async function resolveInspectionScope(
 
 export const inspectionController = {
   list: asyncHandler(async (req, res) => {
-    const q           = req.query as Record<string, string>
-    const mashgiachId = req.user?.role === 'mashgiach' ? req.user.mashgiachId : q.mashgiachId
     // Owner: unscoped. Rabbanut/mashgiach: own tenant, or 403 when the account
     // has none (an undefined rabbanutId would mean "no filter" to the repo).
     const rabbanutId  = resolveScopeRabbanutId(req, undefined)
-    if (req.user?.role === 'mashgiach' && !mashgiachId) {
+    if (req.user?.role === 'mashgiach' && !req.user.mashgiachId) {
       throw new ForbiddenScopeError()
     }
-    const pageInput   = validate(paginationSchema, { limit: q.limit, cursor: q.cursor })
+    const q           = validate(listInspectionQuerySchema, req.query)
+    const mashgiachId = req.user?.role === 'mashgiach' ? req.user.mashgiachId : q.mashgiachId
 
-    if (pageInput.limit) {
+    if (q.limit) {
       const page = await inspectionsRepo.findPage({
         restaurantId: q.restaurantId,
         mashgiachId,
         result:       q.result,
         type:         q.type,
         rabbanutId,
-        limit:        pageInput.limit,
-        cursor:       pageInput.cursor,
+        limit:        q.limit,
+        cursor:       q.cursor,
       })
       res.json({ items: serializeInspections(page.items), nextCursor: page.nextCursor })
       return

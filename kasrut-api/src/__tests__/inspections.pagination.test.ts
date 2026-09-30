@@ -99,3 +99,39 @@ describe('GET /api/inspections pagination', () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe('GET /api/inspections filters', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockUsersRepo.findAuthById.mockResolvedValue(ownerUser)
+    mockRepo.findAll.mockResolvedValue([])
+    mockRepo.findPage.mockResolvedValue({ items: [], nextCursor: null })
+  })
+
+  // Raw query values reached Prisma: a repeated key became an array (a 500)
+  // and a bracketed key a filter operator.
+  it.each([
+    ['a repeated restaurantId', '/api/inspections?restaurantId=r1&restaurantId=r2'],
+    ['an operator object', '/api/inspections?limit=50&mashgiachId[not]=zz'],
+    ['an unknown result', '/api/inspections?result=bogus'],
+    ['an unknown type', '/api/inspections?type=bogus'],
+    ['an id with a NUL byte', '/api/inspections?restaurantId=r1%00'],
+  ])('answers 400 for %s without querying', async (_label, url) => {
+    const res = await request(app).get(url).set('Authorization', `Bearer ${ownerToken}`)
+
+    expect(res.status).toBe(400)
+    expect(mockRepo.findAll).not.toHaveBeenCalled()
+    expect(mockRepo.findPage).not.toHaveBeenCalled()
+  })
+
+  it('passes valid filters through', async () => {
+    const res = await request(app)
+      .get('/api/inspections?restaurantId=r1&mashgiachId=m1&result=pass&type=planned&limit=10&cursor=i9')
+      .set('Authorization', `Bearer ${ownerToken}`)
+
+    expect(res.status).toBe(200)
+    expect(mockRepo.findPage).toHaveBeenCalledWith(expect.objectContaining({
+      restaurantId: 'r1', mashgiachId: 'm1', result: 'pass', type: 'planned', limit: 10, cursor: 'i9',
+    }))
+  })
+})
