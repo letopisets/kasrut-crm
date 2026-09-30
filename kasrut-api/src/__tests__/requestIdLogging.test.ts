@@ -46,3 +46,28 @@ describe('pino-http request id', () => {
     expect(loggedRequestIds()).toEqual([res.headers['x-request-id']])
   })
 })
+
+// express.json used to run before pino-http, so a body it rejected went
+// straight to errorHandler and never reached the console: the client saw an
+// x-request-id that no log line carried.
+describe('pino-http and body-parser rejections', () => {
+  it.each([
+    ['malformed JSON', '{bad json', 400],
+    ['an oversized body', JSON.stringify({ blob: 'x'.repeat(2 * 1024 * 1024 + 1) }), 413],
+  ])('logs a request refused for %s under its request id', async (_label, body, status) => {
+    const res = await request(app)
+      .post('/api/map-auth/login')
+      .set('Content-Type', 'application/json')
+      .set('x-request-id', 'e2e-badjson-1')
+      .send(body)
+
+    expect(res.status).toBe(status)
+    expect(res.headers['x-request-id']).toBe('e2e-badjson-1')
+    const entries = lines.map(line => JSON.parse(line) as { level?: number; req?: { id?: unknown }; res?: { statusCode?: number } })
+    expect(entries).toContainEqual(expect.objectContaining({
+      level: 40,
+      req: expect.objectContaining({ id: 'e2e-badjson-1' }),
+      res: { statusCode: status },
+    }))
+  })
+})

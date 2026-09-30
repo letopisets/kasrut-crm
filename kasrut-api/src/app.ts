@@ -26,18 +26,10 @@ export function createApp() {
   // body has been parsed.
   app.use(serviceLogger)
 
-  // Security headers
-  app.use(helmet())
-  app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }))
-
-  // Body parsing with explicit size limits.
-  // 2 MB headroom is needed for community suggestions that include a base64
-  // attachment image (we cap such payloads in the schema, but the parser must
-  // accept them before validation runs).
-  app.use(express.json({ limit: '2mb' }))
-  app.use(express.urlencoded({ extended: false, limit: '2mb' }))
-
-  // Structured console logging for warnings/errors. Platform audit events are stored by serviceLogger.
+  // Structured console logging for warnings/errors. Platform audit events are
+  // stored by serviceLogger. Mounted before the body parsers, so a request
+  // they reject (malformed JSON, oversized or badly encoded body) still gets
+  // a console line under the id the client saw in x-request-id.
   app.use(pinoHttp({
     logger,
     // The id serviceLogger resolved and echoed in x-request-id (it runs
@@ -57,6 +49,17 @@ export function createApp() {
       res: res => ({ statusCode: res.statusCode }),
     },
   }))
+
+  // Security headers
+  app.use(helmet())
+  app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }))
+
+  // Body parsing with explicit size limits.
+  // 2 MB headroom is needed for community suggestions that include a base64
+  // attachment image (we cap such payloads in the schema, but the parser must
+  // accept them before validation runs).
+  app.use(express.json({ limit: '2mb' }))
+  app.use(express.urlencoded({ extended: false, limit: '2mb' }))
 
   // Liveness probe — checks DB + Redis so orchestrators get a real signal
   app.get('/health', asyncHandler(async (_req, res) => {
