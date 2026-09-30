@@ -244,5 +244,14 @@ export interface Translations {
     disableInstruction: string
     codeMustBe6: string
     manualSecret: string
+    requiredTitle: string
+    requiredInstruction: string
+    requiredForRole: string
+    backupCodesTitle: string
+    backupCodesInstruction: string
+    backupCodesCopy: string
+    backupCodesCopied: string
+    backupCodesDone: string
+    wrongPassword: string
   }
 }

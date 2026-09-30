@@ -1,5 +1,6 @@
 import { isRejectedWithValue, type Middleware } from '@reduxjs/toolkit'
 import { showSnackbar } from './uiSlice'
+import { isTwoFactorSetupRequiredError } from '@/lib/twoFactorErrors'
 
 // Auth flows surface their own error UI (Login page, 2FA components), so a
 // global toast on top would be redundant/confusing.
@@ -24,6 +25,7 @@ export const rtkQueryErrorToast: Middleware = (store) => (next) => (action) => {
     if (
       arg?.type === 'mutation' &&
       status !== 401 &&                              // 401 → handled by auto-logout
+      !isTwoFactorSetupRequiredError(action.payload) && // → forced 2FA setup screen
       !SILENCED_ENDPOINTS.has(arg.endpointName ?? '')
     ) {
       store.dispatch(showSnackbar({ message: extractServerMessage(action.payload), severity: 'error' }))

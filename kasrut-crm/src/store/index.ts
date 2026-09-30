@@ -21,12 +21,12 @@ export type AppDispatch = typeof store.dispatch
 
 let lastPersistedAuth = ''
 store.subscribe(() => {
-  const { user, token, role, rabbanutFilter } = store.getState().auth
-  const serialized = JSON.stringify({ user, token, role, rabbanutFilter })
+  const { user, token, role, rabbanutFilter, twoFactorSetupRequired } = store.getState().auth
+  const serialized = JSON.stringify({ user, token, role, rabbanutFilter, twoFactorSetupRequired })
   if (serialized === lastPersistedAuth) return
 
   lastPersistedAuth = serialized
-  persistAuthState({ user, token, role, rabbanutFilter })
+  persistAuthState({ user, token, role, rabbanutFilter, twoFactorSetupRequired })
 })
 
 // Typed hooks

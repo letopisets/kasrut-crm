@@ -1,7 +1,8 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import type { RootState } from '../index'
-import { clearPersistedAuth, logout as logoutAction } from '../authSlice'
+import { clearPersistedAuth, logout as logoutAction, setTwoFactorSetupRequired } from '../authSlice'
+import { isTwoFactorSetupRequiredError } from '@/lib/twoFactorErrors'
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api',
@@ -28,11 +29,19 @@ const baseQueryWithAuth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQuery
   api,
   extraOptions,
 ) => {
+  const token  = (api.getState() as RootState).auth.token
   const result = await rawBaseQuery(args, api, extraOptions)
+  // A request sent with a token that has since been replaced (enabling or
+  // disabling 2FA issues a new one) says nothing about the current session.
+  const sameSession = (api.getState() as RootState).auth.token === token
 
-  if (result.error?.status === 401 && !isPublicAuthRequest(args)) {
+  if (result.error?.status === 401 && sameSession && !isPublicAuthRequest(args)) {
     api.dispatch(logoutAction())
     clearPersistedAuth()
+  }
+  // The session is confined to 2FA setup: switch to the forced setup screen.
+  if (token && sameSession && isTwoFactorSetupRequiredError(result.error)) {
+    api.dispatch(setTwoFactorSetupRequired(true))
   }
 
   return result

@@ -137,3 +137,30 @@ describe('placeholders shipped in the .env templates', () => {
     expectRejected(variable, value)
   })
 })
+
+describe('REQUIRE_OWNER_2FA', () => {
+  it('is on unless set', () => {
+    expect(parseEnv(productionEnv()).REQUIRE_OWNER_2FA).toBe(true)
+  })
+
+  // docker-compose passes an unset optional variable as ${VAR:-}, i.e. ''.
+  it.each(['', '  '])('treats the empty value %j as unset', value => {
+    expect(parseEnv(productionEnv({ REQUIRE_OWNER_2FA: value })).REQUIRE_OWNER_2FA).toBe(true)
+  })
+
+  it.each([['true', true], ['false', false]] as const)('parses %s', (value, expected) => {
+    expect(parseEnv(productionEnv({ REQUIRE_OWNER_2FA: value })).REQUIRE_OWNER_2FA).toBe(expected)
+  })
+
+  it('rejects anything but true or false', () => {
+    const error = rejectionOf(productionEnv({ REQUIRE_OWNER_2FA: 'yes' }))
+    expect(error.issues.map(issue => issue.path.join('.'))).toContain('REQUIRE_OWNER_2FA')
+  })
+
+  it('is not switched off by the .env templates', () => {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..')
+    for (const template of ['.env.example', '.env.hetzner.example', path.join('kasrut-api', '.env.example')]) {
+      expect([undefined, 'true']).toContain(parse(readFileSync(path.join(repoRoot, template))).REQUIRE_OWNER_2FA)
+    }
+  })
+})

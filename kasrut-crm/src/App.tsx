@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import AppLayout from '@/components/layout/AppLayout'
-import ProtectedRoute from '@/components/layout/ProtectedRoute'
+import ProtectedRoute, { TwoFactorSetupGate } from '@/components/layout/ProtectedRoute'
 import { GlobalSnackbar } from '@/components/ui/GlobalSnackbar'
 
 // Login is the only page that may be hit before authentication; load it eagerly
@@ -22,6 +22,8 @@ const Rabbanuts        = lazy(() => import('@/pages/Rabbanuts'))
 const Users            = lazy(() => import('@/pages/Users'))
 const Suggestions      = lazy(() => import('@/pages/Suggestions'))
 const Logs             = lazy(() => import('@/pages/Logs'))
+// Forced 2FA enrolment for owners (REQUIRE_OWNER_2FA), outside the app layout
+const SetupTwoFactor   = lazy(() => import('@/pages/SetupTwoFactor'))
 
 const PageFallback = () => (
   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
@@ -34,7 +36,7 @@ function App() {
     <BrowserRouter>
       <Suspense fallback={<PageFallback />}>
         <Routes>
-          <Route path="/" element={<AppLayout />}>
+          <Route path="/" element={<TwoFactorSetupGate><AppLayout /></TwoFactorSetupGate>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard"       element={<Dashboard />} />
             <Route path="restaurants"     element={
@@ -69,6 +71,7 @@ function App() {
             } />
           </Route>
           <Route path="/login" element={<Login />} />
+          <Route path="/setup-2fa" element={<SetupTwoFactor />} />
           <Route path="*"      element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Suspense>

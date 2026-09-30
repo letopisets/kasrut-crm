@@ -37,7 +37,8 @@ const currentOwner: User = {
   email: 'o@crm.il',
   passwordHash: 'hash',
   role: 'owner',
-  twoFactorEnabled: false,
+  // REQUIRE_OWNER_2FA: a signed-in owner has 2FA, or every call but setup is refused
+  twoFactorEnabled: true,
   twoFactorBackupCodes: [],
 }
 

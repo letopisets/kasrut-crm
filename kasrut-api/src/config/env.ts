@@ -89,6 +89,14 @@ export const envSchema = z.object({
   CORS_ORIGIN:      z.string().optional(),
   EXPOSE_DEV_RESET_TOKEN: z.enum(['true', 'false']).default('false')
     .transform(value => value === 'true'),
+  // Owners are global admins: while on, an owner without 2FA can do nothing
+  // but finish 2FA setup, and cannot switch 2FA off.
+  // An empty value counts as unset: docker-compose passes optional variables
+  // as ${VAR:-}, and that must not stop the API from starting.
+  REQUIRE_OWNER_2FA: z.preprocess(
+    value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.enum(['true', 'false']).default('true').transform(value => value === 'true'),
+  ),
 })
 
 // Pure so tests can check a configuration without mutating process.env.
@@ -108,6 +116,7 @@ export function parseEnv(source: Record<string, string | undefined>) {
     CORS_ORIGINS:     (raw.CORS_ORIGINS ?? raw.CORS_ORIGIN ?? DEFAULT_CORS)
                         .split(',').map(s => s.trim()).filter(Boolean),
     EXPOSE_DEV_RESET_TOKEN: raw.EXPOSE_DEV_RESET_TOKEN,
+    REQUIRE_OWNER_2FA: raw.REQUIRE_OWNER_2FA,
   } as const
 }
 

@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { loginToCrm } from './helpers/crm'
+import { CRM_PASSWORD, loginToCrm } from './helpers/crm'
 import { generateTotp } from './helpers/totp'
 
 const TWO_FACTOR_BUTTON = /two-factor|2fa|двухфактор|אימות דו/i
 const ENABLE_BUTTON = /enable 2fa|включить 2fa|הפעל/i
 const DISABLE_BUTTON = /disable 2fa|отключить 2fa|השבת/i
+const PASSWORD_FIELD = /password|пароль|סיסמה/i
+const BACKUP_CODES_SAVED = /i have saved these codes|коды сохранены|שמרתי את הקודים/i
 
 test.describe('CRM 2FA settings', () => {
   test.describe.configure({ mode: 'serial' })
@@ -20,13 +22,17 @@ test.describe('CRM 2FA settings', () => {
       .catch(() => false)
     test.skip(alreadyEnabled, 'Seeded E2E user must start with 2FA disabled for this flow')
 
+    // Setup re-checks the account password.
+    await page.getByLabel(PASSWORD_FIELD).fill(CRM_PASSWORD)
     await page.getByRole('button', { name: ENABLE_BUTTON }).click()
     const secret = (await page.getByTestId('totp-secret').innerText()).replace(/\s+/g, '')
 
     await page.getByPlaceholder(/000000/).fill(generateTotp(secret))
     await page.getByRole('button', { name: ENABLE_BUTTON }).click()
-    await expect(page.getByTestId('two-factor-success')).toBeVisible()
-    await page.getByTestId('two-factor-success').waitFor({ state: 'detached', timeout: 5_000 })
+    // Enabling shows the one-time backup codes, which must be acknowledged.
+    await expect(page.getByTestId('backup-codes')).toBeVisible()
+    await page.getByRole('button', { name: BACKUP_CODES_SAVED }).click()
+    await expect(page.getByTestId('backup-codes')).toBeHidden()
 
     await page.getByRole('button', { name: TWO_FACTOR_BUTTON }).click()
     await page.getByRole('button', { name: DISABLE_BUTTON }).click()

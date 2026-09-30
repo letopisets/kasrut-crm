@@ -33,7 +33,8 @@ const ownerUser = {
   name: 'Owner',
   email: 'o@test.il',
   passwordHash: 'hash',
-  twoFactorEnabled: false,
+  // REQUIRE_OWNER_2FA: a signed-in owner has 2FA, or every call but setup is refused
+  twoFactorEnabled: true,
   twoFactorBackupCodes: [],
 }
 

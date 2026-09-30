@@ -254,6 +254,15 @@ const en: Translations = {
     disableInstruction: 'Enter the 6-digit code from your authenticator app to disable 2FA.',
     codeMustBe6:      'Enter 6-digit code',
     manualSecret:     'Manual entry key:',
+    requiredTitle:    'Two-factor authentication required',
+    requiredInstruction: 'Owner accounts must use two-factor authentication. Set it up with an authenticator app to continue.',
+    requiredForRole:  'Two-factor authentication is mandatory for your role and cannot be disabled.',
+    backupCodesTitle: 'Save your backup codes',
+    backupCodesInstruction: 'Each code signs you in once if you lose access to your authenticator app. Store them somewhere safe: they will not be shown again.',
+    backupCodesCopy:  'Copy codes',
+    backupCodesCopied: 'Copied',
+    backupCodesDone:  'I have saved these codes',
+    wrongPassword:    'Wrong password',
   },
 }
 

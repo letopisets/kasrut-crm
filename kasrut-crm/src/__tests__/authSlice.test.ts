@@ -1,8 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import authReducer, {
   setUser,
   setTwoFactorPending,
   clearTwoFactorPending,
+  setTwoFactorSetupRequired,
+  clearBackupCodes,
+  persistAuthState,
   logout,
 } from '@/store/authSlice'
 import type { User } from '@/types'
@@ -72,5 +75,53 @@ describe('authSlice', () => {
     const loggedIn = authReducer(initial, setUser({ user: rabbanutUser, token: 'tok' }))
     expect(loggedIn.role).toBe('rabbanut')
     expect(loggedIn.rabbanutFilter).toBe('')
+  })
+})
+
+describe('authSlice — forced 2FA setup (REQUIRE_OWNER_2FA)', () => {
+  it('setUser records whether the session is confined to 2FA setup', () => {
+    const required = authReducer(initial, setUser({ user: testUser, token: 't', twoFactorSetupRequired: true }))
+    expect(required.twoFactorSetupRequired).toBe(true)
+
+    const plain = authReducer(required, setUser({ user: testUser, token: 't2' }))
+    expect(plain.twoFactorSetupRequired).toBe(false)
+  })
+
+  it('setTwoFactorSetupRequired toggles the flag', () => {
+    const loggedIn = authReducer(initial, setUser({ user: testUser, token: 't' }))
+    expect(authReducer(loggedIn, setTwoFactorSetupRequired(true)).twoFactorSetupRequired).toBe(true)
+  })
+
+  it('keeps enable-time backup codes until they are acknowledged', () => {
+    const required = authReducer(initial, setUser({ user: testUser, token: 't', twoFactorSetupRequired: true }))
+    const enabled  = authReducer(required, setUser({
+      user: { ...testUser, twoFactorEnabled: true }, token: 't2', backupCodes: ['AAAA', 'BBBB'],
+    }))
+    expect(enabled.twoFactorSetupRequired).toBe(false)
+    expect(enabled.backupCodes).toEqual(['AAAA', 'BBBB'])
+
+    expect(authReducer(enabled, clearBackupCodes()).backupCodes).toBeNull()
+  })
+
+  it('logout clears the flag and the backup codes', () => {
+    const state = authReducer(
+      authReducer(initial, setUser({ user: testUser, token: 't', twoFactorSetupRequired: true, backupCodes: ['AAAA'] })),
+      logout(),
+    )
+    expect(state.twoFactorSetupRequired).toBe(false)
+    expect(state.backupCodes).toBeNull()
+  })
+
+  it('persists the flag but never the backup codes', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    try {
+      persistAuthState({ user: testUser, token: 't', role: 'owner', rabbanutFilter: '', twoFactorSetupRequired: true })
+      const saved = JSON.parse(setItem.mock.calls.at(-1)?.[1] ?? '{}')
+      expect(saved.twoFactorSetupRequired).toBe(true)
+      expect(saved).not.toHaveProperty('backupCodes')
+    } finally {
+      setItem.mockRestore()
+      localStorage.clear()
+    }
   })
 })

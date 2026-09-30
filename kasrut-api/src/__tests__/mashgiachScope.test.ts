@@ -41,7 +41,8 @@ function token(role: 'owner' | 'rabbanut' | 'mashgiach', rabbanutId?: string) {
     role,
     ...(rabbanutId ? { rabbanutId } : {}),
     ...(role === 'mashgiach' ? { mashgiachId: 'm_mine' } : {}),
-    twoFactorEnabled: false,
+    // REQUIRE_OWNER_2FA: a signed-in owner has 2FA, or every call but setup is refused
+    twoFactorEnabled: role === 'owner',
     twoFactorBackupCodes: [],
   }
   mockUsers.findAuthById.mockResolvedValue(currentUser)

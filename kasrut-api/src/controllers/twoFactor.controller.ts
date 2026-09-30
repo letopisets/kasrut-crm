@@ -10,6 +10,7 @@ import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { verifyTwoFactorPendingToken, type TwoFactorPendingPayload } from '../lib/jwt'
+import { isTwoFactorRequiredForRole } from '../lib/twoFactorPolicy'
 
 const BACKUP_CODE_COUNT = 8
 const BACKUP_CODE_BYTES = 5
@@ -76,8 +77,10 @@ export const twoFactorController = {
     // become an unthrottled oracle for the account password.
     const lock = await reserveAttempt('crm', user.email)
     if (lock.locked) { sendLoginLocked(res, lock); return }
+    // 400, not 401: the session itself is fine, and clients treat a 401 from
+    // an authenticated call as "signed out".
     if (!await usersRepo.verifyPassword(user, password)) {
-      res.status(401).json({ error: 'Invalid credentials' }); return
+      res.status(400).json({ error: 'Invalid credentials', code: 'INVALID_PASSWORD' }); return
     }
     await recordSuccess('crm', user.email)
     if (user.twoFactorEnabled) {
@@ -105,7 +108,13 @@ export const twoFactorController = {
 
     const user = await usersRepo.findAuthById(req.user.sub)
     if (!user?.twoFactorSecret) { res.status(400).json({ error: 'Call /2fa/setup first' }); return }
+    // Same per-account budget as the login 2FA step: under REQUIRE_OWNER_2FA
+    // this is the only way from a setup-only session to a full one, so a
+    // stolen session must not brute-force the code of a pending secret.
+    const lock = await reserveAttempt('crm-2fa', user.id)
+    if (lock.locked) { sendLoginLocked(res, lock); return }
     if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
+    await recordSuccess('crm-2fa', user.id)
 
     const plainCodes  = generateBackupCodes()
     const hashedCodes = await hashBackupCodes(plainCodes)
@@ -123,6 +132,14 @@ export const twoFactorController = {
 
   disable: asyncHandler(async (req, res) => {
     if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
+    // Refused before any code is checked, so it costs no throttle attempt.
+    if (isTwoFactorRequiredForRole(req.user.role)) {
+      res.status(403).json({
+        error: 'Two-factor authentication is required for this role',
+        code:  'TWO_FACTOR_REQUIRED_FOR_ROLE',
+      })
+      return
+    }
 
     const { code } = req.body as { code?: string }
     if (!code) { res.status(400).json({ error: 'Code required' }); return }

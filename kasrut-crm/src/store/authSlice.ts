@@ -11,7 +11,15 @@ export interface AuthState {
   rabbanutFilter:     string
   twoFactorPending:   boolean
   pendingTempToken:   string | null
+  // The API confines this session to 2FA setup (REQUIRE_OWNER_2FA): the app
+  // shows only the forced setup screen until it is enabled.
+  twoFactorSetupRequired: boolean
+  // Plain backup codes from the enable call, kept in memory (never persisted)
+  // until the user confirms they have saved them.
+  backupCodes:        string[] | null
 }
+
+type PersistedAuth = Pick<AuthState, 'user' | 'token' | 'role' | 'rabbanutFilter' | 'twoFactorSetupRequired'>
 
 function getStorage(): Storage | null {
   try {
@@ -48,7 +56,7 @@ function normalizeUser(value: unknown): User | null {
   }
 }
 
-function normalizePersisted(value: unknown): Partial<AuthState> {
+function normalizePersisted(value: unknown): Partial<PersistedAuth> {
   const candidate = isRecord(value) && 'state' in value ? value.state : value
   if (!isRecord(candidate)) return {}
 
@@ -61,10 +69,11 @@ function normalizePersisted(value: unknown): Partial<AuthState> {
     token,
     role: user.role,
     rabbanutFilter: typeof candidate.rabbanutFilter === 'string' ? candidate.rabbanutFilter : '',
+    twoFactorSetupRequired: candidate.twoFactorSetupRequired === true,
   }
 }
 
-function loadPersisted(): Partial<AuthState> {
+function loadPersisted(): Partial<PersistedAuth> {
   try {
     const storage = getStorage()
     const raw = storage?.getItem(AUTH_STORAGE_KEY)
@@ -82,9 +91,11 @@ const initialState: AuthState = {
   rabbanutFilter:   persisted.rabbanutFilter ?? '',
   twoFactorPending: false,
   pendingTempToken: null,
+  twoFactorSetupRequired: persisted.twoFactorSetupRequired ?? false,
+  backupCodes:      null,
 }
 
-export function persistAuthState(state: Pick<AuthState, 'user' | 'token' | 'role' | 'rabbanutFilter'>): void {
+export function persistAuthState(state: PersistedAuth): void {
   const storage = getStorage()
   if (!storage) return
 
@@ -98,6 +109,7 @@ export function persistAuthState(state: Pick<AuthState, 'user' | 'token' | 'role
     token:          state.token,
     role:           state.user.role,
     rabbanutFilter: state.rabbanutFilter,
+    twoFactorSetupRequired: state.twoFactorSetupRequired,
   }))
 }
 
@@ -109,13 +121,26 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setUser(state, action: PayloadAction<{ user: User; token: string }>) {
+    setUser(state, action: PayloadAction<{
+      user: User
+      token: string
+      twoFactorSetupRequired?: boolean
+      backupCodes?: string[]
+    }>) {
       state.user              = action.payload.user
       state.token             = action.payload.token
       state.role              = action.payload.user.role
       state.rabbanutFilter    = ''
       state.twoFactorPending  = false
       state.pendingTempToken  = null
+      state.twoFactorSetupRequired = action.payload.twoFactorSetupRequired === true
+      state.backupCodes       = action.payload.backupCodes ?? null
+    },
+    setTwoFactorSetupRequired(state, action: PayloadAction<boolean>) {
+      state.twoFactorSetupRequired = action.payload
+    },
+    clearBackupCodes(state) {
+      state.backupCodes = null
     },
     setTwoFactorPending(state, action: PayloadAction<{ tempToken: string }>) {
       state.twoFactorPending  = true
@@ -135,6 +160,8 @@ const authSlice = createSlice({
       state.rabbanutFilter    = ''
       state.twoFactorPending  = false
       state.pendingTempToken  = null
+      state.twoFactorSetupRequired = false
+      state.backupCodes       = null
     },
   },
 })
@@ -143,6 +170,8 @@ export const {
   setUser,
   setTwoFactorPending,
   clearTwoFactorPending,
+  setTwoFactorSetupRequired,
+  clearBackupCodes,
   setRabbanutFilter,
   logout,
 } = authSlice.actions

@@ -1,6 +1,7 @@
 import request from 'supertest'
 import bcrypt from 'bcryptjs'
 import { createApp } from '../app'
+import { env } from '../config/env'
 import { usersRepo } from '../db/users.repo'
 import {
   signCrmAccessToken,
@@ -186,6 +187,21 @@ describe('POST /api/auth/2fa/setup', () => {
     expect(res.status).toBe(401)
   })
 
+  // A wrong re-auth password must not read as a dead session (401), which
+  // the CRM answers by signing the user out.
+  it('answers a wrong password with 400, not 401', async () => {
+    mockRepo.verifyPassword.mockResolvedValue(false)
+
+    const res = await request(app)
+      .post('/api/auth/2fa/setup')
+      .set('Authorization', `Bearer ${makeToken()}`)
+      .send({ password: 'wrong-password' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'Invalid credentials', code: 'INVALID_PASSWORD' })
+    expect(mockRepo.setTwoFactorSecret).not.toHaveBeenCalled()
+  })
+
   it('does not replace an already enabled factor', async () => {
     const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
     mockRepo.findAuthById.mockResolvedValue(tfUser)
@@ -245,7 +261,17 @@ describe('POST /api/auth/2fa/enable', () => {
   })
 })
 
+// These owners may switch 2FA off only with the owner policy off; the policy
+// itself is covered in ownerTwoFactor.test.ts.
+function withoutOwnerTwoFactorPolicy() {
+  let policy: jest.ReplaceProperty<boolean>
+  beforeEach(() => { policy = jest.replaceProperty(env, 'REQUIRE_OWNER_2FA', false) })
+  afterEach(() => { policy.restore() })
+}
+
 describe('POST /api/auth/2fa/disable', () => {
+  withoutOwnerTwoFactorPolicy()
+
   it('disables 2FA with valid code', async () => {
     const tfUser: User    = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
     const disabled: User  = { ...tfUser, twoFactorEnabled: false, twoFactorSecret: undefined }
@@ -489,7 +515,7 @@ describe('CRM login throttling', () => {
       .set('X-Forwarded-For', nextIp())
       .set('Authorization', `Bearer ${makeToken()}`)
       .send({ password })
-    for (let i = 0; i < 6; i += 1) expect((await setup('wrong-password')).status).toBe(401)
+    for (let i = 0; i < 6; i += 1) expect((await setup('wrong-password')).status).toBe(400)
 
     mockRepo.verifyPassword.mockClear()
     mockRepo.verifyPassword.mockResolvedValue(true)
@@ -525,6 +551,7 @@ describe('CRM login throttling', () => {
 
 describe('CRM 2FA throttling per account', () => {
   freezeClock()
+  withoutOwnerTwoFactorPolicy()
 
   const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
 
@@ -589,6 +616,39 @@ describe('CRM 2FA throttling per account', () => {
     expect(locked.body).toEqual(LOCKED_BODY)
     expect(mockRepo.disableTwoFactor).not.toHaveBeenCalled()
     expect((await verify('123456')).status).toBe(429)
+  }, SLOW_TEST_MS)
+
+  it('counts /2fa/enable code guesses against the same account budget', async () => {
+    mockRepo.findAuthById.mockResolvedValue({ ...baseUser, twoFactorSecret: 'MOCKSECRET32' })
+    const enable = (code: string) => request(app)
+      .post('/api/auth/2fa/enable')
+      .set('X-Forwarded-For', nextIp())
+      .set('Authorization', `Bearer ${makeToken()}`)
+      .send({ code })
+    for (let i = 0; i < 6; i += 1) expect((await enable('000000')).status).toBe(400)
+
+    const locked = await enable('123456')
+
+    expect(locked.status).toBe(429)
+    expect(locked.body).toEqual(LOCKED_BODY)
+    expect(mockRepo.enableTwoFactor).not.toHaveBeenCalled()
+    expect((await verify('123456')).status).toBe(429)
+  }, SLOW_TEST_MS)
+
+  it('clears the 2FA failure count after 2FA is enabled', async () => {
+    mockRepo.findAuthById.mockResolvedValue({ ...baseUser, twoFactorSecret: 'MOCKSECRET32' })
+    mockRepo.enableTwoFactor.mockResolvedValue({ ...tfUser, sessionVersion: 1 })
+    const enable = (code: string) => request(app)
+      .post('/api/auth/2fa/enable')
+      .set('X-Forwarded-For', nextIp())
+      .set('Authorization', `Bearer ${makeToken()}`)
+      .send({ code })
+    for (let i = 0; i < 5; i += 1) expect((await enable('000000')).status).toBe(400)
+    expect((await enable('123456')).status).toBe(200)
+
+    mockRepo.findAuthById.mockResolvedValue(tfUser)
+    for (let i = 0; i < 5; i += 1) expect((await verify('000000')).status).toBe(400)
+    expect((await verify('123456')).status).toBe(200)
   }, SLOW_TEST_MS)
 
   it('counts wrong backup codes against the same account budget', async () => {

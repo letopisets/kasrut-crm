@@ -9,6 +9,7 @@ import { blacklistToken } from '../lib/tokenBlacklist'
 import { asyncHandler } from '../lib/asyncHandler'
 import { signCrmAccessToken, signTwoFactorPendingToken } from '../lib/jwt'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
+import { isTwoFactorSetupRequired } from '../lib/twoFactorPolicy'
 
 // Cost-12 hash (the cost usersRepo.create uses) of a random value nobody
 // knows. An unknown email is compared against it so that it costs the same
@@ -71,20 +72,25 @@ export const authController = {
     if (user.twoFactorEnabled) {
       const tempToken = signTwoFactorPendingToken({ sub: user.id })
       res.locals.serviceLogMessage = 'CRM login requires 2FA'
-      res.json({ requiresTwoFactor: true, tempToken })
+      res.json({ requiresTwoFactor: true, tempToken, twoFactorSetupRequired: false })
       return
     }
 
+    // An owner without 2FA still gets a session, but authenticateJWT confines
+    // it to the 2FA setup calls until enrolment is complete.
+    const twoFactorSetupRequired = isTwoFactorSetupRequired(user)
     const token = signFullToken(user)
-    res.locals.serviceLogMessage = 'CRM login succeeded'
-    res.json({ user: serializeUser(user), token })
+    res.locals.serviceLogMessage = twoFactorSetupRequired
+      ? 'CRM login succeeded; 2FA setup required'
+      : 'CRM login succeeded'
+    res.json({ user: serializeUser(user), token, twoFactorSetupRequired })
   }),
 
   me: asyncHandler(async (req, res) => {
     if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
     const user = await usersRepo.findAuthById(req.user.sub)
     if (!user) { res.status(404).json({ error: 'User not found' }); return }
-    res.json(serializeUser(user))
+    res.json({ ...serializeUser(user), twoFactorSetupRequired: isTwoFactorSetupRequired(user) })
   }),
 
   logout: asyncHandler(async (req, res) => {

@@ -12,6 +12,9 @@ Playwright-based end-to-end tests covering critical user flows in
   `E2E_PASSWORD` environment variables
 - The default E2E user should be an owner/admin account and should start
   with 2FA disabled. The 2FA test enables it and disables it again.
+- Run the API with `REQUIRE_OWNER_2FA=false`. With the default (`true`) an
+  owner without 2FA is confined to the forced `/setup-2fa` screen and cannot
+  switch 2FA off, so `loginToCrm` stops with an error pointing here.
 - Seed data must include at least one rabbanut/authority and one hechsher
   so the restaurant CRUD form can select required options.
 
@@ -34,7 +37,8 @@ npx playwright test --project=map
 ## Coverage
 
 - CRM login success and invalid-password error
-- CRM 2FA settings: enable and disable with generated TOTP
+- CRM 2FA settings: enable (password re-check, backup codes) and disable
+  with generated TOTP
 - CRM restaurant CRUD: create, edit, delete
 - Public map: map render and filter panel
 

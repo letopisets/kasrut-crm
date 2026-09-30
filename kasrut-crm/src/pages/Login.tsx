@@ -31,7 +31,7 @@ function extractError(err: unknown, tooManyAttempts: string): string | null {
   return 'Ошибка входа'
 }
 
-function LoginLangBar({
+export function LoginLangBar({
   lang,
   setLang,
   isRtl,
@@ -71,7 +71,7 @@ function LoginLangBar({
   )
 }
 
-function LoginLogo({ appName, appSub }: { appName: string; appSub: string }) {
+export function LoginLogo({ appName, appSub }: { appName: string; appSub: string }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25, mb: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
@@ -96,7 +96,7 @@ function LoginLogo({ appName, appSub }: { appName: string; appSub: string }) {
 export default function Login() {
   const navigate = useNavigate()
   const {
-    user, login, isLoading,
+    user, login, isLoading, twoFactorSetupRequired,
     twoFactorPending, verify2fa, cancelTwoFactor, error,
   } = useAuthController()
   const dispatch = useAppDispatch()
@@ -112,8 +112,8 @@ export default function Login() {
   const [totpError,setTotpError]= useState('')
 
   useEffect(() => {
-    if (user) navigate('/dashboard', { replace: true })
-  }, [user, navigate])
+    if (user) navigate(twoFactorSetupRequired ? '/setup-2fa' : '/dashboard', { replace: true })
+  }, [user, twoFactorSetupRequired, navigate])
 
   const handleLogin = async () => {
     if (!email || !password) return

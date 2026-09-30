@@ -66,6 +66,53 @@ and [LocationIQ](#locationiq-geocoder-server-side) below.
 
 Keep `SEED_DB=false` in production unless you intentionally want to reset seed data.
 
+### Mandatory 2FA for CRM owners
+
+`REQUIRE_OWNER_2FA` (`true` or `false`, default `true`) makes two-factor
+authentication mandatory for CRM owners, who administer every rabbanut. An
+owner without 2FA can still sign in, but until they enrol the API answers
+everything except `GET /api/auth/me`, `POST /api/auth/logout`,
+`POST /api/auth/2fa/setup` and `POST /api/auth/2fa/enable` with
+`403 TWO_FACTOR_SETUP_REQUIRED`, and the CRM shows a setup screen that cannot
+be skipped (signing out still works). While the flag is on, owners cannot
+switch 2FA off (`403 TWO_FACTOR_REQUIRED_FOR_ROLE`). Rabbanut and mashgiach
+accounts are not affected.
+
+Once this is deployed, every owner without 2FA lands on the setup screen with
+their next request. They need their password, an authenticator app (Google
+Authenticator, Authy, …) and a safe place for the 8 one-time backup codes,
+which are shown only once. Owners should enrol right after the deploy: until
+an owner does, anyone who knows that owner's password can enrol their own
+authenticator on the account. Wrong codes on the setup screen count against
+the same per-account lockout as the 2FA sign-in step.
+
+The api service in `docker-compose.yml` has to forward the variable, or
+production always runs with the default `true` and setting it in `.env.hetzner`
+has no effect. Add it to that service's `environment` block as
+`REQUIRE_OWNER_2FA: ${REQUIRE_OWNER_2FA:-true}` (an empty value also counts as
+unset, i.e. `true`). With that in place, setting `REQUIRE_OWNER_2FA=false` in
+`.env.hetzner` and recreating the api container
+(`docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d api`)
+is the rollback that needs no SQL.
+
+While the flag is on, an owner who already has 2FA cannot move it to a new
+authenticator or get new backup codes: setup refuses while 2FA is on, and
+switching it off is refused for owners (the CRM says so). The only way is the
+reset below, after which the owner should sign in and enrol again at once.
+
+An owner who has lost both the authenticator and the backup codes cannot switch
+2FA off themselves either. Reset it in the database; this also signs them out,
+and their next sign-in starts at the setup screen:
+
+```sh
+docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+UPDATE users SET "twoFactorEnabled" = false, "twoFactorSecret" = NULL,
+  "twoFactorBackupCodes" = '{}', "sessionVersion" = "sessionVersion" + 1
+WHERE email = '<owner email, lowercase>';
+SQL
+```
+
 ## Deploy
 
 ```sh

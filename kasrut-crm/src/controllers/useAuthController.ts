@@ -5,6 +5,7 @@ import {
   setUser,
   setTwoFactorPending,
   clearTwoFactorPending,
+  clearBackupCodes,
   logout as logoutAction,
 } from '@/store/authSlice'
 import {
@@ -26,6 +27,8 @@ export function useAuthController() {
   const role              = useAppSelector(s => s.auth.role)
   const twoFactorPending  = useAppSelector(s => s.auth.twoFactorPending)
   const pendingTempToken  = useAppSelector(s => s.auth.pendingTempToken)
+  const twoFactorSetupRequired = useAppSelector(s => s.auth.twoFactorSetupRequired)
+  const backupCodes       = useAppSelector(s => s.auth.backupCodes)
   const perm              = PERMISSIONS[role]
 
   const [loginMut,   { isLoading: loginLoading,   error: loginError   }] = useLoginMutation()
@@ -43,9 +46,10 @@ export function useAuthController() {
       dispatch(setTwoFactorPending({ tempToken: result.tempToken }))
       return
     }
-    const full = result as { user: import('@/types').User; token: string }
-    dispatch(setUser({ user: full.user, token: full.token }))
-    navigate('/dashboard', { replace: true })
+    const full = result as { user: import('@/types').User; token: string; twoFactorSetupRequired?: boolean }
+    const setupRequired = full.twoFactorSetupRequired === true
+    dispatch(setUser({ user: full.user, token: full.token, twoFactorSetupRequired: setupRequired }))
+    navigate(setupRequired ? '/setup-2fa' : '/dashboard', { replace: true })
   }
 
   const verify2fa = async (code: string) => {
@@ -61,10 +65,16 @@ export function useAuthController() {
 
   const setup2fa = (password: string) => setup2faMut({ password }).unwrap()
 
+  // Enabling issues a new session token (the old one stops working) and ends
+  // any forced setup; the backup codes stay in the store until acknowledged.
   const enable2fa = async (code: string) => {
     const result = await enable2faMut({ code }).unwrap()
-    dispatch(setUser({ user: result.user, token: result.token }))
+    dispatch(setUser({ user: result.user, token: result.token, backupCodes: result.backupCodes }))
     return result
+  }
+
+  const acknowledgeBackupCodes = () => {
+    dispatch(clearBackupCodes())
   }
 
   const disable2fa = async (code: string): Promise<import('@/types').User> => {
@@ -87,9 +97,10 @@ export function useAuthController() {
     user, token, role, perm,
     isLoading, error: loginError ?? verifyError,
     twoFactorPending, pendingTempToken,
+    twoFactorSetupRequired, backupCodes,
     login, verify2fa, cancelTwoFactor,
     setup2fa, setupLoading, setupError,
-    enable2fa, enableLoading, enableError,
+    enable2fa, enableLoading, enableError, acknowledgeBackupCodes,
     disable2fa, disableLoading, disableError,
     logout,
   }

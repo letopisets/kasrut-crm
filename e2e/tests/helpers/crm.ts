@@ -8,7 +8,12 @@ export async function loginToCrm(page: Page): Promise<void> {
   await page.getByLabel(/email/i).fill(CRM_EMAIL)
   await page.getByLabel(/password|пароль|סיסמה/i).fill(CRM_PASSWORD)
   await page.getByRole('button', { name: /sign in|log in|войти|כניסה|אישור/i }).click()
-  await expect(page).toHaveURL(/dashboard/, { timeout: 15_000 })
+  await expect(page).toHaveURL(/dashboard|setup-2fa/, { timeout: 15_000 })
+  // An owner without 2FA is confined to the forced setup screen while the API
+  // runs with REQUIRE_OWNER_2FA=true (its default); see e2e/README.md.
+  if (page.url().includes('/setup-2fa')) {
+    throw new Error('E2E owner landed on /setup-2fa: run the API with REQUIRE_OWNER_2FA=false (see e2e/README.md)')
+  }
 }
 
 export async function selectFirstNonEmptyOption(page: Page, label: RegExp): Promise<string> {
