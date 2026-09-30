@@ -87,6 +87,13 @@ an owner does, anyone who knows that owner's password can enrol their own
 authenticator on the account. Wrong codes on the setup screen count against
 the same per-account lockout as the 2FA sign-in step.
 
+Each authenticator code is accepted once per account: a code that already
+signed in, enabled or disabled 2FA is refused for the rest of its 30-second
+window, whichever sign-in it arrives with (the user waits for the next code).
+This and the single-use check of each 2FA sign-in live in Postgres
+(migration `20260930210000_two_factor_single_use`), so 2FA sign-in keeps
+working while Redis is down.
+
 The api service in `docker-compose.yml` forwards the variable as
 `REQUIRE_OWNER_2FA: ${REQUIRE_OWNER_2FA:-true}` (an empty value also counts as
 unset, i.e. `true`). Setting `REQUIRE_OWNER_2FA=false` in `.env.hetzner` and
@@ -142,9 +149,14 @@ account's `sessionVersion`, which signs the account out everywhere. The one
 exception is a token presented again within a minute of its own rotation,
 which is what a reload or a dropped connection in the middle of a refresh
 looks like: the chain is still revoked (that browser signs in again), but
-the account's other sessions stay. A new sign-in revokes the chain of the
-cookie it replaces. Expired rows are purged once a day by the API process,
-together with map email-verification and password-reset links that expired
+the account's other sessions stay. Access tokens already issued from that
+chain are not revoked by this: they stay valid until they expire (at most
+`ACCESS_TOKEN_TTL`, 15 minutes). If a stolen cookie was used first and the
+owner's browser presents it within that minute, that is the thief's window;
+after the minute the whole account is signed out. A new sign-in revokes the
+chain of the cookie it replaces. Expired rows are purged once a day by the
+API process, together with consumed 2FA challenges whose pending token has
+expired and map email-verification and password-reset links that expired
 more than a day earlier (`lib/tokenPurge.ts`).
 
 The calls that set a refresh cookie without an access token (CRM login,
@@ -233,6 +245,18 @@ UPDATE map_users SET "emailVerifiedAt" = now()
 WHERE email = '<map user email, lowercase>' AND "emailVerifiedAt" IS NULL;
 SQL
 ```
+
+### Moving an establishment to another rabbanut
+
+Only an explicit CRM edit (an owner changing the restaurant's rabbanut) moves
+an establishment between tenants; approving a map suggestion never does, and
+refuses a hechsher that belongs to another rabbanut. The inspection history
+moves with the place, but inspections by the old rabbanut's mashgichim lose
+that mashgiach link (the notes, dates and results stay). The database refuses
+a move that would leave such links (`restaurants_tenant_move_guard`,
+migration `20260930211000_restaurant_tenant_move_guard`, answered as 409), so
+SQL run by hand must clear `inspections."mashgiachId"` for those rows first.
+The same migration clears any such links left by earlier moves.
 
 ## Deploy
 
@@ -323,8 +347,8 @@ at once — it is a security incident, not a cold cache:
   in Postgres, which the API checks on every request, so this is lost defence
   in depth rather than an open door; an access token lives at most
   `ACCESS_TOKEN_TTL` (15 minutes) anyway.
-- 2FA login is refused (the single-use challenge check fails closed), and rate
-  limits fall back to per-process memory.
+- Rate limits and the per-account login lockout fall back to per-process
+  memory. 2FA sign-in keeps working: its single-use checks are in Postgres.
 - `/health` returns 503 with `"redis":"error"`, so the api turns (unhealthy) and
   compose will not start the map, CRM or nginx that depend on it.
 
