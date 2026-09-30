@@ -228,7 +228,12 @@ export async function checkLocked(scope: LoginThrottleScope, identifier: string)
   return entry ? lockState(entry.failures, entry.lastFailureAt, now) : NOT_LOCKED
 }
 
-/** Counts a failure even while locked; returns the lock state afterwards. */
+/**
+ * Counts a failure even while locked; returns the lock state afterwards.
+ * Test support only: the login paths reserve with reserveAttempt, which never
+ * counts a refused attempt. Kept so the lock arithmetic can be driven
+ * directly in loginThrottle(.redis).test.ts.
+ */
 export async function recordFailure(scope: LoginThrottleScope, identifier: string): Promise<LoginLockState> {
   const now = Date.now()
   const result = await attempt(loginThrottleKey(scope, identifier), now, true)

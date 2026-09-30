@@ -66,7 +66,7 @@ function moderationScope(req: Request): ReviewModerationScope {
 // timestamp, a NUL byte in the id) and surface as a 500 instead of a 400.
 const cursorPayloadSchema = z.object({
   createdAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-  id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+  id: z.string().regex(ENTITY_ID_RE),
 }).strict()
 
 // The cursor is opaque to clients: base64url(JSON {createdAt, id}) of the last

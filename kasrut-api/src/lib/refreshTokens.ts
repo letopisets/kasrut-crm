@@ -339,8 +339,3 @@ export async function revokePresentedRefreshFamily(
   const token = await findPresented(req, audience)
   if (token && ownerIdOf(token) === ownerId) await revokeRefreshFamily(token.familyId)
 }
-
-/** Removes expired refresh tokens. The daily job (server.ts) runs lib/tokenPurge.ts, which also covers the map links. */
-export function purgeExpiredRefreshTokens(): Promise<number> {
-  return refreshTokensRepo.purgeExpired(new Date())
-}

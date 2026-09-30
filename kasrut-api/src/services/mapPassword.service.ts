@@ -1,13 +1,11 @@
 import { createHash, randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
+import { dummyPasswordCompare } from '../lib/dummyPassword'
 
 const PASSWORD_HASH_ROUNDS = 12
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000
 
-// Hash (cost PASSWORD_HASH_ROUNDS) of a random value nobody knows. Accounts
-// without a password (unknown email, OAuth-only) are compared against it so
-// they cost the same bcrypt time as a wrong password; the result is ignored.
-export const DUMMY_PASSWORD_HASH = '$2a$12$SBGhhsdUS6dBzLBMkbeAoe/XTRFdGsPXPwjWthtpqJzxYnGVcbN22'
+export { DUMMY_PASSWORD_HASH } from '../lib/dummyPassword'
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
@@ -23,8 +21,7 @@ export function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, passwordHash: string | null | undefined): Promise<boolean> {
   if (passwordHash) return bcrypt.compare(password, passwordHash)
-  await bcrypt.compare(password, DUMMY_PASSWORD_HASH)
-  return false
+  return dummyPasswordCompare(password)
 }
 
 export function createPasswordResetToken(): string {

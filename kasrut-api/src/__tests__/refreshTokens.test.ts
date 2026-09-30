@@ -6,6 +6,7 @@ import { createApp } from '../app'
 import { env } from '../config/env'
 import { usersRepo } from '../db/users.repo'
 import { mapCommunityRepo, type MapAuthUserRow } from '../db/mapCommunity.repo'
+import { refreshTokensRepo } from '../db/refreshTokens.repo'
 import { verifyCrmAccessToken, verifyMapAccessToken } from '../lib/jwt'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { resetLoginThrottleMemory } from '../lib/loginThrottle'
@@ -13,7 +14,6 @@ import { logger } from '../lib/logger'
 import {
   REUSE_GRACE_MS,
   issueRefreshToken,
-  purgeExpiredRefreshTokens,
   readCookie,
   revokeRefreshFamily,
   rotateRefreshToken,
@@ -906,7 +906,8 @@ describe('requests from other sites', () => {
   })
 })
 
-describe('purgeExpiredRefreshTokens', () => {
+// What the daily purge (lib/tokenPurge.ts) runs for this table.
+describe('refreshTokensRepo.purgeExpired', () => {
   it('deletes expired rows only', async () => {
     const live = (await crmSession()).refresh
     const expired = (await crmSession()).refresh
@@ -914,7 +915,7 @@ describe('purgeExpiredRefreshTokens', () => {
     await crmRefresh(used)
     rowFor(expired)!.expiresAt = new Date(Date.now() - 1000)
 
-    expect(await purgeExpiredRefreshTokens()).toBe(1)
+    expect(await refreshTokensRepo.purgeExpired(new Date())).toBe(1)
     expect(rowFor(expired)).toBeUndefined()
     expect(rowFor(live)).toBeDefined()
     // A used row stays until it expires, so replaying it is still caught.

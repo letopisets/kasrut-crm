@@ -1,5 +1,5 @@
 import type { Response } from 'express'
-import bcrypt from 'bcryptjs'
+import { dummyPasswordCompare } from '../lib/dummyPassword'
 import { usersRepo } from '../db/users.repo'
 import type { User } from '../models/types'
 import { serializeUser } from '../serializers/user.serializer'
@@ -18,15 +18,10 @@ import {
   startRefreshSession,
 } from '../lib/refreshTokens'
 
-// Cost-12 hash (the cost usersRepo.create uses) of a random value nobody
-// knows. An unknown email is compared against it so that it costs the same
-// bcrypt time as a wrong password; the result is always ignored.
-const DUMMY_PASSWORD_HASH = '$2a$12$YgiuxHIzZat8XL5IWPGyu.ZK4AJI8gbZAmK5F/L0ugVYieTCeO8yq'
-
+// An unknown email costs the same bcrypt time as a wrong password.
 async function verifyLoginPassword(user: User | null, password: string): Promise<boolean> {
   if (user) return usersRepo.verifyPassword(user, password)
-  await bcrypt.compare(password, DUMMY_PASSWORD_HASH)
-  return false
+  return dummyPasswordCompare(password)
 }
 
 function signFullToken(user: User) {
