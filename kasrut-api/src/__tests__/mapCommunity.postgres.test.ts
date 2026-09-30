@@ -37,10 +37,15 @@ describeWithPostgres('mapCommunity repository against a real Postgres', () => {
     return user.id
   }
 
+  const rabbanutIds: string[] = []
+
   afterAll(async () => {
     await prisma.refreshToken.deleteMany({ where: { mapUserId: { in: mapUserIds } } })
     await prisma.mapRestaurantSuggestion.deleteMany({ where: { mapUserId: { in: mapUserIds } } })
     await prisma.mapUser.deleteMany({ where: { id: { in: mapUserIds } } })
+    await prisma.restaurant.deleteMany({ where: { rabbanutId: { in: rabbanutIds } } })
+    await prisma.hechsher.deleteMany({ where: { rabbanutId: { in: rabbanutIds } } })
+    await prisma.rabbanut.deleteMany({ where: { id: { in: rabbanutIds } } })
     await prisma.$disconnect()
   })
 
@@ -117,6 +122,59 @@ describeWithPostgres('mapCommunity repository against a real Postgres', () => {
       expect(rows.refresh).toEqual([tag('rt-used-live')])
       expect(rows.verification.sort()).toEqual([tag('ev-in-grace'), tag('ev-live')].sort())
       expect(rows.reset).toEqual([tag('pr-live')])
+    })
+  })
+
+  describe('suggestion approval against withdrawn authorities', () => {
+    // An update suggestion that only names a hechsher needs no geocoding, so
+    // this runs the real resolveHechsher / resolveRabbanutId queries offline.
+    async function fixture() {
+      const rabbanut = await prisma.rabbanut.create({
+        data: { name: `PG ${run} R${rabbanutIds.length}`, city: `PGCity${run}`, contact: '', phone: '', email: '', color: '#000' },
+      })
+      rabbanutIds.push(rabbanut.id)
+      const base = { city: rabbanut.city, contact: '', phone: '', email: '', type: 'Rabbanut' as const, color: '#000', rabbanutId: rabbanut.id }
+      const current = await prisma.hechsher.create({ data: { ...base, name: `Current ${run}`, shortName: `C${run}` } })
+      const withdrawn = await prisma.hechsher.create({ data: { ...base, name: `Withdrawn ${run}`, shortName: `W${run}`, active: false } })
+      const replacement = await prisma.hechsher.create({ data: { ...base, name: `Replacement ${run}`, shortName: `R${run}` } })
+      const restaurant = await prisma.restaurant.create({
+        data: {
+          name: 'Falafel', address: 'Herzl 1', city: rabbanut.city, levelId: 'kl_regular',
+          hechsherId: current.id, rabbanutId: rabbanut.id, expires: new Date('2030-01-01'),
+        },
+      })
+      const mapUserId = await createMapUser()
+      const suggest = (proposedHechsher: string) => prisma.mapRestaurantSuggestion.create({
+        data: { mapUserId, type: 'update', restaurantId: restaurant.id, proposedHechsher },
+      })
+      return { rabbanut, current, withdrawn, replacement, restaurant, suggest }
+    }
+
+    it('refuses to relink a place to a withdrawn hechsher, and relinks to an active one', async () => {
+      const { withdrawn, replacement, restaurant, suggest } = await fixture()
+
+      const toWithdrawn = await suggest(withdrawn.name)
+      await expect(mapCommunityRepo.reviewSuggestion(toWithdrawn.id, { status: 'approved', reviewerRole: 'owner' }))
+        .rejects.toThrow(/^Cannot approve suggestion: hechsher .* is inactive/)
+      expect((await prisma.restaurant.findUniqueOrThrow({ where: { id: restaurant.id } })).hechsherId).not.toBe(withdrawn.id)
+      expect(await prisma.hechsher.count({ where: { name: withdrawn.name } })).toBe(1)
+
+      const toActive = await suggest(replacement.name)
+      const approved = await mapCommunityRepo.reviewSuggestion(toActive.id, { status: 'approved', reviewerRole: 'owner' })
+      expect(approved?.status).toBe('approved')
+      expect((await prisma.restaurant.findUniqueOrThrow({ where: { id: restaurant.id } })).hechsherId).toBe(replacement.id)
+    })
+
+    it("refuses a tenant reviewer whose own rabbanut has been switched off", async () => {
+      const { rabbanut, restaurant, suggest } = await fixture()
+      await prisma.rabbanut.update({ where: { id: rabbanut.id }, data: { active: false } })
+
+      const suggestion = await suggest(`Brand new ${run}`)
+      await expect(mapCommunityRepo.reviewSuggestion(suggestion.id, {
+        status: 'approved', reviewerRole: 'rabbanut', reviewerRabbanutId: rabbanut.id,
+      })).rejects.toThrow('Cannot approve suggestion: your rabbanut is inactive or removed')
+      expect(await prisma.hechsher.count({ where: { name: `Brand new ${run}` } })).toBe(0)
+      expect((await prisma.restaurant.findUniqueOrThrow({ where: { id: restaurant.id } })).rabbanutId).toBe(rabbanut.id)
     })
   })
 })
