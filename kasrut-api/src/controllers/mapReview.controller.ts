@@ -189,8 +189,8 @@ export const mapReviewController = {
       `author ${deleted.mapUserId}, rating ${deleted.rating})`
     // Nothing server-side to invalidate: the public review list and its rating
     // summary are read from the database on every request (no Redis key, no
-    // Cache-Control, no nginx cache), and no cached map payload (map:* /
-    // restaurants:* keys, prerender, sitemap) carries a rating. Flushing the
+    // Cache-Control, no nginx cache), and no cached map payload (map and CRM
+    // restaurant list entries, prerender, sitemap) carries a rating. Flushing the
     // map namespace here would only cost every map visitor a cold cache.
     res.status(204).end()
   }),

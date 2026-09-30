@@ -1,4 +1,5 @@
-import { invalidateKeys, invalidateNamespace, invalidatePattern, withNamespaceCache } from './cache'
+import { invalidateKeys, invalidateNamespace, withNamespaceCache } from './cache'
+import { invalidateRestaurantsCache } from './crmCache'
 
 // Every public-map response that depends on CRM data (restaurant list pages,
 // single restaurant, filter options, hechsher list, sitemap) is cached in this
@@ -23,11 +24,10 @@ const LEGACY_MAP_KEYS = ['map:sitemap', 'map:options', 'map:hechsherim']
  * One-stop cache buster for map data.
  *
  * Bumps the map namespace generation (O(1), complete), drops the legacy fixed
- * keys and sweeps `restaurants:*`, the legacy CRM cache namespace, which only
- * authenticated CRM requests can populate.
+ * keys and bumps the CRM restaurant lists, which hold the same rows.
  */
 export const invalidateMapCache = (): Promise<unknown> => Promise.all([
   invalidateNamespace(MAP_NAMESPACE),
   invalidateKeys(...LEGACY_MAP_KEYS),
-  invalidatePattern('restaurants:*'),
+  invalidateRestaurantsCache(),
 ])

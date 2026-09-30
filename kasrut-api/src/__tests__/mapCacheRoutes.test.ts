@@ -16,20 +16,11 @@ jest.mock('otplib', () => ({
 }))
 jest.mock('../lib/redis', () => {
   const store = new Map<string, string>()
-  // Every key ever written, in write order. SCAN walks it the way Redis walks
-  // its table: COUNT slots per call, the cursor is a position, MATCH filters
-  // what was visited, and a key present for the whole scan is returned.
-  const order: string[] = []
-  const write = (key: string, value: string) => {
-    if (!store.has(key)) order.push(key)
-    store.set(key, value)
-  }
-  const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const glob = (pattern: string) => new RegExp(`^${pattern.split('*').map(escapeRe).join('.*')}$`)
+  const write = (key: string, value: string) => { store.set(key, value) }
   return {
     __store: store,
     __write: write,
-    __reset: () => { store.clear(); order.length = 0 },
+    __reset: () => { store.clear() },
     redis: {
       status: 'end', // the rate limiter falls back to its in-memory buckets
       get:    jest.fn(async (key: string) => store.get(key) ?? null),
@@ -50,13 +41,8 @@ jest.mock('../lib/redis', () => {
         return 1
       }),
       del:    jest.fn(async (...keys: string[]) => keys.filter(k => store.delete(k)).length),
-      scan:   jest.fn(async (cursor: string, _match: string, pattern: string, _count: string, count: number) => {
-        const from = Number(cursor)
-        const to = Math.min(from + count, order.length)
-        const re = glob(pattern)
-        const page = order.slice(from, to).filter(k => store.has(k) && re.test(k))
-        return [to >= order.length ? '0' : String(to), page]
-      }),
+      // No cache namespace is swept any more; any call is a regression.
+      scan:   jest.fn(async () => ['0', []]),
     },
   }
 })
@@ -171,15 +157,18 @@ describe('map cache invalidation', () => {
     await request(app).get('/api/map/prerender/r_abc').expect(404)
   })
 
-  it('invalidates by bumping the generation, without sweeping the map namespace', async () => {
+  it('invalidates by bumping generations, without sweeping any namespace', async () => {
     mockMap.findById.mockResolvedValue(row())
     await request(app).get('/api/map/restaurants/r_abc').expect(200)
     const generation = Number(store.get('map:gen'))
+    redisFake.__write('restaurants:gen', '1790000000000')
 
     await invalidateMapCache()
 
     expect(Number(store.get('map:gen'))).toBe(generation + 1)
-    expect(mockedRedis.scan.mock.calls.map(call => call[2])).toEqual(['restaurants:*'])
+    // The CRM restaurant lists hold the same rows.
+    expect(store.get('restaurants:gen')).toBe('1790000000001')
+    expect(mockedRedis.scan).not.toHaveBeenCalled()
   })
 
   it('drops cached list pages and the sitemap', async () => {

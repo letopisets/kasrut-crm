@@ -1,6 +1,9 @@
 import {
-  withCache, invalidateKeys, invalidatePattern, withNamespaceCache, invalidateNamespace,
+  withCache, invalidateKeys, withNamespaceCache, invalidateNamespace,
 } from '../lib/cache'
+import {
+  invalidateHechsherimCache, invalidateRestaurantsCache, withHechsherimCache, withRestaurantsCache,
+} from '../lib/crmCache'
 import { invalidateMapCache, withMapCache } from '../lib/mapCache'
 import { redis } from '../lib/redis'
 import { logger } from '../lib/logger'
@@ -136,7 +139,6 @@ describe('withCache', () => {
 
   it('does not repopulate stale data when invalidated during a load', async () => {
     mockedRedis.get.mockResolvedValueOnce(null)
-    mockedRedis.scan.mockResolvedValueOnce(['0', []])
 
     let resolveLoader!: (value: string) => void
     const loader = jest.fn(() => new Promise<string>(resolve => {
@@ -145,7 +147,7 @@ describe('withCache', () => {
 
     const pending = withCache('restaurants:list', 300, loader)
     await Promise.resolve()
-    await invalidatePattern('restaurants:*')
+    await invalidateKeys('restaurants:list')
     resolveLoader('stale snapshot')
 
     await expect(pending).resolves.toBe('stale snapshot')
@@ -155,7 +157,6 @@ describe('withCache', () => {
   it('does not let a post-invalidation caller join a pre-invalidation load', async () => {
     mockedRedis.get.mockResolvedValue(null)
     mockedRedis.setex.mockResolvedValue('OK')
-    mockedRedis.scan.mockResolvedValueOnce(['0', []])
 
     let resolveStale!: (value: string) => void
     const loader = jest.fn()
@@ -164,7 +165,7 @@ describe('withCache', () => {
 
     const before = withCache('map:options', 600, loader)
     await Promise.resolve()
-    await invalidatePattern('map:*')
+    await invalidateKeys('map:options')
     const after = withCache('map:options', 600, loader)
     resolveStale('stale')
 
@@ -211,44 +212,6 @@ describe('invalidateKeys', () => {
   it('swallows redis errors silently', async () => {
     mockedRedis.del.mockRejectedValueOnce(new Error('down'))
     await expect(invalidateKeys('map:options')).resolves.toBeUndefined()
-  })
-})
-
-describe('invalidatePattern', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-  })
-
-  it('deletes all matching keys across multiple scan pages', async () => {
-    mockedRedis.scan
-      .mockResolvedValueOnce(['10', ['a:1', 'a:2']])
-      .mockResolvedValueOnce(['0',  ['a:3']])
-    await invalidatePattern('a:*')
-    expect(mockedRedis.scan).toHaveBeenNthCalledWith(1, '0', 'MATCH', 'a:*', 'COUNT', 200)
-    expect(mockedRedis.scan).toHaveBeenNthCalledWith(2, '10', 'MATCH', 'a:*', 'COUNT', 200)
-    expect(mockedRedis.del).toHaveBeenCalledWith('a:1', 'a:2')
-    expect(mockedRedis.del).toHaveBeenCalledWith('a:3')
-  })
-
-  it('does nothing when no keys match', async () => {
-    mockedRedis.scan.mockResolvedValueOnce(['0', []])
-    await invalidatePattern('z:*')
-    expect(mockedRedis.del).not.toHaveBeenCalled()
-  })
-
-  it('swallows redis errors silently', async () => {
-    mockedRedis.scan.mockRejectedValueOnce(new Error('down'))
-    await expect(invalidatePattern('a:*')).resolves.toBeUndefined()
-  })
-
-  it('stops at the key cap', async () => {
-    const page = Array.from({ length: 200 }, (_, i) => `a:${i}`)
-    mockedRedis.scan.mockResolvedValue(['1', page])
-    await invalidatePattern('a:*')
-    // 25 pages x 200 keys = the 5,000-key cap; the cursor is then abandoned.
-    expect(mockedRedis.scan).toHaveBeenCalledTimes(25)
-    expect(mockedRedis.del).toHaveBeenCalledTimes(25)
-    mockedRedis.scan.mockReset()
   })
 })
 
@@ -464,27 +427,26 @@ describe('mapCache', () => {
     Object.values(mockedRedis).forEach(m => m.mockReset())
   })
 
-  it('invalidateMapCache bumps the map generation and sweeps only the CRM namespace', async () => {
-    const store = useFakeRedis({ 'map:gen': '41' })
-    mockedRedis.scan.mockResolvedValue(['0', []])
+  it('invalidateMapCache bumps the map and CRM restaurant generations without sweeping', async () => {
+    const store = useFakeRedis({ 'map:gen': '41', 'restaurants:gen': '7', 'hechsherim:gen': '3' })
 
     await invalidateMapCache()
 
     expect(store.get('map:gen')).toBe('42')
-    const patterns = mockedRedis.scan.mock.calls.map(call => call[2])
-    expect(patterns).toEqual(['restaurants:*'])
+    expect(store.get('restaurants:gen')).toBe('8')
+    expect(store.get('hechsherim:gen')).toBe('3')
+    expect(mockedRedis.scan).not.toHaveBeenCalled()
   })
 
   it('invalidateMapCache drops the unversioned keys an older build would read after a rollback', async () => {
     const store = useFakeRedis({
       'map:gen': '41', 'map:sitemap': '"<urlset/>"', 'map:options': '{}', 'map:hechsherim': '[]',
     })
-    mockedRedis.scan.mockResolvedValue(['0', []])
 
     await invalidateMapCache()
 
     expect(mockedRedis.del).toHaveBeenCalledWith('map:sitemap', 'map:options', 'map:hechsherim')
-    expect([...store.keys()]).toEqual(['map:gen'])
+    expect([...store.keys()].filter(key => !key.endsWith(':gen'))).toEqual([])
   })
 
   it('withMapCache reads and writes the map namespace', async () => {
@@ -494,5 +456,55 @@ describe('mapCache', () => {
     await expect(withMapCache('hechsherim', 600, loader)).resolves.toEqual(['h1'])
 
     expect(mockedRedis.setex).toHaveBeenCalledWith('map:v42:hechsherim', 600, JSON.stringify(['h1']))
+  })
+})
+
+describe('crmCache', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  afterEach(() => {
+    Object.values(mockedRedis).forEach(m => m.mockReset())
+  })
+
+  it('keeps the CRM lists in their own generation-versioned namespaces', async () => {
+    useFakeRedis({ 'restaurants:gen': '5', 'hechsherim:gen': '9' })
+
+    await withRestaurantsCache('list:{"mashgiachId":"m1"}', 300, async () => ['r1'])
+    await withHechsherimCache('list:all:all', 300, async () => ['h1'])
+
+    expect(mockedRedis.setex).toHaveBeenCalledWith('restaurants:v5:list:{"mashgiachId":"m1"}', 300, JSON.stringify(['r1']))
+    expect(mockedRedis.setex).toHaveBeenCalledWith('hechsherim:v9:list:all:all', 300, JSON.stringify(['h1']))
+  })
+
+  it('invalidates each with one INCR', async () => {
+    const store = useFakeRedis({ 'restaurants:gen': '5', 'hechsherim:gen': '9' })
+
+    await invalidateRestaurantsCache()
+    await invalidateHechsherimCache()
+
+    expect(store.get('restaurants:gen')).toBe('6')
+    expect(store.get('hechsherim:gen')).toBe('10')
+    expect(mockedRedis.scan).not.toHaveBeenCalled()
+    expect(mockedRedis.del).not.toHaveBeenCalled()
+  })
+
+  // A Redis stall used to cut the SCAN sweep short with nothing owed: the
+  // mutation returned and readers got the pre-mutation list, a mashgiach's
+  // included, for up to the 300 s TTL.
+  it('never serves a list from before a mutation whose invalidation timed out', async () => {
+    const store = useFakeRedis({
+      'restaurants:gen': '5',
+      'restaurants:v5:list:{"mashgiachId":"m1"}': JSON.stringify(['r1', 'r2']),
+    })
+    mockedRedis.incr.mockRejectedValueOnce(new Error('Command timed out'))
+
+    await invalidateRestaurantsCache()   // r2 was just reassigned away from m1
+    const loader = jest.fn().mockResolvedValue(['r1'])
+
+    await expect(withRestaurantsCache('list:{"mashgiachId":"m1"}', 300, loader)).resolves.toEqual(['r1'])
+    expect(loader).toHaveBeenCalledTimes(1)
+    expect(store.get('restaurants:gen')).toBe('6')   // the owed bump, delivered by the read
   })
 })

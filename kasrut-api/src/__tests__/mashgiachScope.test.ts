@@ -4,7 +4,7 @@ import { mashgichimRepo } from '../db/mashgichim.repo'
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { usersRepo } from '../db/users.repo'
 import { signCrmAccessToken } from '../lib/jwt'
-import { invalidatePattern } from '../lib/cache'
+import { invalidateRestaurantsCache } from '../lib/crmCache'
 import type { Mashgiach, User } from '../models/types'
 
 // The mashgiach controller used to skip rabbanut-scoping entirely, so a rabbanut
@@ -17,9 +17,9 @@ jest.mock('../db/mashgichim.repo')
 jest.mock('../db/hechsherim.repo')
 jest.mock('../db/rabbanuts.repo')
 jest.mock('../db/documents.repo')
-jest.mock('../lib/cache', () => ({
-  ...jest.requireActual('../lib/cache'),
-  invalidatePattern: jest.fn(async () => undefined),
+jest.mock('../lib/crmCache', () => ({
+  ...jest.requireActual('../lib/crmCache'),
+  invalidateRestaurantsCache: jest.fn(async () => undefined),
 }))
 jest.mock('otplib', () => ({
   generateSecret: () => 'MOCKSECRET32',
@@ -119,14 +119,14 @@ describe('POST /api/mashgichim/:id/assign tenant scoping', () => {
       .send({ restaurantId: 'r1' })
     expect(res.status).toBe(400)
     expect(mockM.assignRestaurant).not.toHaveBeenCalled()
-    expect(invalidatePattern).not.toHaveBeenCalled()
+    expect(invalidateRestaurantsCache).not.toHaveBeenCalled()
   })
 
   // The mashgiach restaurant lists are cached for 5 minutes: the unassigned
   // mashgiach kept the full restaurant in their list (while GET by id already
   // answered 403), and the new one did not see it.
   it('drops the cached restaurant lists after a successful assignment', async () => {
-    jest.mocked(invalidatePattern).mockClear()
+    jest.mocked(invalidateRestaurantsCache).mockClear()
     mockM.findById.mockResolvedValue(mashgiach('rb_a'))
     mockR.findById.mockResolvedValue({ id: 'r1', rabbanutId: 'rb_a' } as never)
     mockM.assignRestaurant.mockResolvedValue({ ...mashgiach('rb_a'), assignedRestaurantIds: ['r1'] })
@@ -136,8 +136,8 @@ describe('POST /api/mashgichim/:id/assign tenant scoping', () => {
       .send({ restaurantId: 'r1' })
 
     expect(res.status).toBe(200)
-    expect(invalidatePattern).toHaveBeenCalledWith('restaurants:*')
-    expect(jest.mocked(invalidatePattern).mock.invocationCallOrder[0])
+    expect(invalidateRestaurantsCache).toHaveBeenCalledTimes(1)
+    expect(jest.mocked(invalidateRestaurantsCache).mock.invocationCallOrder[0])
       .toBeGreaterThan(mockM.assignRestaurant.mock.invocationCallOrder[0])
   })
 })

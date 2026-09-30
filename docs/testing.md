@@ -17,6 +17,7 @@ while Redis still runs it. They skip themselves unless their variable is set:
 | `security.postgres.test.ts` | `POSTGRES_TEST_DATABASE_URL` | 2FA single use, tenant triggers, restaurant moves |
 | `loginThrottle.redis.test.ts` | `REDIS_TEST_URL` | login lockout arithmetic in the Lua script; one count per attempt across a stall |
 | `rateLimit.redis.test.ts` | `REDIS_TEST_URL` | rate-limit windows always get an expiry, also after a stall |
+| `cache.redis.test.ts` | `REDIS_TEST_URL` | a CRM list is not served stale after an invalidation that timed out |
 
 Point them at **throwaway** servers only: the suites insert and delete rows
 and keys, and the Redis suites stall the server for about a second

@@ -5,16 +5,16 @@ import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { usersRepo } from '../db/users.repo'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
 import { invalidateMapCache } from '../lib/mapCache'
-import { invalidatePattern } from '../lib/cache'
+import { invalidateHechsherimCache } from '../lib/crmCache'
 import type { User } from '../models/types'
 
 jest.mock('../lib/prisma', () => ({ prisma: {} }))
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('../lib/tokenBlacklist')
 jest.mock('../lib/mapCache', () => ({ invalidateMapCache: jest.fn(async () => undefined) }))
-jest.mock('../lib/cache', () => ({
-  ...jest.requireActual('../lib/cache'),
-  invalidatePattern: jest.fn(async () => undefined),
+jest.mock('../lib/crmCache', () => ({
+  ...jest.requireActual('../lib/crmCache'),
+  invalidateHechsherimCache: jest.fn(async () => undefined),
 }))
 jest.mock('../db/users.repo')
 jest.mock('../db/mapCommunity.repo')
@@ -96,7 +96,7 @@ describe('map suggestion moderation: caches', () => {
 
     expect(res.status).toBe(200)
     expect(invalidateMapCache).toHaveBeenCalledTimes(1)
-    expect(invalidatePattern).toHaveBeenCalledWith('hechsherim:*')
+    expect(invalidateHechsherimCache).toHaveBeenCalledTimes(1)
   })
 
   it('leaves the caches alone on rejection', async () => {
@@ -107,6 +107,6 @@ describe('map suggestion moderation: caches', () => {
 
     expect(res.status).toBe(200)
     expect(invalidateMapCache).not.toHaveBeenCalled()
-    expect(invalidatePattern).not.toHaveBeenCalled()
+    expect(invalidateHechsherimCache).not.toHaveBeenCalled()
   })
 })

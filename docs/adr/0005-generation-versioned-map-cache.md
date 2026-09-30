@@ -18,7 +18,7 @@ The map cache is a generation-versioned namespace (`withNamespaceCache` / `inval
 - The process-local stale-write guard and in-flight coalescing in `withCache` apply unchanged.
 - Misses are never stored, and public by-id reads reject ids outside `^[A-Za-z0-9_-]{1,64}$` with a 404 before any cache or database access.
 
-`restaurants:*` (the authenticated CRM list cache) and `hechsherim:*` keep the capped SCAN sweep: only CRM users can create their keys.
+`restaurants:*` (the authenticated CRM list cache) and `hechsherim:*` keep the capped SCAN sweep: only CRM users can create their keys. *(Superseded 2026-09-30, see the amendment below.)*
 
 Every invalidation also deletes the three fixed keys of the old unversioned layout (`map:sitemap`, `map:options`, `map:hechsherim`), which this build never reads, so a rollback to an earlier build cannot serve a snapshot taken before a mutation made under this one. The per-place and list keys of that layout live five minutes. This can go one release later.
 
@@ -34,3 +34,9 @@ Every invalidation also deletes the three fixed keys of the old unversioned layo
 - One extra Redis `GET` per cached public-map request.
 - Superseded entries occupy memory until their TTL (at most one hour, the sitemap).
 - A bump that fails is owed only by the process that issued it. Other API processes keep trusting the old generation until that process's next map read delivers it, and a short-lived process (`scripts/regeocode.ts`, `regeocode-runtime.cjs`) exits still owing it. Changes that never go through `invalidateMapCache` (hand-run SQL, certificate expiry) rely on the TTL as before. In those cases, bump by hand on the host: `docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml exec redis sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli INCR map:gen'` (Redis requires a password; see the deployment guide).
+
+## Amendment (2026-09-30): the CRM list caches are namespaces too
+
+Once every Redis command gives up after 500 ms (`REDIS_COMMAND_TIMEOUT_MS`), a stall could cut the `restaurants:*` and `hechsherim:*` sweeps short: the mutation returned, nothing recorded that the sweep was still owed, and readers got the pre-mutation list (a mashgiach's own list included) until the 300 s TTL ran out. Both caches are now generation-versioned namespaces (`lib/crmCache.ts`: `restaurants:v<gen>:list:…` and `hechsherim:v<gen>:list:…`, counters `restaurants:gen` and `hechsherim:gen`). A failed bump leaves this process bypassing the namespace until one lands, and a bump that lands late only makes the entries written meanwhile unreachable. `invalidateMapCache` bumps `restaurants` alongside `map`. `invalidatePattern` and its SCAN sweep are gone.
+
+A rollback to a build from before this change reads `restaurants:list:…` and `hechsherim:list:…`, which this build never writes: only entries from before the deploy exist, and they expire within five minutes of it.

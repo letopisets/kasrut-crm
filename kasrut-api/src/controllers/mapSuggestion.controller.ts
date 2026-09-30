@@ -5,7 +5,7 @@ import {
   serializeMapSuggestionFull,
 } from '../serializers/mapCommunity.serializer'
 import { invalidateMapCache } from '../lib/mapCache'
-import { invalidatePattern } from '../lib/cache'
+import { invalidateHechsherimCache } from '../lib/crmCache'
 import { asyncHandler } from '../lib/asyncHandler'
 import { CoordinateValidationError } from '../lib/geoValidation'
 import { ForbiddenScopeError, resolveScopeRabbanutId } from '../lib/rabbanutScope'
@@ -144,7 +144,7 @@ export const mapSuggestionController = {
       // Approval can also create a hechsher in the reviewer's tenant (see
       // resolveHechsher), so the CRM hechsher lists go too, as they do for a
       // hechsher created in the CRM.
-      if (status === 'approved') await Promise.all([invalidateMapCache(), invalidatePattern('hechsherim:*')])
+      if (status === 'approved') await Promise.all([invalidateMapCache(), invalidateHechsherimCache()])
       res.json(serializeMapSuggestionFull(result, { includeEmail: reviewerRole === 'owner' }))
     } catch (e) {
       if (e instanceof CoordinateValidationError) {

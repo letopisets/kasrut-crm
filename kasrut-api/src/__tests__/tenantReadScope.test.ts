@@ -6,7 +6,7 @@ import { hechsherimRepo } from '../db/hechsherim.repo'
 import { inspectionsRepo } from '../db/inspections.repo'
 import { rabbanutRepo } from '../db/rabbanuts.repo'
 import { usersRepo } from '../db/users.repo'
-import { withCache } from '../lib/cache'
+import { withNamespaceCache } from '../lib/cache'
 import {
   applyWriteScope,
   assertOwnsRabbanut,
@@ -16,7 +16,7 @@ import {
 import type { Hechsher, Rabbanut, Role, User } from '../models/types'
 
 // Read scoping used to narrow only the 'rabbanut' role: a mashgiach could list
-// every tenant's hechsherim (served from the owner's 'hechsherim:list:all'
+// every tenant's hechsherim (served from the owner's unscoped 'list:all'
 // cache entry), open any hechsher by id, and enumerate every rabbanut.
 jest.mock('../lib/prisma')
 jest.mock('../db/users.repo')
@@ -31,7 +31,6 @@ jest.mock('../lib/cache', () => ({
   withNamespaceCache: jest.fn((_ns: string, _key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
   invalidateNamespace: jest.fn(async () => undefined),
   invalidateKeys: jest.fn(async () => undefined),
-  invalidatePattern: jest.fn(async () => undefined),
 }))
 jest.mock('otplib', () => ({
   generateSecret: () => 'M', generateURI: () => '', verifySync: () => ({ valid: true }),
@@ -42,7 +41,7 @@ const mockH         = hechsherimRepo as jest.Mocked<typeof hechsherimRepo>
 const mockI         = inspectionsRepo as jest.Mocked<typeof inspectionsRepo>
 const mockRb        = rabbanutRepo as jest.Mocked<typeof rabbanutRepo>
 const mockUsers     = usersRepo as jest.Mocked<typeof usersRepo>
-const mockWithCache = withCache as jest.MockedFunction<typeof withCache>
+const mockWithCache = withNamespaceCache as jest.MockedFunction<typeof withNamespaceCache>
 const app = createApp()
 
 /** Sign a CRM token and make the auth middleware resolve the same account.
@@ -147,7 +146,7 @@ describe('GET /api/hechsherim tenant scoping', () => {
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(2)
     expect(mockH.findAll).toHaveBeenCalledWith({ rabbanutId: undefined, active: undefined })
-    expect(mockWithCache).toHaveBeenCalledWith('hechsherim:list:all:all', expect.any(Number), expect.any(Function))
+    expect(mockWithCache).toHaveBeenCalledWith('hechsherim', 'list:all:all', expect.any(Number), expect.any(Function))
   })
 
   it('owner may filter by any rabbanut', async () => {
@@ -168,7 +167,7 @@ describe('GET /api/hechsherim tenant scoping', () => {
     for (const [filter] of mockH.findAll.mock.calls) {
       expect(filter).toEqual({ rabbanutId: undefined, active: undefined })
     }
-    const keys = mockWithCache.mock.calls.map(([key]) => key)
+    const keys = mockWithCache.mock.calls.map(([ns, suffix]) => `${ns}:${suffix}`)
     expect(keys).toEqual(['hechsherim:list:all:all', 'hechsherim:list:all:all'])
   })
 
@@ -178,7 +177,7 @@ describe('GET /api/hechsherim tenant scoping', () => {
 
     expect(res.status).toBe(200)
     expect(mockH.findAll).toHaveBeenCalledWith({ rabbanutId: 'rb_a', active: undefined })
-    expect(mockWithCache).toHaveBeenCalledWith('hechsherim:list:rb:rb_a:all', expect.any(Number), expect.any(Function))
+    expect(mockWithCache).toHaveBeenCalledWith('hechsherim', 'list:rb:rb_a:all', expect.any(Number), expect.any(Function))
   })
 
   it('mashgiach is pinned to its own tenant and never reads the all-tenant entry', async () => {
@@ -187,8 +186,8 @@ describe('GET /api/hechsherim tenant scoping', () => {
 
     expect(res.status).toBe(200)
     expect(mockH.findAll).toHaveBeenCalledWith({ rabbanutId: 'rb_b', active: true })
-    expect(mockWithCache).toHaveBeenCalledWith('hechsherim:list:rb:rb_b:true', expect.any(Number), expect.any(Function))
-    const keys = mockWithCache.mock.calls.map(([key]) => key)
+    expect(mockWithCache).toHaveBeenCalledWith('hechsherim', 'list:rb:rb_b:true', expect.any(Number), expect.any(Function))
+    const keys = mockWithCache.mock.calls.map(([ns, suffix]) => `${ns}:${suffix}`)
     expect(keys.some(k => k.startsWith('hechsherim:list:all'))).toBe(false)
   })
 
@@ -214,7 +213,7 @@ describe('GET /api/hechsherim tenant scoping', () => {
       expect(res.status).toBe(200)
     }
 
-    const keys = mockWithCache.mock.calls.map(([key]) => key)
+    const keys = mockWithCache.mock.calls.map(([ns, suffix]) => `${ns}:${suffix}`)
     expect(keys).toEqual([
       'hechsherim:list:all:all',
       'hechsherim:list:rb:all:all',

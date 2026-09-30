@@ -2,7 +2,7 @@ import { hechsherimRepo } from '../db/hechsherim.repo'
 import { serializeHechsher, serializeHechsherim } from '../serializers/hechsher.serializer'
 import { validate } from '../lib/validate'
 import { createHechsherSchema, updateHechsherSchema, paginationSchema } from '../schemas'
-import { invalidatePattern, withCache } from '../lib/cache'
+import { invalidateHechsherimCache, withHechsherimCache } from '../lib/crmCache'
 import { invalidateMapCache as invalidateMapNamespace } from '../lib/mapCache'
 import {
   applyWriteScope,
@@ -13,7 +13,7 @@ import { asyncHandler } from '../lib/asyncHandler'
 
 const invalidateAll = () => Promise.all([
   invalidateMapNamespace(),
-  invalidatePattern('hechsherim:*'),
+  invalidateHechsherimCache(),
 ])
 
 export const hechsherController = {
@@ -34,8 +34,8 @@ export const hechsherController = {
     // only an unfiltered owner reaches: every other role always resolves to
     // its own rabbanutId above, and non-string query values are dropped there.
     const scopeKey = rabbanutId !== undefined ? `rb:${rabbanutId}` : 'all'
-    const cacheKey = `hechsherim:list:${scopeKey}:${active ?? 'all'}`
-    const data = await withCache(cacheKey, 300, () => hechsherimRepo.findAll({ rabbanutId, active }))
+    const cacheKey = `list:${scopeKey}:${active ?? 'all'}`
+    const data = await withHechsherimCache(cacheKey, 300, () => hechsherimRepo.findAll({ rabbanutId, active }))
     res.json(serializeHechsherim(data))
   }),
 

@@ -3,7 +3,7 @@ import { createApp } from '../app'
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { usersRepo } from '../db/users.repo'
 import { signCrmAccessToken } from '../lib/jwt'
-import { withCache } from '../lib/cache'
+import { withNamespaceCache } from '../lib/cache'
 import type { Restaurant } from '../models/types'
 
 jest.mock('../lib/prisma')
@@ -19,7 +19,6 @@ jest.mock('../lib/cache', () => ({
   withNamespaceCache: jest.fn((_ns: string, _key: string, _ttl: number, loader: () => Promise<unknown>) => loader()),
   invalidateNamespace: jest.fn(async () => undefined),
   invalidateKeys: jest.fn(async () => undefined),
-  invalidatePattern: jest.fn(async () => undefined),
 }))
 jest.mock('otplib', () => ({
   generateSecret: () => 'M', generateURI: () => '', verifySync: () => ({ valid: true }),
@@ -28,7 +27,7 @@ jest.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,qr' }
 
 const mockRepo = restaurantsRepo as jest.Mocked<typeof restaurantsRepo>
 const mockUsersRepo = usersRepo as jest.Mocked<typeof usersRepo>
-const mockWithCache = withCache as jest.MockedFunction<typeof withCache>
+const mockWithCache = withNamespaceCache as jest.MockedFunction<typeof withNamespaceCache>
 
 const ownerUser = {
   id: 'u1',
@@ -74,7 +73,8 @@ describe('GET /api/restaurants pagination', () => {
     expect(res.body).toHaveLength(2)
     expect(mockRepo.findPage).not.toHaveBeenCalled()
     expect(mockWithCache).toHaveBeenCalledWith(
-      expect.stringContaining('restaurants:list:'),
+      'restaurants',
+      expect.stringMatching(/^list:/),
       300,
       expect.any(Function),
     )
@@ -98,6 +98,7 @@ describe('GET /api/restaurants pagination', () => {
     expect(res.body.items).toHaveLength(2)
     expect(mockRepo.findPage).toHaveBeenCalledWith(expect.objectContaining({ limit: 2 }))
     expect(mockWithCache).toHaveBeenCalledWith(
+      'restaurants',
       expect.stringContaining('"limit":2'),
       300,
       expect.any(Function),
@@ -117,7 +118,7 @@ describe('GET /api/restaurants pagination', () => {
   })
 
   // A cursor is whatever the client sends: caching by it would let a CRM
-  // user mint unbounded restaurants:* keys.
+  // user mint unbounded entries in the restaurants namespace.
   it('never caches a page after the first', async () => {
     mockRepo.findPage.mockResolvedValue({ items: [], nextCursor: null })
 

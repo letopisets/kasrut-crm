@@ -1,6 +1,6 @@
 import { restaurantsRepo } from '../db/restaurants.repo'
 import { serializeRestaurant, serializeRestaurants } from '../serializers/restaurant.serializer'
-import { withCache } from '../lib/cache'
+import { withRestaurantsCache } from '../lib/crmCache'
 import { invalidateMapCache } from '../lib/mapCache'
 import { validate } from '../lib/validate'
 import { createRestaurantSchema, updateRestaurantSchema, listRestaurantQuerySchema } from '../schemas'
@@ -14,8 +14,9 @@ import { asyncHandler } from '../lib/asyncHandler'
 
 const RESTAURANTS_CACHE_TTL = 300
 
+// Entry suffix in the CRM restaurants namespace (lib/crmCache.ts).
 const restaurantsCacheKey = (filter: Record<string, unknown>) =>
-  `restaurants:list:${JSON.stringify(filter)}`
+  `list:${JSON.stringify(filter)}`
 
 export const restaurantController = {
   list: asyncHandler(async (req, res) => {
@@ -25,7 +26,7 @@ export const restaurantController = {
 
     if (req.user?.role === 'mashgiach') {
       if (!mashgiachId || !req.user.rabbanutId) throw new ForbiddenScopeError()
-      const data = await withCache(
+      const data = await withRestaurantsCache(
         restaurantsCacheKey({ mashgiachId, rabbanutId: req.user.rabbanutId }),
         RESTAURANTS_CACHE_TTL,
         async () => serializeRestaurants(await restaurantsRepo.findByMashgiach(mashgiachId, req.user!.rabbanutId!)),
@@ -41,12 +42,11 @@ export const restaurantController = {
         return { items: serializeRestaurants(page.items), nextCursor: page.nextCursor }
       }
       // Only the first page is cached. A cursor is any string a CRM user
-      // sends, so keying on it would let one mint unbounded restaurants:*
-      // entries, and invalidatePattern sweeps at most MAX_INVALIDATE_KEYS of
-      // them: a flood could leave other tenants' lists stale after a change.
+      // sends, so keying on it would let one mint unbounded entries in the
+      // restaurants namespace, each held in Redis for the TTL.
       const data = cursor
         ? await loadPage()
-        : await withCache(
+        : await withRestaurantsCache(
           restaurantsCacheKey({ rabbanutId: rabbanutId ?? null, status: q.status ?? null, limit, cursor: null }),
           RESTAURANTS_CACHE_TTL,
           loadPage,
@@ -55,7 +55,7 @@ export const restaurantController = {
       return
     }
 
-    const data = await withCache(
+    const data = await withRestaurantsCache(
       restaurantsCacheKey({ rabbanutId: rabbanutId ?? null, status: q.status ?? null, limit: null, cursor: null }),
       RESTAURANTS_CACHE_TTL,
       async () => serializeRestaurants(await restaurantsRepo.findAll({ rabbanutId, status: q.status })),

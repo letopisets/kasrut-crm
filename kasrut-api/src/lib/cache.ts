@@ -57,7 +57,7 @@ async function loadOnce<T>(key: string, fn: () => Promise<T>, store?: (data: T) 
  * Falls back to fn() silently when Redis is unavailable.
  * A null/undefined result is returned but never stored: misses (e.g. an
  * unknown id) cost one indexed lookup, while caching them would let any
- * client mint keys at will and bloat the namespaces invalidatePattern sweeps.
+ * client mint keys at will, each held in Redis for its TTL.
  * @param key  Cache key
  * @param ttl  Time-to-live in seconds
  * @param fn   Data-loader called on cache miss
@@ -75,10 +75,12 @@ export async function withCache<T>(key: string, ttl: number, fn: () => Promise<T
 }
 
 // ── Generation-versioned namespaces ─────────────────────────────────────────
-// invalidatePattern must visit every key of a namespace and gives up at
-// MAX_INVALIDATE_KEYS, so a namespace whose keys the public can mint (every
-// distinct map viewport is an entry) can be flooded until a sweep no longer
-// reaches, say, the entry of a withdrawn place. A namespace instead embeds a
+// Deleting a namespace's keys (SCAN + DEL) has to visit every key, so a
+// namespace whose keys the public can mint (every distinct map viewport is an
+// entry) can be flooded until a sweep no longer reaches, say, the entry of a
+// withdrawn place; and a sweep that a Redis stall cuts short (commands time
+// out, see REDIS_COMMAND_TIMEOUT_MS) leaves the rest in place with nothing
+// owing the difference. A namespace instead embeds a
 // generation counter kept in Redis (`<ns>:gen`) in every key it writes
 // (`<ns>:v<gen>:<suffix>`). Invalidation is one INCR, however many keys exist:
 // no reader can compute an old key again, and old keys expire by their TTL.
@@ -180,7 +182,7 @@ export async function withNamespaceCache<T>(
  * Nothing is deleted: superseded entries are unreachable and expire by TTL.
  */
 export async function invalidateNamespace(namespace: string): Promise<void> {
-  // Advance before the Redis round trip, like invalidatePattern: loads that
+  // Advance before the Redis round trip, like invalidateKeys: loads that
   // started before this mutation must not write their snapshot back.
   cacheGeneration += 1
   try {
@@ -200,44 +202,6 @@ export async function invalidateKeys(...keys: string[]): Promise<void> {
   if (!keys.length) return
   try {
     await redis.del(...keys)
-  } catch {
-    // ignore
-  }
-}
-
-const MAX_INVALIDATE_KEYS = 5_000
-
-/**
- * Delete all keys matching a glob pattern, up to MAX_INVALIDATE_KEYS.
- * Only for namespaces the public cannot grow (CRM caches); anything keyed by
- * public input belongs in a generation-versioned namespace instead.
- *
- * Uses SCAN with a cursor so it never blocks Redis on large keyspaces —
- * `KEYS` is O(N) and stalls every other client. Deletions are batched per scan
- * page, in parallel, so total wall-time stays close to the original.
- */
-export async function invalidatePattern(pattern: string): Promise<void> {
-  // Advance before the asynchronous Redis scan so every loader that started
-  // before this mutation is prevented from writing its stale snapshot later.
-  cacheGeneration += 1
-  try {
-    let cursor = '0'
-    let total = 0
-    const deletions: Promise<unknown>[] = []
-    do {
-      const [next, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 200)
-      cursor = next
-      if (batch.length) {
-        deletions.push(redis.del(...batch))
-        total += batch.length
-        if (total >= MAX_INVALIDATE_KEYS) {
-          // Keys the sweep did not reach live on until their TTL expires.
-          logger.warn({ pattern, deleted: total }, 'cache invalidation hit the key cap; remaining keys expire by TTL')
-          break
-        }
-      }
-    } while (cursor !== '0')
-    if (deletions.length) await Promise.all(deletions)
   } catch {
     // ignore
   }
