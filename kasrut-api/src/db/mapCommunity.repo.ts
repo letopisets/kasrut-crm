@@ -614,6 +614,19 @@ export const mapCommunityRepo = {
     }, { isolationLevel: 'Serializable' })
   },
 
+  /**
+   * Deletes password-reset and email-verification links that expired before
+   * `expiredBefore`, used or not: neither can work any more. Run daily from
+   * server.ts (lib/tokenPurge.ts).
+   */
+  async purgeExpiredMapTokens(expiredBefore: Date): Promise<{ emailVerification: number; passwordReset: number }> {
+    const [emailVerification, passwordReset] = await Promise.all([
+      prisma.mapEmailVerificationToken.deleteMany({ where: { expiresAt: { lt: expiredBefore } } }),
+      prisma.mapPasswordResetToken.deleteMany({ where: { expiresAt: { lt: expiredBefore } } }),
+    ])
+    return { emailVerification: emailVerification.count, passwordReset: passwordReset.count }
+  },
+
   async createEmailVerificationToken(input: {
     mapUserId: string
     tokenHash: string

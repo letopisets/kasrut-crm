@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { prisma } from '../lib/prisma'
 import { mapCommunityRepo } from '../db/mapCommunity.repo'
+import { MAP_TOKEN_PURGE_GRACE_MS, purgeExpiredTokens } from '../lib/tokenPurge'
 
 // Runs repository code against a real Postgres through the real Prisma client
 // and pg adapter, which the mocked suites cannot do: they never see what the
@@ -37,6 +38,7 @@ describeWithPostgres('mapCommunity repository against a real Postgres', () => {
   }
 
   afterAll(async () => {
+    await prisma.refreshToken.deleteMany({ where: { mapUserId: { in: mapUserIds } } })
     await prisma.mapRestaurantSuggestion.deleteMany({ where: { mapUserId: { in: mapUserIds } } })
     await prisma.mapUser.deleteMany({ where: { id: { in: mapUserIds } } })
     await prisma.$disconnect()
@@ -70,6 +72,51 @@ describeWithPostgres('mapCommunity repository against a real Postgres', () => {
 
       expect(results.filter(Boolean)).toHaveLength(2)
       expect(await prisma.mapRestaurantSuggestion.count({ where: { mapUserId, status: 'pending' } })).toBe(2)
+    })
+  })
+
+  describe('purgeExpiredTokens', () => {
+    it('deletes only expired refresh tokens and map links past the grace period', async () => {
+      const mapUserId = await createMapUser()
+      const now = new Date()
+      const ago = (ms: number) => new Date(now.getTime() - ms)
+      const ahead = (ms: number) => new Date(now.getTime() + ms)
+      const HOUR = 3_600_000
+      const tag = (name: string) => `${run}-${name}`
+
+      await prisma.refreshToken.createMany({
+        data: [
+          { tokenHash: tag('rt-expired'), familyId: tag('f1'), audience: 'map', mapUserId, sessionVersion: 0, expiresAt: ago(1000) },
+          { tokenHash: tag('rt-used-live'), familyId: tag('f2'), audience: 'map', mapUserId, sessionVersion: 0, expiresAt: ahead(HOUR), usedAt: ago(HOUR) },
+        ],
+      })
+      await prisma.mapEmailVerificationToken.createMany({
+        data: [
+          { mapUserId, tokenHash: tag('ev-old'), expiresAt: ago(MAP_TOKEN_PURGE_GRACE_MS + HOUR), usedAt: ago(2 * MAP_TOKEN_PURGE_GRACE_MS) },
+          { mapUserId, tokenHash: tag('ev-in-grace'), expiresAt: ago(HOUR) },
+          { mapUserId, tokenHash: tag('ev-live'), expiresAt: ahead(HOUR) },
+        ],
+      })
+      await prisma.mapPasswordResetToken.createMany({
+        data: [
+          { mapUserId, channel: 'email', tokenHash: tag('pr-old'), expiresAt: ago(MAP_TOKEN_PURGE_GRACE_MS + HOUR) },
+          { mapUserId, channel: 'email', tokenHash: tag('pr-live'), expiresAt: ahead(HOUR) },
+        ],
+      })
+
+      const result = await purgeExpiredTokens(now)
+
+      expect(result.failed).toEqual({})
+      expect(result.deleted.refresh_tokens).toBeGreaterThanOrEqual(1)
+      const left = async () => ({
+        refresh: (await prisma.refreshToken.findMany({ where: { mapUserId }, select: { tokenHash: true } })).map(r => r.tokenHash),
+        verification: (await prisma.mapEmailVerificationToken.findMany({ where: { mapUserId }, select: { tokenHash: true } })).map(r => r.tokenHash),
+        reset: (await prisma.mapPasswordResetToken.findMany({ where: { mapUserId }, select: { tokenHash: true } })).map(r => r.tokenHash),
+      })
+      const rows = await left()
+      expect(rows.refresh).toEqual([tag('rt-used-live')])
+      expect(rows.verification.sort()).toEqual([tag('ev-in-grace'), tag('ev-live')].sort())
+      expect(rows.reset).toEqual([tag('pr-live')])
     })
   })
 })

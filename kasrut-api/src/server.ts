@@ -4,7 +4,7 @@ import { env } from './config/env'
 import { serviceLogsRepo } from './db/serviceLogs.repo'
 import { logger } from './lib/logger'
 import { installProcessErrorHandlers } from './lib/processErrorHandlers'
-import { purgeExpiredRefreshTokens } from './lib/refreshTokens'
+import { purgeExpiredTokens } from './lib/tokenPurge'
 import './jobs/expiryNotifier'
 
 // Assigned once listening. The handlers are installed before that so they also
@@ -41,18 +41,21 @@ async function rotateLogs(): Promise<void> {
     logger.error({ err }, 'service_logs rotation failed')
   }
 }
-// Expired refresh tokens go on the same schedule.
-async function purgeRefreshTokens(): Promise<void> {
+// Expired refresh tokens and map email-verification / password-reset links go
+// on the same schedule.
+async function purgeTokens(): Promise<void> {
   try {
-    const deleted = await purgeExpiredRefreshTokens()
-    if (deleted > 0) logger.info({ deleted }, 'expired refresh tokens purged')
+    const { deleted, failed } = await purgeExpiredTokens()
+    const total = Object.values(deleted).reduce((sum, n) => sum + (n ?? 0), 0)
+    if (total > 0) logger.info({ deleted }, 'expired auth tokens purged')
+    for (const [purge, err] of Object.entries(failed)) logger.error({ err, purge }, 'token purge failed')
   } catch (err) {
-    logger.error({ err }, 'refresh token purge failed')
+    logger.error({ err }, 'token purge failed')
   }
 }
 void rotateLogs()
-void purgeRefreshTokens()
-const rotationTimer = setInterval(() => { void rotateLogs(); void purgeRefreshTokens() }, MS_PER_DAY)
+void purgeTokens()
+const rotationTimer = setInterval(() => { void rotateLogs(); void purgeTokens() }, MS_PER_DAY)
 if (typeof rotationTimer.unref === 'function') rotationTimer.unref()
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
