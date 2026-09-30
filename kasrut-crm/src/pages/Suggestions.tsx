@@ -205,7 +205,7 @@ export default function Suggestions() {
                 {/* Submitter */}
                 {s.user && (
                   <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
-                    {ts.user}: <span style={{ color: '#9A9AB0' }}>{s.user.name}</span> — {s.user.email}
+                    {ts.user}: <span style={{ color: '#9A9AB0' }}>{s.user.name}</span>{s.user.email ? ` — ${s.user.email}` : null}
                   </Typography>
                 )}
 

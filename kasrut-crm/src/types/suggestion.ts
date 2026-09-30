@@ -22,5 +22,6 @@ export interface MapSuggestion {
   reviewerNote: string | null
   reviewedAt: string | null
   createdAt: string
-  user: { id: string; name: string; email: string } | null
+  // email: owners only; the API withholds it from rabbanut moderators.
+  user: { id: string; name: string; email?: string } | null
 }

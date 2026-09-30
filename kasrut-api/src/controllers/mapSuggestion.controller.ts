@@ -116,7 +116,8 @@ export const mapSuggestionController = {
       reviewerRole,
       reviewerRabbanutId: resolveScopeRabbanutId(req),
     })
-    res.json(suggestions.map(serializeMapSuggestionFull))
+    const viewer = { includeEmail: reviewerRole === 'owner' }
+    res.json(suggestions.map(s => serializeMapSuggestionFull(s, viewer)))
   }),
 
   reviewSuggestion: asyncHandler(async (req, res) => {
@@ -140,7 +141,7 @@ export const mapSuggestionController = {
       })
       if (!result) { res.status(404).json({ error: 'Suggestion not found or already reviewed' }); return }
       if (status === 'approved') await invalidateMapCache()
-      res.json(serializeMapSuggestionFull(result))
+      res.json(serializeMapSuggestionFull(result, { includeEmail: reviewerRole === 'owner' }))
     } catch (e) {
       if (e instanceof CoordinateValidationError) {
         res.status(400).json({ error: e.message }); return

@@ -49,15 +49,22 @@ export const serializeMapSuggestion = (s: SuggestionBase) => ({
   createdAt: s.createdAt.toISOString(),
 })
 
+// The submitter's email goes to the owner only. A rabbanut moderator sees the
+// name, as on the review moderation page: contacting map users is not a
+// tenant's business.
 export const serializeMapSuggestionFull = (s: SuggestionBase & {
   reviewerNote: string | null
   reviewedAt: Date | null
   mapUser: { id: string; name: string; email: string }
-}) => ({
+}, viewer: { includeEmail: boolean }) => ({
   ...serializeMapSuggestion(s),
   reviewerNote: s.reviewerNote,
   reviewedAt: s.reviewedAt?.toISOString() ?? null,
-  user: { id: s.mapUser.id, name: s.mapUser.name, email: s.mapUser.email },
+  user: {
+    id: s.mapUser.id,
+    name: s.mapUser.name,
+    ...(viewer.includeEmail ? { email: s.mapUser.email } : {}),
+  },
 })
 
 export const serializeMapReview = (r: {
