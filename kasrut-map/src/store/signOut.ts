@@ -3,6 +3,13 @@ import type { MapUser } from '@/types'
 import { mapCommunityApi } from './api/mapCommunityApi'
 import { clearCredentials } from './mapAuthSlice'
 
+type SignOutThunk = ThunkAction<
+  Promise<boolean>,
+  { mapAuth: { user: MapUser | null; token: string | null } },
+  unknown,
+  UnknownAction
+>
+
 /**
  * Signs the visitor out on the API first, then locally. The session's real
  * credential is the httpOnly refresh cookie, which only the API can revoke: a
@@ -15,11 +22,9 @@ import { clearCredentials } from './mapAuthSlice'
  *
  * Resolves to true once signed out; to false when the API could not be
  * reached, and then the stored sign-in is kept (the cookie may still be
- * good), unless `force` signs out locally anyway.
+ * good).
  */
-export function signOutMap(
-  { force = false }: { force?: boolean } = {},
-): ThunkAction<Promise<boolean>, { mapAuth: { user: MapUser | null; token: string | null } }, unknown, UnknownAction> {
+export function signOutMap(): SignOutThunk {
   return async (dispatch, getState) => {
     const logout = () => dispatch(mapCommunityApi.endpoints.logoutMap.initiate()).unwrap()
     let ended = true
@@ -35,7 +40,7 @@ export function signOutMap(
         } catch { /* ended stays false */ }
       }
     }
-    if (ended || force) dispatch(clearCredentials())
+    if (ended) dispatch(clearCredentials())
     return ended
   }
 }

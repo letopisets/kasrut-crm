@@ -297,13 +297,13 @@ describe('signOut', () => {
     expect(store.getState().auth.user).toBeNull()
   })
 
-  it('signs out locally anyway when forced', async () => {
+  it('keeps the session on a server error', async () => {
     const store = makeStore()
     api(() => reply(500, { error: 'Internal server error' }))
 
-    expect(await store.dispatch(signOut({ force: true }))).toBe(false)
+    expect(await store.dispatch(signOut())).toBe(false)
 
-    expect(store.getState().auth.user).toBeNull()
+    expect(store.getState().auth.user).toEqual(user)
   })
 })
 
