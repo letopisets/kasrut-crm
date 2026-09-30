@@ -5,6 +5,7 @@ import { validate } from '../lib/validate'
 import { createMashgiachSchema, updateMashgiachSchema, assignMashgiachSchema, paginationSchema } from '../schemas'
 import { applyWriteScope, assertOwnsRabbanut, resolveScopeRabbanutId } from '../lib/rabbanutScope'
 import { asyncHandler } from '../lib/asyncHandler'
+import { invalidatePattern } from '../lib/cache'
 
 export const mashgiachController = {
   list: asyncHandler(async (req, res) => {
@@ -83,6 +84,10 @@ export const mashgiachController = {
 
     const m = await mashgichimRepo.assignRestaurant(req.params.id, restaurantId)
     if (!m) { res.status(404).json({ error: 'Not found' }); return }
+    // A mashgiach's restaurant list is cached (restaurants:list:{mashgiachId,…}):
+    // without this the unassigned mashgiach would keep the full restaurant in
+    // their list for the cache lifetime, and the new one would not see it.
+    await invalidatePattern('restaurants:*')
     res.json(serializeMashgiach(m))
   }),
 
