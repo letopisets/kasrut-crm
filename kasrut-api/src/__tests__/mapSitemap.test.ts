@@ -1,5 +1,6 @@
 import request from 'supertest'
 import { createApp } from '../app'
+import { env } from '../config/env'
 import { mapRepo } from '../db/map.repo'
 
 jest.mock('../lib/prisma')
@@ -14,6 +15,11 @@ jest.mock('otplib', () => ({
 
 const mockMap = mapRepo as jest.Mocked<typeof mapRepo>
 const app = createApp()
+
+// Pinned: a developer's .env points MAP_PUBLIC_URL at a local map.
+let publicUrl: jest.ReplaceProperty<string>
+beforeEach(() => { publicUrl = jest.replaceProperty(env, 'MAP_PUBLIC_URL', 'https://mykoshermap.com') })
+afterEach(() => { publicUrl.restore() })
 
 describe('GET /api/map/sitemap.xml', () => {
   it('serves XML with the home page and one URL per establishment', async () => {
@@ -30,6 +36,18 @@ describe('GET /api/map/sitemap.xml', () => {
     expect(res.text).toContain('<loc>https://mykoshermap.com/r/r_abc</loc>')
     expect(res.text).toContain('<loc>https://mykoshermap.com/r/r_def</loc>')
     expect(res.text).toContain('<lastmod>2026-07-01</lastmod>')
+  })
+
+  // One setting for the map's public address: the verification mails and the
+  // crawlable URLs (sitemap, prerender canonical) must agree.
+  it('builds its URLs from MAP_PUBLIC_URL', async () => {
+    publicUrl.replaceValue('https://staging.example.org')
+    mockMap.findSitemapEntries.mockResolvedValue([{ id: 'r_abc', updatedAt: new Date('2026-07-01T00:00:00Z') }])
+
+    const res = await request(app).get('/api/map/sitemap.xml')
+
+    expect(res.text).toContain('<loc>https://staging.example.org/r/r_abc</loc>')
+    expect(res.text).not.toContain('mykoshermap.com')
   })
 })
 

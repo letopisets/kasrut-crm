@@ -196,7 +196,7 @@ vouches for the address).
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MAP_EMAIL_VERIFICATION` | `required` when `SMTP_HOST` is set, otherwise `off` | `required`: reviews and suggestions need a verified email. `off`: no check (links are still sent when `SMTP_HOST` is set, so users can verify ahead of time). |
-| `MAP_PUBLIC_URL` | `https://mykoshermap.com` | Map address the emailed link points to. |
+| `MAP_PUBLIC_URL` | `https://mykoshermap.com` | Public map address: the emailed link points to it, and the sitemap and prerendered pages use it for their URLs. |
 | `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_USER`, `SMTP_PASS` | empty | Mail server. Also used for map password-reset codes and CRM expiry notices. |
 
 Production has no mail server yet, so verification is off and the API logs

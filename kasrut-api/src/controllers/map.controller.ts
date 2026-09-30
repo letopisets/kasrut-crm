@@ -9,6 +9,7 @@ import { withMapCache } from '../lib/mapCache'
 import { asyncHandler } from '../lib/asyncHandler'
 import type { KashrutLevel, MapBounds, MapFilter, MapPoint, MapRestaurantRow } from '../db/map.repo'
 import { isEntityId } from '../lib/entityId'
+import { env } from '../config/env'
 
 const HECHSHERIM_CACHE_TTL = 600
 const MAP_OPTIONS_CACHE_TTL = 600
@@ -20,8 +21,12 @@ const MAX_GEOCODE_ADDRESS_LENGTH = 300
 const MAX_GEOCODE_CITY_LENGTH = 100
 
 
-// Public site the crawlable URLs live on (the map SPA, not the API host).
-const MAP_SITE_URL = (process.env.PUBLIC_MAP_URL ?? 'https://mykoshermap.com').replace(/\/$/, '')
+// Public site the crawlable URLs live on (the map SPA, not the API host):
+// MAP_PUBLIC_URL, the same validated setting the verification mails link to.
+// It used to be a separate, unvalidated PUBLIC_MAP_URL that compose never
+// passed, so a staging map could send links to one host and a sitemap to another.
+// Read per call, so a test can pin it.
+const mapSiteUrl = (): string => env.MAP_PUBLIC_URL
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, c =>
@@ -36,11 +41,11 @@ const KASHRUT_LEVEL_LABEL: Record<string, string> = {
 // search engines and social scrapers get real per-place title/description/OG and
 // FoodEstablishment structured data; humans keep getting the SPA. See ADR-0004.
 function buildRestaurantPrerenderHtml(r: MapRestaurantRow): string {
-  const url   = `${MAP_SITE_URL}/r/${r.id}`
+  const url   = `${mapSiteUrl()}/r/${r.id}`
   const level = KASHRUT_LEVEL_LABEL[r.kashrutLevel] ?? r.kashrutLevel
   const title = `${r.name} — ${r.city} | KashrutMap`
   const desc  = `${r.name}, ${r.address}, ${r.city}. Кошерность: ${r.hechsher} (${level}).`
-  const image = `${MAP_SITE_URL}/og-image.svg`
+  const image = `${mapSiteUrl()}/og-image.svg`
 
   const ld: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -89,8 +94,8 @@ function buildSitemapXml(entries: { id: string; updatedAt: Date }[]): string {
     `  <url><loc>${loc}</loc><lastmod>${lastmod}</lastmod><priority>${priority}</priority></url>`
   const today = new Date().toISOString().slice(0, 10)
   const rows = [
-    url(`${MAP_SITE_URL}/`, today, '1.0'),
-    ...entries.map(e => url(`${MAP_SITE_URL}/r/${e.id}`, e.updatedAt.toISOString().slice(0, 10), '0.7')),
+    url(`${mapSiteUrl()}/`, today, '1.0'),
+    ...entries.map(e => url(`${mapSiteUrl()}/r/${e.id}`, e.updatedAt.toISOString().slice(0, 10), '0.7')),
   ]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows.join('\n')}\n</urlset>\n`
 }
@@ -316,7 +321,7 @@ export const mapController = {
       // A hidden place can come back (renewed certificate); don't let a shared
       // cache pin its 404.
       res.set('Cache-Control', 'no-store')
-      res.status(404).send('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Не найдено | KashrutMap</title><meta name="robots" content="noindex"></head><body><p>Заведение не найдено.</p><p><a href="' + MAP_SITE_URL + '/">KashrutMap</a></p></body></html>')
+      res.status(404).send('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Не найдено | KashrutMap</title><meta name="robots" content="noindex"></head><body><p>Заведение не найдено.</p><p><a href="' + mapSiteUrl() + '/">KashrutMap</a></p></body></html>')
       return
     }
     res.set('Cache-Control', 'public, max-age=3600')
