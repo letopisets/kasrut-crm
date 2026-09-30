@@ -107,9 +107,11 @@ CRM access tokens and 2FA sign-ins in progress are not affected. To actually
 sign map users out, bump `map_users."sessionVersion"` (see
 [Sessions and refresh cookies](#sessions-and-refresh-cookies)).
 
-**Setting it on a running server** — together with the deploy that brings this
-variable (an older `docker-compose.yml` does not forward it, so it would have
-no effect):
+**Setting it on a running server.** A server still on a build from before
+this variable (an older `docker-compose.yml` does not forward it) gets it as
+part of
+[Upgrading a running server to the stage 2+3 release](#upgrading-a-running-server-to-the-stage-23-release),
+which uses the snippet below. On a server already running this release:
 
 ```sh
 cd /opt/kasrut
@@ -120,9 +122,8 @@ if ! grep -q '^MAP_JWT_SECRET=.' .env.hetzner || grep -q '^MAP_JWT_SECRET=replac
   sed -i '/^MAP_JWT_SECRET=/d' .env.hetzner
   printf '\nMAP_JWT_SECRET=%s\n' "$(openssl rand -hex 48)" >> .env.hetzner
 fi
-git pull --ff-only
 $DC config | grep -Ec 'MAP_JWT_SECRET: "?[0-9a-f]{96}'  # 1 = forwarded to the api (a count, not the secret)
-sh scripts/hetzner-deploy.sh   # the preflight validates it before anything restarts
+$DC run --rm --no-deps -T --entrypoint node api -e "require('./dist/kasrut-api/src/config/env')" && $DC up -d api
 ```
 
 Check that the running api uses it (prints `separate`, never the secret):
@@ -422,19 +423,241 @@ The same migration clears any such links left by earlier moves.
 ## Deploy
 
 ```sh
+cd /opt/kasrut
+git rev-parse --short HEAD     # note it: the commit to roll back to
+git pull --ff-only
 sh scripts/hetzner-deploy.sh
 ```
 
-Equivalent manual commands:
+Pull before running the script: `sh` keeps executing the copy of the script
+it started with, so a version of `hetzner-deploy.sh` that a pull brings in
+only runs from the next invocation. The server's local edits to
+`docker-compose.prod.yml` and `docker/nginx/production.conf` survive a
+fast-forward as long as the incoming commits do not touch those two files;
+when they do, the pull stops with "Your local changes … would be
+overwritten" and nothing else happens.
+
+The build takes several minutes, and an SSH connection that drops kills a
+foreground run. Run it detached when the connection is unreliable, then poll
+the log:
 
 ```sh
-git pull --ff-only
-docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml build
-# Preflight: exits non-zero if the API would reject JWT_SECRET / MAP_JWT_SECRET / ENCRYPTION_KEY.
-docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
-  run --rm --no-deps --entrypoint node api -e "require('./dist/kasrut-api/src/config/env')"
-docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d
+setsid sh -c 'sh scripts/hetzner-deploy.sh > /tmp/deploy.log 2>&1; echo EXIT_$? >> /tmp/deploy.log' </dev/null >/dev/null 2>&1 &
+grep '^EXIT_' /tmp/deploy.log   # empty while it runs; EXIT_0 when done
 ```
+
+The script, in order (every step before `up -d` aborts with the old
+containers still running):
+
+1. `git pull --ff-only` (a no-op after the manual pull).
+2. Tags the images the running `api`, `kasrut-map` and `kasrut-crm`
+   containers use as `<image>:rollback` (for example `kasrut-api:rollback`),
+   because `build` moves `:latest` to the new images and leaves the old ones
+   untagged. The tag always marks what ran before the latest run of the
+   script.
+3. `build`, then the env preflight: the new image loads its config and
+   exits non-zero on a JWT_SECRET / MAP_JWT_SECRET / ENCRYPTION_KEY it would
+   reject.
+4. Checks that the merged compose config still starts redis with
+   `--requirepass` and the NOAUTH healthcheck (see
+   [Redis password](#redis-password)).
+5. Backs up the database (`scripts/backup-postgres.sh`, into
+   `backups/postgres/`) and rehearses the migrations: restores that backup
+   into `<db>_deploy_rehearsal`, applies the new image's migrations to it and
+   drops it. A migration that fails there stops the deploy and leaves that
+   database for inspection. `SKIP_REHEARSAL=yes` skips the rehearsal,
+   `SKIP_BACKUP=yes` both.
+6. `up -d`: recreates what changed; the api entrypoint applies the migrations
+   (`RUN_MIGRATIONS=true`).
+7. Waits for the api to report healthy, reloads nginx (`nginx -t` first) and
+   checks that the running redis refuses an anonymous `PING`. A failed reload
+   or a redis without a password makes the script exit non-zero after the
+   switch.
+
+nginx resolves `upstream kasrut_api { server api:3000; }` once, when it
+starts; the `resolver … valid=30s` line only re-resolves the map and CRM
+upstreams, which are proxied through variables (the comment above it in
+`production.conf` says otherwise). A recreated api container that comes back
+on a different address would get 502 on every `/api` and `/health` request
+until nginx reloads. Docker usually hands the same address back, which is
+why deploys worked without it. The script reloads nginx; after recreating
+the api by hand (`up -d api`, `up -d redis api`, …) do the same:
+
+```sh
+$DC exec -T nginx sh -c 'nginx -t -q && nginx -s reload'
+```
+
+`production.conf` itself stays as it is here: the server keeps local edits
+to that file, and a repo change to it would stop the fast-forward pull.
+
+After the script, from outside:
+
+```sh
+curl -fsS https://mykoshermap.com/health       # {"status":"ok","db":"ok","redis":"ok",…}
+curl -fsS https://crm.mykoshermap.com/health
+curl -fsS -o /dev/null -w '%{http_code}\n' https://mykoshermap.com/api/map/options   # 200
+```
+
+### Rollback
+
+Code first; the database only if the data itself is wrong.
+
+```sh
+cd /opt/kasrut
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
+git reset --keep <previous commit>        # the one noted before the pull; `git reflog` also shows it
+for image in $($DC config --images | grep -E -- '-(api|kasrut-map|kasrut-crm)$'); do
+  docker tag "$image:rollback" "$image:latest"
+done
+$DC up -d --no-build
+$DC exec -T nginx sh -c 'nginx -t -q && nginx -s reload'
+```
+
+`git reset --keep` refuses rather than overwrite the local edits to
+`docker-compose.prod.yml` and `production.conf`; it keeps them when the two
+commits do not differ in those files. Without the `:rollback` images (an
+earlier deploy, or they were pruned), leave out the `docker tag` loop and run
+`$DC up -d --build` instead, which rebuilds the old commit.
+
+Migrations are not undone. An older image starts on a database that newer
+migrations changed: its `prisma migrate deploy` finds nothing to apply for
+its own migrations and ignores the newer ones, as long as none of them failed
+(see below). What the newer migrations did to the data stays; each release
+section says what that means.
+
+Restoring the pre-deploy backup is the last resort: it also throws away
+everything written since it was taken (reviews, suggestions, CRM edits, sign
+ins). The api must not be connected while the database is replaced:
+
+```sh
+$DC stop api
+CONFIRM=yes RESTORE_DB=kashrutcrm_db sh scripts/restore-postgres.sh backups/postgres/<db>-<timestamp>.sql.gz
+$DC up -d
+```
+
+### Failed migration
+
+Prisma sends each migration file to Postgres as one script, which Postgres
+runs as one implicit transaction, so a migration that fails normally leaves
+nothing of itself behind, only a row in `_prisma_migrations` with
+`finished_at` empty. While that row is there, `prisma migrate deploy`
+refuses to run (error `P3009`), so the new api restart-loops, and so does an
+older image, whose entrypoint runs the same command. To recover:
+
+```sh
+# 1. What failed (the name and the error):
+$DC exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT migration_name, logs FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL"'
+# 2. Check that the objects it creates are absent (\d <table>), then mark it rolled back:
+$DC run --rm --no-deps -T --entrypoint sh api -c 'npx prisma migrate resolve --rolled-back <migration_name>'
+# 3. Roll back (above), or fix the migration and deploy again.
+```
+
+Alternatively set `RUN_MIGRATIONS=false` in `.env.hetzner` while the old image
+runs, and remove it again before the next deploy.
+
+## Upgrading a running server to the stage 2+3 release
+
+For a server on a build from before the security stages 2 and 3 (production
+ran `9722d72`): refresh cookies, mandatory owner 2FA, the Redis password,
+per-purpose JWT keys and the rest. It needs two new variables in
+`.env.hetzner` **before** the pull, one removed, and a single full `up -d`
+that recreates redis and the api together. The steps, in one place:
+
+```sh
+cd /opt/kasrut
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
+
+# 0. Where the server is, and a local marker for a rollback.
+git rev-parse --short HEAD        # 9722d72
+git tag -f pre-stage23 HEAD       # local only; keeps the commit reachable
+git status --short                # only " M docker-compose.prod.yml" and " M docker/nginx/production.conf"
+git fetch origin
+git merge-base --is-ancestor HEAD origin/dev-back-front && echo fast-forward
+# No "fast-forward": the branch history was rewritten; see "History rewrite" below.
+
+# 1. .env.hetzner: Redis password, separate map secret, no JWT_EXPIRES_IN.
+if ! grep -q '^REDIS_PASSWORD=.' .env.hetzner; then
+  sed -i '/^REDIS_PASSWORD=/d' .env.hetzner
+  printf '\nREDIS_PASSWORD=%s\n' "$(openssl rand -hex 32)" >> .env.hetzner
+fi
+if ! grep -q '^MAP_JWT_SECRET=.' .env.hetzner || grep -q '^MAP_JWT_SECRET=replace-with' .env.hetzner; then
+  sed -i '/^MAP_JWT_SECRET=/d' .env.hetzner
+  printf '\nMAP_JWT_SECRET=%s\n' "$(openssl rand -hex 48)" >> .env.hetzner
+fi
+sed -i '/^JWT_EXPIRES_IN=/d' .env.hetzner
+
+# 2. Pull. This release does not touch the two locally edited files, so
+#    they stay as they are and no stash is needed.
+git pull --ff-only
+
+# 3. The merged config (counts and command lines, never a secret).
+$DC config | grep -Ec 'MAP_JWT_SECRET: "?[0-9a-f]{96}'   # 1
+$DC config | grep -- '--requirepass'                     # the redis command line
+$DC config | grep -c 'JWT_EXPIRES_IN'                    # 0
+
+# 4. Deploy (detached if SSH is unreliable, see Deploy): rollback tags,
+#    build, preflight, backup, rehearsal of the 5 new migrations on a copy,
+#    one `up -d`, nginx reload, NOAUTH check.
+sh scripts/hetzner-deploy.sh
+```
+
+Once `REDIS_PASSWORD` is set before the pull, nothing else is order-sensitive.
+If the pull ran first, `build`, `ps`, `logs`, `config` and the deploy script
+fail until it is added, while the running containers carry on untouched
+(`exec` and `scripts/backup-postgres.sh` still work). Do not replace the
+single `up -d` with a partial `up -d --no-deps api …`: redis must be
+recreated with its password (see [Redis password](#redis-password)).
+
+Then check:
+
+- The container checks under [Redis password](#redis-password) and the
+  `curl` checks under [Deploy](#deploy).
+- CRM sign-in at crm.mykoshermap.com: an owner lands on the 2FA setup
+  screen. Both owners should enrol at once (see
+  [Mandatory 2FA for CRM owners](#mandatory-2fa-for-crm-owners)) and keep
+  the backup codes.
+- The map loads and a map user can sign in.
+
+What users notice: every CRM and map user signs in once more (the migration
+bumps every `sessionVersion`, and no refresh cookie exists yet); owners must
+set up 2FA; map email verification stays off (no `SMTP_HOST`).
+
+**Rollback of this release.** The [Rollback](#rollback) steps with
+`git reset --keep pre-stage23`. The `:rollback` images are the `9722d72`
+ones the script tagged. The old `docker-compose.yml` starts redis without a
+password again and ignores `REDIS_PASSWORD` and `MAP_JWT_SECRET`, and it
+defaults `JWT_EXPIRES_IN` to `7d`, so `.env.hetzner` can stay as it is. What
+the 5 migrations did stays, and the old image runs on it (rehearsed: no
+pending migrations, map endpoints answer): the new tables (`refresh_tokens`,
+`map_email_verification_tokens`, `two_factor_challenges`) and columns
+(`map_users."emailVerifiedAt"`, `users."twoFactorLastStep"`,
+`documents."rabbanutId"`, empty for existing rows) sit unused; everyone was
+signed out once; inspections that had kept a mashgiach of another rabbanut
+lost that link; and the `restaurants_tenant_move_guard` trigger keeps
+refusing a rabbanut change that would leave such links. The old api does not
+detach them first, so moving a restaurant whose inspections name one of its
+old rabbanut's mashgichim fails with an error until the new release is back
+(or those links are cleared by hand, see
+[Moving an establishment to another rabbanut](#moving-an-establishment-to-another-rabbanut)).
+The pre-deploy backup
+(`backups/postgres/`) is the last resort, as described under Rollback.
+
+**History rewrite.** The history of `dev-back-front` is to be rewritten to
+drop the personal data untracked in `86f0f12`. Deploy this release before
+that rewrite is pushed. If it was pushed first, `9722d72` is no longer an
+ancestor of the branch and every `git pull --ff-only` stops (before the
+build, so nothing breaks). Then move the checkout to the rewritten branch
+instead of pulling:
+
+```sh
+git fetch origin
+git reset --keep origin/dev-back-front   # keeps the local edits: the two files do not differ between the commits
+sh scripts/hetzner-deploy.sh             # its own pull is then a no-op
+```
+
+After a rewrite the old commit exists only in the server's repository (the
+`pre-stage23` tag and the reflog), so do not prune it until the release is
+settled.
 
 ## Redis password
 
@@ -443,9 +666,11 @@ state, so it requires a password even though its port is not published.
 `docker-compose.yml` starts `redis-server --requirepass "$REDIS_PASSWORD"` from
 the redis service's environment and gives the api
 `REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379`. While `REDIS_PASSWORD` is
-unset or empty, every compose command stops with
-`required variable REDIS_PASSWORD is missing a value`. The password is part of
-a URL, so generate it as hex — `@ : / # ?` would break `REDIS_URL`:
+unset or empty, compose commands that read the whole configuration (`config`,
+`build`, `up`, `run`, `ps`, `logs`, and so `scripts/hetzner-deploy.sh`) stop
+with an error about `REDIS_PASSWORD` missing a value; `exec` into a running
+container still works, and so does `scripts/backup-postgres.sh`. The password
+is part of a URL, so generate it as hex — `@ : / # ?` would break `REDIS_URL`:
 
 ```sh
 openssl rand -hex 32
@@ -456,32 +681,27 @@ The redis healthcheck passes only when an anonymous `PING` is refused with
 `--requirepass` (or with a different password) therefore stays unhealthy, and
 compose does not start the api, map, CRM or nginx behind it.
 
-**First deploy of this change on a running server** — add the password and
-check the merged config **before** deploying. Without the password
-`scripts/hetzner-deploy.sh` stops at the build step after the pull (the running
-containers are left as they were); with a local `docker-compose.prod.yml` that
-replaces the redis `command`, redis would come up unhealthy and take the site
-down with it:
+**First deploy of this change on a running server** — part of
+[Upgrading a running server to the stage 2+3 release](#upgrading-a-running-server-to-the-stage-23-release):
+the password goes into `.env.hetzner` **before** the pull, and the merged
+config is checked before anything restarts. The snippet that adds it:
 
 ```sh
-cd /opt/kasrut
-DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
 # Generate the password once. sed drops an empty line copied from the template;
 # the leading \n keeps it off the previous line if the file lacks a final newline.
 if ! grep -q '^REDIS_PASSWORD=.' .env.hetzner; then
   sed -i '/^REDIS_PASSWORD=/d' .env.hetzner
   printf '\nREDIS_PASSWORD=%s\n' "$(openssl rand -hex 32)" >> .env.hetzner
 fi
-git pull --ff-only
-$DC config | grep -- '--requirepass'  # must print the redis command line
-sh scripts/hetzner-deploy.sh          # plain `up -d`: recreates redis and api together
 ```
 
-If `config` prints nothing, the server's local `docker-compose.prod.yml`
-overrides the redis `command` and drops the password. Add
-`--requirepass "$$REDIS_PASSWORD"` to that override (`$$` leaves the variable to
-the container's shell; start through `docker-entrypoint.sh`, as
-`docker-compose.yml` does) before deploying.
+`$DC config | grep -- '--requirepass'` must then print the redis command line;
+`scripts/hetzner-deploy.sh` checks the same (and the NOAUTH healthcheck)
+before it restarts anything. If it prints nothing, the server's local
+`docker-compose.prod.yml` overrides the redis `command` and drops the
+password. Add `--requirepass "$$REDIS_PASSWORD"` to that override (`$$` leaves
+the variable to the container's shell; start through `docker-entrypoint.sh`,
+as `docker-compose.yml` does) before deploying.
 
 This deploy must recreate redis. Do not use a partial
 `up -d --no-deps api kasrut-map kasrut-crm` for it: the old redis container
@@ -494,6 +714,7 @@ on start, so cached data and counters survive the recreate.
 Verify on the running containers, not just the config:
 
 ```sh
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
 $DC ps                                                                  # redis and api (healthy)
 $DC exec -T redis redis-cli ping                                        # NOAUTH Authentication required.
 $DC exec -T redis sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping'  # PONG
@@ -540,15 +761,33 @@ $DC exec -T redis sh -c 'export REDISCLI_AUTH="$REDIS_PASSWORD"; redis-cli --sca
 
 ## Production Kashrut Data Import
 
-The export in `docs/kashrut-export/import.sql` resets and reloads the kashrut
-domain tables from `docs-kashrut`. It deletes restaurants, documents,
-rabbanuts, hechsherim, mashgichim, mashgiach joins, inspections, map reviews,
-and map suggestions. It preserves users, map users, service logs, and lookup
-tables.
+`scripts/import-kashrut-export.sh` loads an `import.sql` generated from the
+source PDFs into the kashrut domain tables. The SQL upserts rabbanuts,
+hechsherim, mashgichim, restaurants and documents by id and does not delete
+reviews, suggestions or inspections. The export carries mashgichim's
+names and phone numbers, so it is not in git: `docs/kashrut-export/` keeps
+only its README, and the pull that brings this layout deletes the old tracked
+export files from the server's working tree. Generate the file on a machine
+with Node and the untracked `docs-kashrut/` folder, from `kasrut-api/`:
 
 ```sh
-sh scripts/import-kashrut-export.sh
+npm run export:pdf    # writes ../docs/kashrut-export/import.sql (and CSV/JSON)
 ```
+
+Check that it is current (it contains the `-- mashgiach-ids: per-rabbanut`
+marker line, which the import script requires), copy it to the server outside
+the repository, take a backup, run the import, and delete the copy:
+
+```sh
+scp docs/kashrut-export/import.sql root@<server>:/root/kashrut-import.sql
+# on the server, in /opt/kasrut:
+sh scripts/backup-postgres.sh
+IMPORT_SQL=/root/kashrut-import.sql sh scripts/import-kashrut-export.sh
+rm /root/kashrut-import.sql
+```
+
+The host has no Node, so `npm run export:pdf` cannot run there; the script's
+"Generate it with npm run export:pdf" message refers to that other machine.
 
 ## Public map cache
 
@@ -667,7 +906,20 @@ sh scripts/restore-postgres.sh backups/postgres/<db>-<timestamp>.sql.gz
 ```
 
 To restore over the live DB (real disaster recovery) the script requires an
-explicit `CONFIRM=yes RESTORE_DB=<live-db>`.
+explicit `CONFIRM=yes RESTORE_DB=<live-db>`, and no open connections to it:
+`DROP DATABASE` fails while the api is connected, so stop it first and start
+it again afterwards. The script refuses (and changes nothing) while any
+session is connected to the target, and prints these steps:
+
+```sh
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
+$DC stop api
+CONFIRM=yes RESTORE_DB=kashrutcrm_db sh scripts/restore-postgres.sh backups/postgres/<db>-<timestamp>.sql.gz
+$DC up -d
+```
+
+A dump from before a deploy carries its own `_prisma_migrations`; if the api
+image is newer, its entrypoint applies the newer migrations again on start.
 
 ### Second layer
 
