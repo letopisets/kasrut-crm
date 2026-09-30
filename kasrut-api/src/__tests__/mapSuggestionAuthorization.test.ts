@@ -20,6 +20,7 @@ const mockPrisma = prisma as unknown as {
 
 const tx = {
   $queryRaw: jest.fn(),
+  $executeRaw: jest.fn(),
   mapRestaurantSuggestion: {
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -185,7 +186,7 @@ describe('map suggestion moderation tenant authorization', () => {
   })
 
   it('checks and creates a pending suggestion under one per-user lock', async () => {
-    tx.$queryRaw.mockResolvedValue([])
+    tx.$executeRaw.mockResolvedValue(1)
     tx.mapRestaurantSuggestion.count.mockResolvedValue(4)
     tx.mapRestaurantSuggestion.create.mockResolvedValue(updateSuggestion())
 
@@ -195,7 +196,15 @@ describe('map suggestion moderation tenant authorization', () => {
       5,
     )
 
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1)
+    // $executeRaw: pg_advisory_xact_lock returns void, which $queryRaw cannot
+    // deserialize with the pg adapter (see mapCommunity.postgres.test.ts).
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1)
+    expect(tx.$queryRaw).not.toHaveBeenCalled()
+    const [strings, key] = tx.$executeRaw.mock.calls[0] as [TemplateStringsArray, string]
+    expect(strings.join('?')).toContain('pg_advisory_xact_lock')
+    expect(key).toBe('map-suggestion:mu1')
+    expect(tx.$executeRaw.mock.invocationCallOrder[0])
+      .toBeLessThan(tx.mapRestaurantSuggestion.count.mock.invocationCallOrder[0])
     expect(tx.mapRestaurantSuggestion.count).toHaveBeenCalledWith({
       where: { mapUserId: 'mu1', status: 'pending' },
     })
@@ -204,7 +213,7 @@ describe('map suggestion moderation tenant authorization', () => {
   })
 
   it('does not create a suggestion after the atomic quota check reaches the cap', async () => {
-    tx.$queryRaw.mockResolvedValue([])
+    tx.$executeRaw.mockResolvedValue(1)
     tx.mapRestaurantSuggestion.count.mockResolvedValue(5)
 
     const result = await mapCommunityRepo.createSuggestionWithinQuota(

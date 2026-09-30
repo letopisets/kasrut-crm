@@ -661,7 +661,10 @@ export const mapCommunityRepo = {
       // Serialize quota checks per map user. A plain COUNT followed by CREATE
       // lets parallel requests all observe the same count and exceed the cap.
       // The transaction-scoped advisory lock is released automatically.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`map-suggestion:${mapUserId}`}, 0))`
+      // $executeRaw, not $queryRaw: the function returns void, and the pg
+      // adapter cannot deserialize a void column (P2010, a 500 on every
+      // POST /api/map/suggestions).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`map-suggestion:${mapUserId}`}, 0))`
 
       const pending = await tx.mapRestaurantSuggestion.count({
         where: { mapUserId, status: 'pending' },
