@@ -261,26 +261,77 @@ export type RefreshFailure =
   | 'unknown'    // no such token
   | 'audience'   // a token of the other client
   | 'expired'
-  | 'replayed'   // presented again within REUSE_GRACE_MS: family revoked, other sessions kept
-  | 'reused'     // used or revoked longer ago: family revoked, sessions bumped
+  | 'replayed'   // used, presented again within REUSE_GRACE_MS: family revoked, other sessions kept
+  | 'revoked'    // revoked before it was ever used (sign-out, new sign-in, 2FA change,
+                 //   its family's revocation) and presented again: family revoked, nothing else
+  | 'reused'     // used longer ago, or a revoked one whose presentation ended sessions:
+                 //   family revoked, owner's sessions ended unless they already were
   | 'inactive'   // account gone or unavailable, or its sessionVersion moved on
+
+/** A token presented after it was used or revoked, and what was done about it. */
+interface ReuseOutcome {
+  reason:        'replayed' | 'revoked' | 'reused'
+  /** The owner's sessionVersion was bumped by this presentation. */
+  sessionsEnded: boolean
+}
 
 export type RefreshOutcome<A> =
   | { ok: true; account: A; token: string; expiresAt: Date }
-  | { ok: false; reason: RefreshFailure; ownerId?: string }
+  | { ok: false; reason: RefreshFailure; ownerId?: string; sessionsEnded?: boolean }
 
-/** Revokes the family of a token presented again; true when it was a real reuse. */
-async function handleReuse(token: RefreshTokenRow, now: Date): Promise<boolean> {
+/**
+ * Handles a token presented after it was used or revoked. The family is
+ * revoked in every case. Within REUSE_GRACE_MS of its retirement nothing
+ * else happens: a used token is a response that never reached the browser, a
+ * revoked one a request under way while the cookie was replaced. Later, the
+ * owner's sessionVersion is bumped, but only if it still equals the token's:
+ * a used token is then a stolen copy (logged as reuse whether or not the
+ * owner's sessions had ended already), and a revoked one counts as reuse only
+ * when the bump happened, since after a sign-out, a 2FA change or a password
+ * reset it has.
+ */
+async function handleReuse(token: RefreshTokenRow, now: Date): Promise<ReuseOutcome> {
   const context = { audience: token.audience, familyId: token.familyId, ownerId: ownerIdOf(token) }
   const retiredAt = token.usedAt ?? token.revokedAt
   if (retiredAt && now.getTime() - retiredAt.getTime() < REUSE_GRACE_MS) {
     await refreshTokensRepo.revokeFamily(token.familyId, now)
-    logger.info(context, 'Refresh token presented again within the grace window; family revoked')
-    return false
+    if (token.usedAt) {
+      logger.info(context, 'Refresh token presented again within the grace window; family revoked')
+      return { reason: 'replayed', sessionsEnded: false }
+    }
+    logger.info(context, 'Revoked refresh token presented; family revoked')
+    return { reason: 'revoked', sessionsEnded: false }
   }
-  await refreshTokensRepo.revokeFamilyAndSessions(token, now)
-  logger.warn(context, 'Refresh token reuse detected; family revoked and sessions ended')
-  return true
+  const sessionsEnded = await refreshTokensRepo.revokeFamilyAndSessions(token, now)
+  if (sessionsEnded) {
+    logger.warn(context, 'Refresh token reuse detected; family revoked and sessions ended')
+    return { reason: 'reused', sessionsEnded }
+  }
+  if (token.usedAt) {
+    logger.warn(context, 'Refresh token reuse detected; family revoked, sessions had already ended')
+    return { reason: 'reused', sessionsEnded }
+  }
+  logger.info(context, 'Revoked refresh token presented; family revoked')
+  return { reason: 'revoked', sessionsEnded }
+}
+
+/**
+ * The service-log wording for a refused refresh or cookie-only sign-out
+ * (prefixed "CRM " or "Map " by the caller), or null when it is routine.
+ */
+export function refreshFailureLogMessage(failure: { reason: RefreshFailure; sessionsEnded?: boolean }): string | null {
+  switch (failure.reason) {
+    case 'reused':
+      return failure.sessionsEnded
+        ? 'refresh token reuse detected; sessions revoked'
+        : 'refresh token reuse detected; family revoked, sessions had already ended'
+    case 'replayed':
+      return 'refresh token presented again within the grace window; family revoked'
+    case 'revoked':
+      return 'revoked refresh token presented; family revoked'
+    default:
+      return null
+  }
 }
 
 /**
@@ -306,9 +357,7 @@ export async function rotateRefreshToken<A extends { id: string; sessionVersion?
   const ownerId = ownerIdOf(token)
   if (!ownerId) return { ok: false, reason: 'unknown' }
 
-  if (token.usedAt || token.revokedAt) {
-    return { ok: false, reason: await handleReuse(token, now) ? 'reused' : 'replayed', ownerId }
-  }
+  if (token.usedAt || token.revokedAt) return { ok: false, ...await handleReuse(token, now), ownerId }
   if (token.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: 'expired', ownerId }
 
   const account = await loadAccount(ownerId)
@@ -329,7 +378,7 @@ export async function rotateRefreshToken<A extends { id: string; sessionVersion?
     // claim (the same token was presented twice), or it just expired.
     const current = await refreshTokensRepo.findByHash(tokenHash) ?? token
     if (!current.usedAt && !current.revokedAt) return { ok: false, reason: 'expired', ownerId }
-    return { ok: false, reason: await handleReuse(current, now) ? 'reused' : 'replayed', ownerId }
+    return { ok: false, ...await handleReuse(current, now), ownerId }
   }
   return { ok: true, account, token: successor.token, expiresAt: token.expiresAt }
 }
@@ -339,22 +388,36 @@ export async function revokeRefreshFamily(familyId: string): Promise<void> {
   await refreshTokensRepo.revokeFamily(familyId, new Date())
 }
 
+export interface EndedRefreshSession {
+  /** Owner of the presented cookie; null when no known cookie was presented. */
+  ownerId:        string | null
+  /** Set when the cookie was used or revoked already (see rotateRefreshToken). */
+  failure?:       'replayed' | 'revoked' | 'reused'
+  sessionsEnded?: boolean
+}
+
 /**
  * Sign-out by the refresh cookie alone (see bearerOrRefreshRequest): revokes
  * the presented cookie's family. When that cookie was still a live session
  * (unused, unrevoked, unexpired) the account's sessionVersion is bumped too,
  * but only while it still equals the cookie's, which is what a sign-out with
- * an access token does; a stale cookie cannot end anyone's other sessions.
- * Returns the owner's id, or null when no known cookie was presented.
+ * an access token does; an expired cookie cannot end anyone's other sessions.
+ * A cookie that was used or revoked already is answered as a refresh answers
+ * it (handleReuse): a rotated cookie presented after the grace window is a
+ * stolen copy's leftover, so the sessions it fed end and the reuse is logged.
  */
-export async function endPresentedRefreshSession(req: Request, audience: RefreshAudience): Promise<string | null> {
+export async function endPresentedRefreshSession(req: Request, audience: RefreshAudience): Promise<EndedRefreshSession> {
   const token = await findPresented(req, audience)
-  if (!token) return null
+  if (!token) return { ownerId: null }
+  const ownerId = ownerIdOf(token)
   const now = new Date()
-  const live = !token.usedAt && !token.revokedAt && token.expiresAt.getTime() > now.getTime()
-  if (live) await refreshTokensRepo.revokeFamilyAndSessions(token, now)
+  if (token.usedAt || token.revokedAt) {
+    const reuse = await handleReuse(token, now)
+    return { ownerId, failure: reuse.reason, sessionsEnded: reuse.sessionsEnded }
+  }
+  if (token.expiresAt.getTime() > now.getTime()) await refreshTokensRepo.revokeFamilyAndSessions(token, now)
   else await refreshTokensRepo.revokeFamily(token.familyId, now)
-  return ownerIdOf(token)
+  return { ownerId }
 }
 
 /**

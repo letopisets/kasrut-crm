@@ -25,6 +25,7 @@ import { signMapAccessToken } from '../lib/jwt'
 import {
   clearRefreshCookie,
   endPresentedRefreshSession,
+  refreshFailureLogMessage,
   revokePresentedRefreshFamily,
   rotateRefreshToken,
   setRefreshCookie,
@@ -233,11 +234,10 @@ export const mapAuthController = {
     const outcome = await rotateRefreshToken(req, 'map', id => mapCommunityRepo.findUserById(id))
     if (!outcome.ok) {
       clearRefreshCookie(res, 'map')
-      if ((outcome.reason === 'reused' || outcome.reason === 'replayed') && outcome.ownerId) {
+      const message = refreshFailureLogMessage(outcome)
+      if (message && outcome.ownerId) {
         res.locals.serviceLogActor = { userId: outcome.ownerId, userRole: 'map_user', actorType: 'map_user' }
-        res.locals.serviceLogMessage = outcome.reason === 'reused'
-          ? 'Map refresh token reuse detected; sessions revoked'
-          : 'Map refresh token presented again within the grace window; family revoked'
+        res.locals.serviceLogMessage = `Map ${message}`
       }
       res.status(401).json({ error: 'Session expired; sign in again' }); return
     }
@@ -396,11 +396,14 @@ export const mapAuthController = {
     if (!req.mapUser) {
       // No access token: the route let the request through on the refresh
       // guards, and the refresh cookie alone ends this browser's session.
-      const ownerId = await endPresentedRefreshSession(req, 'map')
+      const ended = await endPresentedRefreshSession(req, 'map')
       clearRefreshCookie(res, 'map')
-      if (ownerId) {
-        res.locals.serviceLogActor = { userId: ownerId, userRole: 'map_user', actorType: 'map_user' }
-        res.locals.serviceLogMessage = 'Map logout succeeded (refresh cookie)'
+      if (ended.ownerId) {
+        const message = ended.failure && refreshFailureLogMessage({ reason: ended.failure, sessionsEnded: ended.sessionsEnded })
+        res.locals.serviceLogActor = { userId: ended.ownerId, userRole: 'map_user', actorType: 'map_user' }
+        res.locals.serviceLogMessage = message
+          ? `Map logout (refresh cookie): ${message}`
+          : 'Map logout succeeded (refresh cookie)'
       }
       res.status(204).send(); return
     }

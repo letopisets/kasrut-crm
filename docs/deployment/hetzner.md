@@ -280,7 +280,13 @@ chain are not revoked by this: they stay valid until they expire (at most
 `ACCESS_TOKEN_TTL`, 15 minutes). If a stolen cookie was used first and the
 owner's browser presents it within that minute, that is the thief's window;
 after the minute the whole account is signed out. A new sign-in revokes the
-chain of the cookie it replaces. Expired rows are purged once a day by the
+chain of the cookie it replaces. The service log says which case it was:
+`… refresh token reuse detected; sessions revoked` (a stolen copy; the
+account was signed out), `…; family revoked, sessions had already ended` (a
+stolen copy of an account signed out since), `… presented again within the
+grace window` (a lost response), or `… revoked refresh token presented` (a
+cookie retired by a sign-out, a new sign-in, a 2FA change or its chain's
+revocation; nothing else happens). Expired rows are purged once a day by the
 API process, together with consumed 2FA challenges whose pending token has
 expired and map email-verification and password-reset links that expired
 more than a day earlier (`lib/tokenPurge.ts`).
@@ -300,7 +306,11 @@ of the same host name (localhost:5173 calling localhost:3000) is accepted.
 Sign-out (`POST /api/auth/logout`, `POST /api/map-auth/logout`) goes to the
 API even when the client holds no access token: without one, the refresh
 cookie alone ends the session it carries, under the same guards as a
-refresh. Only the API can revoke the httpOnly cookie, so the CRM and the map
+refresh. A cookie that was already used or revoked is treated there exactly
+as a refresh treats it: a cookie rotated more than a minute earlier means
+someone else renewed the session, so the account is signed out everywhere
+and the reuse is logged. Only the API can revoke the httpOnly cookie, so the
+CRM and the map
 keep the user signed in and say so when the sign-out call fails, instead of
 showing the login page over a live cookie. The CRM's "Sign in again" button
 (shown when the session could not be restored at startup) tries the same

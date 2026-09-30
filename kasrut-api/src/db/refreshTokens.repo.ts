@@ -96,20 +96,25 @@ export const refreshTokensRepo = {
    * sessionVersion so access tokens already issued from the family stop
    * working. The bump is conditional on the family's version still being the
    * current one; otherwise those access tokens are dead already and a bump
-   * would only sign the owner out of their newer sessions.
+   * would only sign the owner out of their newer sessions. True when the
+   * bump happened (the owner's sessions were ended by this call).
    */
-  async revokeFamilyAndSessions(token: RefreshTokenRow, now: Date): Promise<void> {
-    await prisma.$transaction(async tx => {
+  async revokeFamilyAndSessions(token: RefreshTokenRow, now: Date): Promise<boolean> {
+    return prisma.$transaction(async tx => {
       await tx.refreshToken.updateMany({
         where: { familyId: token.familyId, revokedAt: null },
         data:  { revokedAt: now },
       })
       const bump = { sessionVersion: { increment: 1 } }
       if (token.audience === 'crm' && token.userId) {
-        await tx.user.updateMany({ where: { id: token.userId, sessionVersion: token.sessionVersion }, data: bump })
-      } else if (token.audience === 'map' && token.mapUserId) {
-        await tx.mapUser.updateMany({ where: { id: token.mapUserId, sessionVersion: token.sessionVersion }, data: bump })
+        const bumped = await tx.user.updateMany({ where: { id: token.userId, sessionVersion: token.sessionVersion }, data: bump })
+        return bumped.count > 0
       }
+      if (token.audience === 'map' && token.mapUserId) {
+        const bumped = await tx.mapUser.updateMany({ where: { id: token.mapUserId, sessionVersion: token.sessionVersion }, data: bump })
+        return bumped.count > 0
+      }
+      return false
     })
   },
 

@@ -13,6 +13,7 @@ import { isTwoFactorSetupRequired } from '../lib/twoFactorPolicy'
 import {
   clearRefreshCookie,
   endPresentedRefreshSession,
+  refreshFailureLogMessage,
   revokePresentedRefreshFamily,
   rotateRefreshToken,
   setRefreshCookie,
@@ -98,11 +99,10 @@ export const authController = {
     const outcome = await rotateRefreshToken(req, 'crm', id => usersRepo.findAuthById(id))
     if (!outcome.ok) {
       clearRefreshCookie(res, 'crm')
-      if ((outcome.reason === 'reused' || outcome.reason === 'replayed') && outcome.ownerId) {
+      const message = refreshFailureLogMessage(outcome)
+      if (message && outcome.ownerId) {
         res.locals.serviceLogActor = { userId: outcome.ownerId, actorType: 'crm_user' }
-        res.locals.serviceLogMessage = outcome.reason === 'reused'
-          ? 'CRM refresh token reuse detected; sessions revoked'
-          : 'CRM refresh token presented again within the grace window; family revoked'
+        res.locals.serviceLogMessage = `CRM ${message}`
       }
       res.status(401).json({ error: 'Session expired; sign in again' }); return
     }
@@ -127,11 +127,14 @@ export const authController = {
     if (!req.user) {
       // No access token: the route let the request through on the refresh
       // guards, and the refresh cookie alone ends this browser's session.
-      const ownerId = await endPresentedRefreshSession(req, 'crm')
+      const ended = await endPresentedRefreshSession(req, 'crm')
       clearRefreshCookie(res, 'crm')
-      if (ownerId) {
-        res.locals.serviceLogActor = { userId: ownerId, actorType: 'crm_user' }
-        res.locals.serviceLogMessage = 'CRM logout succeeded (refresh cookie)'
+      if (ended.ownerId) {
+        const message = ended.failure && refreshFailureLogMessage({ reason: ended.failure, sessionsEnded: ended.sessionsEnded })
+        res.locals.serviceLogActor = { userId: ended.ownerId, actorType: 'crm_user' }
+        res.locals.serviceLogMessage = message
+          ? `CRM logout (refresh cookie): ${message}`
+          : 'CRM logout succeeded (refresh cookie)'
       }
       res.status(204).send(); return
     }

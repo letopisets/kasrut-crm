@@ -7,6 +7,7 @@ import { env } from '../config/env'
 import { usersRepo } from '../db/users.repo'
 import { mapCommunityRepo, type MapAuthUserRow } from '../db/mapCommunity.repo'
 import { refreshTokensRepo } from '../db/refreshTokens.repo'
+import { serviceLogsRepo } from '../db/serviceLogs.repo'
 import { verifyCrmAccessToken, verifyMapAccessToken } from '../lib/jwt'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { resetLoginThrottleMemory } from '../lib/loginThrottle'
@@ -155,6 +156,14 @@ function mapMe(access: string) {
 // counts as a stolen copy rather than a lost response.
 function ageRotation(token: string) {
   rowFor(token)!.usedAt = new Date(Date.now() - REUSE_GRACE_MS - 1000)
+}
+
+// Messages the service log recorded for the requests so far (auth failures
+// that name an account carry one).
+function serviceLogMessages(): string[] {
+  return jest.mocked(serviceLogsRepo.create).mock.calls
+    .map(([entry]) => (entry as { message?: string }).message ?? '')
+    .filter(message => /refresh token|refresh cookie/i.test(message))
 }
 
 function maxAgeOf(cookie: SetCookie): number {
@@ -452,6 +461,73 @@ describe('POST /api/auth/refresh', () => {
     }
   })
 
+  it('names a cookie revoked by a sign-out as revoked, not as a replay or a reuse', async () => {
+    const info = jest.spyOn(logger, 'info')
+    const warn = jest.spyOn(logger, 'warn')
+    try {
+      const { access, refresh } = await crmSession()
+      await request(app).post('/api/auth/logout').set('X-Forwarded-For', nextIp())
+        .set('Authorization', `Bearer ${access}`).set('Cookie', `${CRM_COOKIE}=${refresh}`)
+      expect(crmVersion()).toBe(1)
+
+      // Right after the sign-out, and again past the grace window.
+      expect((await crmRefresh(refresh)).status).toBe(401)
+      rowFor(refresh)!.revokedAt = new Date(Date.now() - REUSE_GRACE_MS - 1000)
+      expect((await crmRefresh(refresh)).status).toBe(401)
+
+      const context = { audience: 'crm', familyId: rowFor(refresh)!.familyId, ownerId: crmUser.id }
+      expect(info.mock.calls.filter(([ctx, msg]) => msg === 'Revoked refresh token presented; family revoked' &&
+        JSON.stringify(ctx) === JSON.stringify(context))).toHaveLength(2)
+      expect(info).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining('grace window'))
+      expect(warn).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining('reuse detected'))
+      expect(crmVersion()).toBe(1)
+      expect(serviceLogMessages()).toEqual(expect.arrayContaining([
+        'CRM revoked refresh token presented; family revoked',
+      ]))
+      expect(serviceLogMessages().some(message => /grace window|reuse/.test(message))).toBe(false)
+    } finally {
+      info.mockRestore()
+      warn.mockRestore()
+    }
+  })
+
+  it('names a revoked successor as revoked after its family was revoked by a replay', async () => {
+    const { refresh } = await crmSession()
+    const successor = setCookie(await crmRefresh(refresh), CRM_COOKIE)!.value
+    expect((await crmRefresh(refresh)).status).toBe(401)   // grace-window replay: family revoked
+
+    expect((await crmRefresh(successor)).status).toBe(401)
+
+    expect(serviceLogMessages()).toEqual([
+      'CRM refresh token presented again within the grace window; family revoked',
+      'CRM revoked refresh token presented; family revoked',
+    ])
+    expect(crmVersion()).toBe(0)
+  })
+
+  it('still reports a rotated token presented much later as reuse when the sessions had ended already', async () => {
+    const warn = jest.spyOn(logger, 'warn')
+    try {
+      const { refresh } = await crmSession()
+      const rotated = await crmRefresh(refresh)
+      await request(app).post('/api/auth/logout').set('X-Forwarded-For', nextIp())
+        .set('Authorization', `Bearer ${rotated.body.token}`)
+      expect(crmVersion()).toBe(1)
+      ageRotation(refresh)
+
+      expect((await crmRefresh(refresh)).status).toBe(401)
+
+      expect(crmVersion()).toBe(1)
+      expect(warn).toHaveBeenCalledWith(
+        { audience: 'crm', familyId: rowFor(refresh)!.familyId, ownerId: crmUser.id },
+        'Refresh token reuse detected; family revoked, sessions had already ended',
+      )
+      expect(serviceLogMessages()).toContain('CRM refresh token reuse detected; family revoked, sessions had already ended')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   it('lets exactly one of two concurrent rotations of the same token through and revokes the family', async () => {
     const { refresh } = await crmSession()
     const req = { headers: { cookie: `${CRM_COOKIE}=${refresh}` }, get: () => undefined } as unknown as Request
@@ -703,6 +779,53 @@ describe('CRM sessions', () => {
     expect(res.status).toBe(204)
     expect(rowFor(successor)!.revokedAt).toBeInstanceOf(Date)
     expect((await crmRefresh(successor)).status).toBe(401)
+    // Within the grace window: a lost rotation response, not theft.
+    expect(crmVersion()).toBe(0)
+    expect(serviceLogMessages()).toContain(
+      'CRM logout (refresh cookie): refresh token presented again within the grace window; family revoked',
+    )
+  })
+
+  // The owner's browser can only hold a cookie rotated long ago if someone
+  // else rotated it: whoever did holds live access tokens from the family.
+  it('logout by a cookie rotated longer ago ends the sessions it fed and reports the reuse', async () => {
+    const warn = jest.spyOn(logger, 'warn')
+    try {
+      const { refresh } = await crmSession()
+      const thief = await crmRefresh(refresh)
+      const thiefRefresh = setCookie(thief, CRM_COOKIE)!.value
+      ageRotation(refresh)
+
+      const res = await crmCookieLogout(refresh)
+
+      expect(res.status).toBe(204)
+      expectCleared(res, CRM_COOKIE, '/api/auth')
+      expect(crmVersion()).toBe(1)
+      expect((await crmMe(thief.body.token)).status).toBe(401)
+      expect((await crmRefresh(thiefRefresh)).status).toBe(401)
+      expect(warn).toHaveBeenCalledWith(
+        { audience: 'crm', familyId: rowFor(refresh)!.familyId, ownerId: crmUser.id },
+        'Refresh token reuse detected; family revoked and sessions ended',
+      )
+      expect(serviceLogMessages()).toContain('CRM logout (refresh cookie): refresh token reuse detected; sessions revoked')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('logout by a cookie revoked by an earlier sign-out changes nothing else', async () => {
+    const { access, refresh } = await crmSession()
+    await request(app).post('/api/auth/logout').set('X-Forwarded-For', nextIp())
+      .set('Authorization', `Bearer ${access}`).set('Cookie', `${CRM_COOKIE}=${refresh}`)
+    rowFor(refresh)!.revokedAt = new Date(Date.now() - REUSE_GRACE_MS - 1000)
+    const current = await crmSession()
+
+    const res = await crmCookieLogout(refresh)
+
+    expect(res.status).toBe(204)
+    expect(crmVersion()).toBe(1)
+    expect((await crmRefresh(current.refresh)).status).toBe(200)
+    expect(serviceLogMessages()).toContain('CRM logout (refresh cookie): revoked refresh token presented; family revoked')
   })
 
   it('a stale refresh cookie cannot sign the account out elsewhere', async () => {
@@ -915,6 +1038,20 @@ describe('map sessions', () => {
     expect(mapVersion()).toBe(1)
     expect((await mapRefresh(refresh)).status).toBe(401)
     expect((await mapMe(access)).status).toBe(401)
+  })
+
+  it('logout by a cookie rotated longer ago ends the sessions it fed', async () => {
+    const { refresh } = await mapSession()
+    const thief = await mapRefresh(refresh)
+    ageRotation(refresh)
+
+    const res = await request(app).post('/api/map-auth/logout').set('X-Forwarded-For', nextIp())
+      .set('X-Requested-With', 'kashrut').set('Cookie', `${MAP_COOKIE}=${refresh}`)
+
+    expect(res.status).toBe(204)
+    expect(mapVersion()).toBe(1)
+    expect((await mapMe(thief.body.token)).status).toBe(401)
+    expect(serviceLogMessages()).toContain('Map logout (refresh cookie): refresh token reuse detected; sessions revoked')
   })
 
   it('refuses a cookie-only logout without X-Requested-With', async () => {
