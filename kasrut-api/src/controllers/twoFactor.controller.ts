@@ -5,9 +5,7 @@ import { usersRepo } from '../db/users.repo'
 import { serializeUser } from '../serializers/user.serializer'
 import { signFullToken } from './auth.controller'
 import { asyncHandler } from '../lib/asyncHandler'
-import { checkTotpAttempt } from '../lib/twoFactorAttempts'
 import { claimTotpTimeStep, consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
-import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { verifyTwoFactorPendingToken, type TwoFactorPendingPayload } from '../lib/jwt'
 import { isTwoFactorRequiredForRole } from '../lib/twoFactorPolicy'
@@ -70,11 +68,12 @@ async function acceptTotp(userId: string, code: string, secret: string): Promise
   return step !== null && claimTotpTimeStep(userId, step)
 }
 
-async function verifyPendingToken(token: string): Promise<TwoFactorPendingPayload | null> {
+// Nothing revokes a pending token: each one is single use through
+// consumeTwoFactorChallenge (Postgres), and guesses are bounded per account by
+// the crm-2fa throttle, so neither step needs Redis.
+function verifyPendingToken(token: string): TwoFactorPendingPayload | null {
   try {
-    const payload = verifyTwoFactorPendingToken(token)
-    if (await isTokenBlacklisted(payload.jti)) return null
-    return payload
+    return verifyTwoFactorPendingToken(token)
   } catch {
     return null
   }
@@ -200,7 +199,7 @@ export const twoFactorController = {
       res.status(400).json({ error: 'tempToken and backupCode required' }); return
     }
 
-    const payload = await verifyPendingToken(tempToken)
+    const payload = verifyPendingToken(tempToken)
     if (!payload) {
       res.status(401).json({ error: 'Invalid or expired token' }); return
     }
@@ -215,11 +214,6 @@ export const twoFactorController = {
     }
 
     const ttlSeconds = challengeTtlSeconds(payload)
-    const allowed = await checkTotpAttempt(payload.jti, ttlSeconds)
-    if (!allowed) {
-      res.status(429).json({ error: 'Too many attempts' }); return
-    }
-
     const user = await usersRepo.findAuthById(payload.sub)
     if (!user || !user.twoFactorEnabled) { res.status(401).json({ error: 'Unauthorized' }); return }
 
@@ -262,7 +256,7 @@ export const twoFactorController = {
       res.status(400).json({ error: 'tempToken and code required' }); return
     }
 
-    const payload = await verifyPendingToken(tempToken)
+    const payload = verifyPendingToken(tempToken)
     if (!payload) {
       res.status(401).json({ error: 'Invalid or expired token' }); return
     }
@@ -275,14 +269,7 @@ export const twoFactorController = {
       sendLoginLocked(res, lock); return
     }
 
-    // Per-token brute-force guard: max 5 attempts per tempToken JTI.
-    // TTL matches the token's remaining lifetime so the counter self-expires.
     const ttlSeconds = challengeTtlSeconds(payload)
-    const allowed = await checkTotpAttempt(payload.jti, ttlSeconds)
-    if (!allowed) {
-      res.status(429).json({ error: 'Too many attempts' }); return
-    }
-
     const user = await usersRepo.findAuthById(payload.sub)
     if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
       res.status(401).json({ error: 'Unauthorized' }); return

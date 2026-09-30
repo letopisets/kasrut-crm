@@ -11,7 +11,6 @@ import {
   verifyTwoFactorPendingToken,
 } from '../lib/jwt'
 import type { User } from '../models/types'
-import { checkTotpAttempt } from '../lib/twoFactorAttempts'
 import { claimTotpTimeStep, consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { resetLoginThrottleMemory } from '../lib/loginThrottle'
@@ -28,7 +27,6 @@ jest.mock('../db/documents.repo')
 // Refresh-token storage; its behaviour is covered in refreshTokens.test.ts.
 jest.mock('../db/refreshTokens.repo')
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
-jest.mock('../lib/twoFactorAttempts')
 jest.mock('../lib/twoFactorChallenges')
 jest.mock('../lib/tokenBlacklist')
 jest.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,qr' }))
@@ -43,7 +41,6 @@ jest.mock('otplib', () => ({
 }))
 
 const mockRepo = usersRepo as jest.Mocked<typeof usersRepo>
-const mockCheckTotpAttempt = jest.mocked(checkTotpAttempt)
 const mockConsumeChallenge = jest.mocked(consumeTwoFactorChallenge)
 const mockClaimTotpStep = jest.mocked(claimTotpTimeStep)
 const mockIsTokenBlacklisted = jest.mocked(isTokenBlacklisted)
@@ -76,7 +73,6 @@ beforeEach(() => {
   resetLoginThrottleMemory()
   mockRepo.findAuthById.mockResolvedValue(baseUser)
   mockRepo.verifyPassword.mockResolvedValue(true)
-  mockCheckTotpAttempt.mockResolvedValue(true)
   mockConsumeChallenge.mockResolvedValue('consumed')
   mockClaimTotpStep.mockResolvedValue(true)
   mockIsTokenBlacklisted.mockResolvedValue(false)
@@ -345,17 +341,6 @@ describe('POST /api/auth/2fa/verify', () => {
 
     expect(res.status).toBe(401)
     expect(mockRepo.findAuthById).not.toHaveBeenCalled()
-  })
-
-  it('rejects a blacklisted pending token', async () => {
-    mockIsTokenBlacklisted.mockResolvedValue(true)
-    const tempToken = signTwoFactorPendingToken({ sub: 'u1', jti: 'revoked-pending' })
-
-    const res = await request(app)
-      .post('/api/auth/2fa/verify')
-      .send({ tempToken, code: '123456' })
-
-    expect(res.status).toBe(401)
   })
 
   it('rejects an already consumed pending challenge', async () => {
@@ -679,13 +664,28 @@ describe('CRM 2FA throttling per account', () => {
   const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
 
   // A fresh pending token per call, as an attacker re-running the password
-  // step would get: the per-jti counter alone never trips.
+  // step would get: the lock is per account, not per pending token.
   function verify(code: string) {
     return request(app)
       .post('/api/auth/2fa/verify')
       .set('X-Forwarded-For', nextIp())
       .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1' }), code })
   }
+
+  it('answers repeated guesses on one pending token with the same per-account 429', async () => {
+    mockRepo.findAuthById.mockResolvedValue(tfUser)
+    const tempToken = signTwoFactorPendingToken({ sub: 'u1' })
+    const send = () => request(app)
+      .post('/api/auth/2fa/verify')
+      .set('X-Forwarded-For', nextIp())
+      .send({ tempToken, code: '000000' })
+
+    for (let i = 0; i < 6; i += 1) expect((await send()).status).toBe(400)
+    const res = await send()
+    expect(res.status).toBe(429)
+    expect(res.body).toEqual(LOCKED_BODY)
+    expect(res.headers['retry-after']).toBe('60')
+  }, SLOW_TEST_MS)
 
   it('locks both 2FA endpoints for the account and skips the factor check', async () => {
     mockRepo.findAuthById.mockResolvedValue(tfUser)
@@ -706,7 +706,6 @@ describe('CRM 2FA throttling per account', () => {
         expect(res.headers['retry-after']).toBe('60')
       }
       expect(mockRepo.findAuthById).not.toHaveBeenCalled()
-      expect(mockCheckTotpAttempt).not.toHaveBeenCalled()
       expect(compare).not.toHaveBeenCalled()
       expect(mockConsumeChallenge).not.toHaveBeenCalled()
     } finally {

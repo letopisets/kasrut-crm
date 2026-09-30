@@ -36,7 +36,6 @@ jest.mock('../db/mapCommunity.repo')
 jest.mock('../db/serviceLogs.repo', () => ({ serviceLogsRepo: { create: jest.fn(async () => undefined) } }))
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('../lib/tokenBlacklist')
-jest.mock('../lib/twoFactorAttempts', () => ({ checkTotpAttempt: jest.fn(async () => true) }))
 jest.mock('../lib/twoFactorChallenges', () => ({
   consumeTwoFactorChallenge: jest.fn(async () => 'consumed'),
   claimTotpTimeStep: jest.fn(async () => true),
