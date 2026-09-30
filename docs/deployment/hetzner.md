@@ -42,31 +42,36 @@ Fill strong values for:
 - `POSTGRES_PASSWORD`
 - `REDIS_PASSWORD` — `openssl rand -hex 32` (see [Redis password](#redis-password))
 - `JWT_SECRET`
+- `MAP_JWT_SECRET` (see [Separate map secret](#separate-map-secret))
 - `ENCRYPTION_KEY`
 - `CORS_ORIGINS`
 - `GOOGLE_CLIENT_ID`
 - `APPLE_CLIENT_ID`
 - `VITE_APPLE_REDIRECT_URI`
 
-Generate the two API secrets on the server:
+Generate the API secrets on the server, each one separately:
 
 ```sh
 openssl rand -hex 48   # JWT_SECRET
+openssl rand -hex 48   # MAP_JWT_SECRET (a second run: never a copy of JWT_SECRET)
 openssl rand -hex 32   # ENCRYPTION_KEY (exactly 64 hex characters)
 ```
 
-The API refuses to start when either one is a template placeholder or has an
-obvious pattern (for example `0123456789abcdef…`). Every JWT signing key is
-derived from `JWT_SECRET`, one per purpose (CRM access, map access, pending
-2FA sign-in; see [ADR 0006](../adr/0006-per-purpose-jwt-keys.md)). Changing it
-does **not** sign anyone out: it invalidates only the outstanding access
-tokens (at most `ACCESS_TOKEN_TTL`, 15 minutes) and 2FA sign-ins in progress,
-and the CRM and the map renew silently through their refresh cookies, which
-do not depend on it. Rotate it when the secret itself may have leaked (forged
-tokens stop verifying). To end sessions, for example after stolen cookies or
-tokens, bump `sessionVersion` instead (see
+The API refuses to start when any of them is a template placeholder or has an
+obvious pattern (for example `0123456789abcdef…`), and when `MAP_JWT_SECRET`
+equals or contains `JWT_SECRET`. Each JWT purpose has its own signing key,
+derived with HKDF (see [ADR 0006](../adr/0006-per-purpose-jwt-keys.md)): CRM
+access and pending 2FA sign-in from `JWT_SECRET`, map access from
+`MAP_JWT_SECRET`, or from `JWT_SECRET` too while `MAP_JWT_SECRET` is empty.
+Changing `JWT_SECRET` does **not** sign anyone out: it invalidates only the
+outstanding access tokens it keys (at most `ACCESS_TOKEN_TTL`, 15 minutes)
+and 2FA sign-ins in progress, and the CRM (and the map, while it shares the
+secret) renew silently through their refresh cookies, which do not depend on
+it. Rotate it when the secret itself may have leaked (forged tokens stop
+verifying). To end sessions, for example after stolen cookies or tokens, bump
+`sessionVersion` instead (see
 [Sessions and refresh cookies](#sessions-and-refresh-cookies)); after a leak
-of the whole `.env.hetzner`, do both.
+of the whole `.env.hetzner`, rotate both JWT secrets and bump it.
 `ENCRYPTION_KEY` encrypts CRM users' TOTP secrets: rotating it breaks 2FA for
 any user who has it enabled, so they must set 2FA up again.
 
@@ -75,6 +80,69 @@ Optional, server-side geocoders (api service only): `LOCATIONIQ_API_KEY` and
 and [LocationIQ](#locationiq-geocoder-server-side) below.
 
 Keep `SEED_DB=false` in production unless you intentionally want to reset seed data.
+
+### Separate map secret
+
+`MAP_JWT_SECRET` is optional for the API but meant to be set in production.
+When it is set, public-map access tokens are signed with a key derived from
+it, and CRM access and pending-2FA tokens with keys derived from `JWT_SECRET`.
+A leaked `JWT_SECRET` then cannot forge map tokens, a leaked `MAP_JWT_SECRET`
+cannot forge CRM tokens, and either can be rotated without touching the other
+side. Both still live in `.env.hetzner` and in the same api container, so a
+leak of the whole file (or of the container's environment) exposes both.
+`docker-compose.yml` forwards it as `MAP_JWT_SECRET: ${MAP_JWT_SECRET:-}`; an
+empty or missing value means unset, and the map key is then derived from
+`JWT_SECRET`, as before this variable existed.
+
+It must pass the same checks as `JWT_SECRET` (at least 32 characters, no
+placeholder, no repeated pattern) and must not equal or contain `JWT_SECRET`;
+otherwise the deploy preflight fails with a `MAP_JWT_SECRET` error and nothing
+is restarted.
+
+Setting it, rotating it or removing it signs nobody out. It invalidates only
+the map access tokens already issued (at most `ACCESS_TOKEN_TTL`, 15 minutes):
+the map's next call gets a 401, renews through the `kashrut_map_rt` refresh
+cookie, which does not depend on any JWT secret, and retries. CRM sessions,
+CRM access tokens and 2FA sign-ins in progress are not affected. To actually
+sign map users out, bump `map_users."sessionVersion"` (see
+[Sessions and refresh cookies](#sessions-and-refresh-cookies)).
+
+**Setting it on a running server** — together with the deploy that brings this
+variable (an older `docker-compose.yml` does not forward it, so it would have
+no effect):
+
+```sh
+cd /opt/kasrut
+DC="docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml"
+# Generate it once. sed drops an empty line or the template placeholder; the
+# leading \n keeps it off the previous line if the file lacks a final newline.
+if ! grep -q '^MAP_JWT_SECRET=.' .env.hetzner || grep -q '^MAP_JWT_SECRET=replace-with' .env.hetzner; then
+  sed -i '/^MAP_JWT_SECRET=/d' .env.hetzner
+  printf '\nMAP_JWT_SECRET=%s\n' "$(openssl rand -hex 48)" >> .env.hetzner
+fi
+git pull --ff-only
+$DC config | grep -Ec 'MAP_JWT_SECRET: "?[0-9a-f]{96}'  # 1 = forwarded to the api (a count, not the secret)
+sh scripts/hetzner-deploy.sh   # the preflight validates it before anything restarts
+```
+
+Check that the running api uses it (prints `separate`, never the secret):
+
+```sh
+$DC exec -T api node -e "console.log(require('./dist/kasrut-api/src/config/env').env.MAP_JWT_SECRET ? 'separate' : 'shared with JWT_SECRET')"
+```
+
+**Rotating it** (for example when it may have leaked): replace the value,
+validate, and recreate the api:
+
+```sh
+sed -i '/^MAP_JWT_SECRET=/d' .env.hetzner
+printf '\nMAP_JWT_SECRET=%s\n' "$(openssl rand -hex 48)" >> .env.hetzner
+$DC run --rm --no-deps --entrypoint node api -e "require('./dist/kasrut-api/src/config/env')" && $DC up -d api
+```
+
+Removing the line (or leaving it empty) and recreating the api the same way
+is the rollback: map keys are derived from `JWT_SECRET` again, with the same
+silent renewal.
 
 ### Mandatory 2FA for CRM owners
 
@@ -337,7 +405,7 @@ Equivalent manual commands:
 ```sh
 git pull --ff-only
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml build
-# Preflight: exits non-zero if the API would reject JWT_SECRET / ENCRYPTION_KEY.
+# Preflight: exits non-zero if the API would reject JWT_SECRET / MAP_JWT_SECRET / ENCRYPTION_KEY.
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml \
   run --rm --no-deps --entrypoint node api -e "require('./dist/kasrut-api/src/config/env')"
 docker compose --env-file .env.hetzner -f docker-compose.yml -f docker-compose.prod.yml up -d

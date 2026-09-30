@@ -58,6 +58,10 @@ services:
       # :? — упадёт при старте если не задан
       JWT_SECRET:      ${JWT_SECRET:?Set JWT_SECRET in .env (min 32 chars)}
       ENCRYPTION_KEY:  ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256)}
+      # Optional separate secret for map access tokens (openssl rand -hex 48,
+      # different from JWT_SECRET). Empty = the map key is derived from
+      # JWT_SECRET (docs/deployment/hetzner.md#separate-map-secret).
+      MAP_JWT_SECRET:  ${MAP_JWT_SECRET:-}
       # Sessions (docs/deployment/hetzner.md#sessions-and-refresh-cookies). Empty
       # means the API default: 15m access tokens, 30-day refresh sign-ins, Secure
       # cookies outside development/test. JWT_EXPIRES_IN is no longer read and is

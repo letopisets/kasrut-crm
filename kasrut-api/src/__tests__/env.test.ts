@@ -42,12 +42,22 @@ function rejectionOf(source: Record<string, string>): ZodError {
   throw new Error('parseEnv accepted the configuration')
 }
 
-function expectRejected(variable: 'JWT_SECRET' | 'ENCRYPTION_KEY', value: string): void {
-  const error = rejectionOf(productionEnv({ [variable]: value }))
+function expectRejected(
+  variable: 'JWT_SECRET' | 'MAP_JWT_SECRET' | 'ENCRYPTION_KEY',
+  value: string,
+  overrides: Record<string, string> = {},
+): void {
+  const error = rejectionOf(productionEnv({ ...overrides, [variable]: value }))
   expect(error.issues.map(issue => issue.path.join('.'))).toContain(variable)
   // The startup error must never echo the secret it rejected.
   expect(error.message).not.toContain(value)
 }
+
+const PLACEHOLDERS = [
+  'change-me', 'CHANGEME', 'CHANGE_ME', 'change me', 'replace-with', 'Replace_With', 'replacewith',
+  'your-secret', 'your_secret', 'YOUR_JWT_SECRET', 'SECRET-KEY', 'secret_key', 'secretkey',
+  'super_secret', 'at-least', 'placeholder', 'example',
+]
 
 describe('parseEnv secret validation', () => {
   it('accepts the production shape', () => {
@@ -68,11 +78,7 @@ describe('parseEnv secret validation', () => {
     }
   })
 
-  it.each([
-    'change-me', 'CHANGEME', 'CHANGE_ME', 'change me', 'replace-with', 'Replace_With', 'replacewith',
-    'your-secret', 'your_secret', 'YOUR_JWT_SECRET', 'SECRET-KEY', 'secret_key', 'secretkey',
-    'super_secret', 'at-least', 'placeholder', 'example',
-  ])('rejects a JWT_SECRET containing the placeholder %s', placeholder => {
+  it.each(PLACEHOLDERS)('rejects a JWT_SECRET containing the placeholder %s', placeholder => {
     expectRejected('JWT_SECRET', `${randomJwtSecret(20)}${placeholder}${randomJwtSecret(20)}`)
   })
 
@@ -118,6 +124,65 @@ describe('parseEnv secret validation', () => {
     ['the wrong length', randomEncryptionKey().slice(0, 62)],
   ])('rejects an ENCRYPTION_KEY that is %s', (_label, value) => {
     expectRejected('ENCRYPTION_KEY', value)
+  })
+})
+
+describe('MAP_JWT_SECRET', () => {
+  function variablesRejected(source: Record<string, string>): string[] {
+    return rejectionOf(source).issues.map(issue => issue.path.join('.'))
+  }
+
+  it('is unset by default, which keeps map keys on JWT_SECRET', () => {
+    expect(parseEnv(productionEnv()).MAP_JWT_SECRET).toBeUndefined()
+  })
+
+  // docker-compose passes an unset optional variable as ${VAR:-}, i.e. ''.
+  it.each(['', '  '])('treats the empty value %j as unset', value => {
+    expect(parseEnv(productionEnv({ MAP_JWT_SECRET: value })).MAP_JWT_SECRET).toBeUndefined()
+  })
+
+  it('accepts secrets from the documented generators', () => {
+    for (let i = 0; i < 100; i += 1) {
+      const hex = randomBytes(48).toString('hex')              // openssl rand -hex 48
+      expect(parseEnv(productionEnv({ MAP_JWT_SECRET: hex })).MAP_JWT_SECRET).toBe(hex)
+      const alphanumeric = randomJwtSecret()
+      expect(parseEnv(productionEnv({ MAP_JWT_SECRET: alphanumeric })).MAP_JWT_SECRET).toBe(alphanumeric)
+    }
+  })
+
+  it('does not change how JWT_SECRET is read', () => {
+    const source = productionEnv({ MAP_JWT_SECRET: randomBytes(48).toString('hex') })
+    expect(parseEnv(source).JWT_SECRET).toBe(source.JWT_SECRET)
+  })
+
+  it.each([
+    ['equal to JWT_SECRET', (jwtSecret: string) => jwtSecret],
+    ['JWT_SECRET with surrounding spaces', (jwtSecret: string) => ` ${jwtSecret} `],
+    ['JWT_SECRET with a suffix', (jwtSecret: string) => `${jwtSecret}-map`],
+    ['JWT_SECRET with a prefix', (jwtSecret: string) => `map${jwtSecret}`],
+    ['a part of JWT_SECRET', (jwtSecret: string) => jwtSecret.slice(8, 48)],
+  ])('rejects a MAP_JWT_SECRET %s', (_label, derive) => {
+    const jwtSecret = randomJwtSecret()
+    const value = derive(jwtSecret)
+    expectRejected('MAP_JWT_SECRET', value, { JWT_SECRET: jwtSecret })
+    // JWT_SECRET itself is fine; only the copy is refused.
+    expect(new Set(variablesRejected(productionEnv({ JWT_SECRET: jwtSecret, MAP_JWT_SECRET: value }))))
+      .toEqual(new Set(['MAP_JWT_SECRET']))
+  })
+
+  it.each(PLACEHOLDERS)('rejects a MAP_JWT_SECRET containing the placeholder %s', placeholder => {
+    expectRejected('MAP_JWT_SECRET', `${randomJwtSecret(20)}${placeholder}${randomJwtSecret(20)}`)
+  })
+
+  it.each([
+    ['fewer than 32 characters', randomJwtSecret(31)],
+    ['fewer than 12 distinct characters', `${'abcdefghijk'.repeat(3)}kjihgfedcba`],
+    ['one repeated character', 'x'.repeat(64)],
+    ['a repeated pattern', '0123456789abcdefghijklmnopqrstuv'.repeat(2)],
+    ['a template value', 'replace-with-openssl-rand-hex-48'],
+  ])('rejects a MAP_JWT_SECRET with %s', (_label, value) => {
+    expectRejected('MAP_JWT_SECRET', value)
+    expect(new Set(variablesRejected(productionEnv({ MAP_JWT_SECRET: value })))).toEqual(new Set(['MAP_JWT_SECRET']))
   })
 })
 
@@ -196,6 +261,20 @@ describe('placeholders shipped in the .env templates', () => {
 
   it.each(cases)('%s: %s placeholder is rejected', (_template, variable, value) => {
     expectRejected(variable, value)
+  })
+
+  // Production is meant to run with a separate map secret, so the Hetzner
+  // template asks for one; the API refuses the copied placeholder.
+  it('.env.hetzner.example asks for a MAP_JWT_SECRET the API refuses until replaced', () => {
+    const value = parse(readFileSync(path.join(repoRoot, '.env.hetzner.example'))).MAP_JWT_SECRET
+    expect(value).toEqual(expect.any(String))
+    expectRejected('MAP_JWT_SECRET', value as string)
+  })
+
+  // Local development runs without one (map keys come from JWT_SECRET).
+  it.each(['.env.example', path.join('kasrut-api', '.env.example')])('%s leaves MAP_JWT_SECRET unset', template => {
+    const value = parse(readFileSync(path.join(repoRoot, template))).MAP_JWT_SECRET
+    expect(value ?? '').toBe('')
   })
 })
 
@@ -313,7 +392,7 @@ describe('docker-compose.yml api environment', () => {
 
   it.each([
     ['ACCESS_TOKEN_TTL', ''], ['REFRESH_TOKEN_TTL_DAYS', ''], ['COOKIE_SECURE', ''],
-    ['REQUIRE_OWNER_2FA', 'true'],
+    ['REQUIRE_OWNER_2FA', 'true'], ['MAP_JWT_SECRET', ''],
     ['SMTP_HOST', ''], ['SMTP_PORT', ''], ['SMTP_USER', ''], ['SMTP_PASS', ''],
     ['MAP_EMAIL_VERIFICATION', ''], ['MAP_PUBLIC_URL', ''],
   ])('forwards %s with default %j', (key, fallback) => {
@@ -338,5 +417,6 @@ describe('docker-compose.yml api environment', () => {
     expect(env.SMTP_CONFIGURED).toBe(false)
     expect(env.MAP_EMAIL_VERIFICATION).toBe('off')
     expect(env.MAP_PUBLIC_URL).toBe('https://mykoshermap.com')
+    expect(env.MAP_JWT_SECRET).toBeUndefined()
   })
 })

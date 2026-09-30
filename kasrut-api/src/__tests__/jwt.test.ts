@@ -1,4 +1,4 @@
-import { createHmac, generateKeyPairSync } from 'crypto'
+import { createHmac, generateKeyPairSync, randomBytes } from 'crypto'
 import jwt from 'jsonwebtoken'
 import { env } from '../config/env'
 import {
@@ -10,7 +10,7 @@ import {
   verifyTwoFactorPendingToken,
   type JwtPurpose,
 } from '../lib/jwt'
-import { purposeKey, signWithPurposeKey } from './jwtTestUtils'
+import { hkdfPurposeKey, purposeKey, signWithKey, signWithPurposeKey } from './jwtTestUtils'
 
 const crmClaims = {
   sub: 'u1', role: 'rabbanut' as const, name: 'Admin', email: 'a@crm.il', rabbanutId: 'rb1', ver: 2,
@@ -225,5 +225,95 @@ describe('issuer, audience and claim checks', () => {
   ] as const)('rejects a correctly keyed %s token with wrong claims %j', (purpose, payload) => {
     const token = signWithPurposeKey(purpose, payload)
     expect(() => verifiers[purpose](token)).toThrow(/invalid token claims/)
+  })
+})
+
+describe('separate MAP_JWT_SECRET', () => {
+  type JwtModule = typeof import('../lib/jwt')
+
+  // lib/jwt.ts derives its keys once, when it is loaded: load a fresh copy
+  // against the given MAP_JWT_SECRET ('' = unset, as docker-compose passes
+  // it; it also keeps a MAP_JWT_SECRET in a local .env out of the way).
+  function loadJwt(mapJwtSecret: string): JwtModule {
+    const previous = process.env.MAP_JWT_SECRET
+    process.env.MAP_JWT_SECRET = mapJwtSecret
+    try {
+      let loaded: JwtModule | undefined
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        loaded = require('../lib/jwt') as JwtModule
+      })
+      if (!loaded) throw new Error('lib/jwt did not load')
+      return loaded
+    } finally {
+      if (previous === undefined) delete process.env.MAP_JWT_SECRET
+      else process.env.MAP_JWT_SECRET = previous
+    }
+  }
+
+  const mapSecret = randomBytes(48).toString('hex')   // openssl rand -hex 48
+  const separate = loadJwt(mapSecret)
+  const shared = loadJwt('')
+
+  const mapToken = (lib: JwtModule) => lib.signMapAccessToken(mapClaims)
+  const crmToken = (lib: JwtModule) => lib.signCrmAccessToken(crmClaims)
+  const pendingToken = (lib: JwtModule) => lib.signTwoFactorPendingToken({ sub: 'u1' })
+
+  it('without it, keys map tokens from JWT_SECRET exactly as before', () => {
+    const token = mapToken(shared)
+    expect(jwt.verify(token, hkdfPurposeKey(env.JWT_SECRET, 'map-access'), { algorithms: ['HS256'] }))
+      .toMatchObject({ iss: 'kashrut-api', aud: 'map-access', typ: 'map_user' })
+    const legacy = signWithKey(hkdfPurposeKey(env.JWT_SECRET, 'map-access'), 'map-access', validPayload['map-access'])
+    expect(shared.verifyMapAccessToken(legacy)).toMatchObject({ sub: 'mu1', typ: 'map_user' })
+  })
+
+  it('with it, signs map tokens with the same HKDF derivation of MAP_JWT_SECRET', () => {
+    const token = mapToken(separate)
+    expect(jwt.verify(token, hkdfPurposeKey(mapSecret, 'map-access'), { algorithms: ['HS256'] }))
+      .toMatchObject({ iss: 'kashrut-api', aud: 'map-access', typ: 'map_user' })
+    expect(separate.verifyMapAccessToken(token)).toMatchObject({ ...mapClaims, typ: 'map_user' })
+  })
+
+  it('rejects a map token signed with the JWT_SECRET-derived map key', () => {
+    expect(() => separate.verifyMapAccessToken(mapToken(shared))).toThrow(/invalid signature/)
+    const forged = signWithKey(hkdfPurposeKey(env.JWT_SECRET, 'map-access'), 'map-access', validPayload['map-access'])
+    expect(() => separate.verifyMapAccessToken(forged)).toThrow(/invalid signature/)
+  })
+
+  it('and the other way round: a MAP_JWT_SECRET-keyed map token does not verify without it', () => {
+    expect(() => shared.verifyMapAccessToken(mapToken(separate))).toThrow(/invalid signature/)
+    const forged = signWithKey(hkdfPurposeKey(mapSecret, 'map-access'), 'map-access', validPayload['map-access'])
+    expect(() => shared.verifyMapAccessToken(forged)).toThrow(/invalid signature/)
+  })
+
+  it('rejects a map token signed with the raw MAP_JWT_SECRET', () => {
+    const raw = jwt.sign(validPayload['map-access'], mapSecret, {
+      algorithm: 'HS256', issuer: 'kashrut-api', audience: 'map-access', expiresIn: '1h',
+    })
+    expect(() => separate.verifyMapAccessToken(raw)).toThrow(/invalid signature/)
+  })
+
+  it('leaves CRM access and pending-2FA tokens on JWT_SECRET', () => {
+    expect(separate.verifyCrmAccessToken(crmToken(shared))).toMatchObject({ ...crmClaims, typ: 'crm' })
+    expect(shared.verifyCrmAccessToken(crmToken(separate))).toMatchObject({ ...crmClaims, typ: 'crm' })
+    expect(separate.verifyTwoFactorPendingToken(pendingToken(shared))).toMatchObject({ sub: 'u1' })
+    expect(shared.verifyTwoFactorPendingToken(pendingToken(separate))).toMatchObject({ sub: 'u1' })
+    expect(jwt.verify(crmToken(separate), hkdfPurposeKey(env.JWT_SECRET, 'crm-access'), { algorithms: ['HS256'] }))
+      .toMatchObject({ aud: 'crm-access' })
+  })
+
+  it.each(['crm-access', '2fa-pending'] as const)('never accepts a %s token keyed from MAP_JWT_SECRET', purpose => {
+    const verify = { 'crm-access': separate.verifyCrmAccessToken, '2fa-pending': separate.verifyTwoFactorPendingToken }[purpose]
+    const forged = signWithKey(hkdfPurposeKey(mapSecret, purpose), purpose, validPayload[purpose])
+    expect(() => verify(forged)).toThrow(/invalid signature/)
+  })
+
+  it('still keeps map tokens out of the CRM and pending-2FA verifiers', () => {
+    expect(() => separate.verifyCrmAccessToken(mapToken(separate))).toThrow()
+    expect(() => separate.verifyTwoFactorPendingToken(mapToken(separate))).toThrow()
+    const withCrmAudience = signWithKey(
+      hkdfPurposeKey(mapSecret, 'map-access'), 'crm-access', validPayload['crm-access'],
+    )
+    expect(() => separate.verifyCrmAccessToken(withCrmAudience)).toThrow(/invalid signature/)
   })
 })

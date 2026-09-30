@@ -50,11 +50,24 @@ function isByteSequence(hex: string): boolean {
   return bytes.every((byte, i) => i === 0 || (byte - bytes[i - 1] + 256) % 256 === step)
 }
 
-const jwtSecret = z.string()
-  .min(32, 'JWT_SECRET must be at least 32 characters long')
-  .refine(value => !PLACEHOLDER_SECRET.test(value), 'JWT_SECRET is a placeholder; generate a random secret')
-  .refine(value => distinctChars(value) >= 12, 'JWT_SECRET must contain at least 12 distinct characters')
-  .refine(value => !isNearlyPeriodic(value), 'JWT_SECRET must not be a repeated pattern')
+// A secret that JWT signing keys are derived from (lib/jwt.ts).
+function signingSecret(name: 'JWT_SECRET' | 'MAP_JWT_SECRET') {
+  return z.string()
+    .min(32, `${name} must be at least 32 characters long`)
+    .refine(value => !PLACEHOLDER_SECRET.test(value), `${name} is a placeholder; generate a random secret`)
+    .refine(value => distinctChars(value) >= 12, `${name} must contain at least 12 distinct characters`)
+    .refine(value => !isNearlyPeriodic(value), `${name} must not be a repeated pattern`)
+}
+
+// MAP_JWT_SECRET exists so that a leak of one secret does not expose the
+// other's tokens; a copy of JWT_SECRET, or a value built around it, would
+// defeat that. Values shorter than 32 characters are rejected on their own,
+// so they are not compared here.
+function derivedFrom(secret: string, other: string): boolean {
+  const a = secret.trim()
+  const b = other.trim()
+  return Math.min(a.length, b.length) >= 32 && (a.includes(b) || b.includes(a))
+}
 
 // Access-token lifetime: a whole number of seconds, minutes or hours ("15m"),
 // between one minute and one hour. The refresh cookie keeps the session alive,
@@ -111,7 +124,11 @@ export const envSchema = z.object({
   NODE_ENV:          z.enum(['production', 'development', 'test']).default('production'),
   PORT:             z.coerce.number().int().positive().default(3000),
   API_PUBLIC_URL:   z.string().min(1).default('https://api.mykoshermap.com/api'),
-  JWT_SECRET:       jwtSecret,
+  JWT_SECRET:       signingSecret('JWT_SECRET'),
+  // Optional second secret: when set, the map access-token key is derived from
+  // it instead of JWT_SECRET (lib/jwt.ts, docs/adr/0006-per-purpose-jwt-keys.md).
+  // Empty counts as unset, as docker-compose passes it.
+  MAP_JWT_SECRET:   emptyAsUnset(signingSecret('MAP_JWT_SECRET').optional()),
   // Lifetime of CRM and map access tokens. JWT_EXPIRES_IN is no longer read
   // (see parseEnv); sessions outlive an access token through the refresh cookie.
   ACCESS_TOKEN_TTL: emptyAsUnset(accessTokenTtl.default('15m')),
@@ -140,6 +157,14 @@ export const envSchema = z.object({
   // (see parseEnv): without a mail server nobody could ever verify.
   MAP_EMAIL_VERIFICATION: emptyAsUnset(z.enum(['required', 'off']).optional()),
   MAP_PUBLIC_URL: emptyAsUnset(mapPublicUrl.default('https://mykoshermap.com')),
+}).superRefine((value, ctx) => {
+  if (value.MAP_JWT_SECRET !== undefined && derivedFrom(value.MAP_JWT_SECRET, value.JWT_SECRET)) {
+    ctx.addIssue({
+      code:    z.ZodIssueCode.custom,
+      path:    ['MAP_JWT_SECRET'],
+      message: 'MAP_JWT_SECRET must differ from JWT_SECRET and not contain it; generate a separate random secret',
+    })
+  }
 })
 
 // Pure so tests can check a configuration without mutating process.env.
@@ -154,6 +179,8 @@ export function parseEnv(source: Record<string, string | undefined>) {
     PORT:             raw.PORT,
     API_PUBLIC_URL:   raw.API_PUBLIC_URL,
     JWT_SECRET:       raw.JWT_SECRET,
+    // undefined: map access tokens are keyed from JWT_SECRET, as before.
+    MAP_JWT_SECRET:   raw.MAP_JWT_SECRET,
     ACCESS_TOKEN_TTL_SECONDS: raw.ACCESS_TOKEN_TTL,
     REFRESH_TOKEN_TTL_DAYS:   raw.REFRESH_TOKEN_TTL_DAYS,
     COOKIE_SECURE: raw.COOKIE_SECURE === undefined

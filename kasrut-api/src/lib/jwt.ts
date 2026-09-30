@@ -4,8 +4,8 @@ import { env } from '../config/env'
 import type { JWTPayload, MapJWTPayload, Role } from '../models/types'
 import { logger } from './logger'
 
-// Every token purpose is signed with its own HMAC key derived from JWT_SECRET,
-// so a token minted for one purpose can never verify as another even if a claim
+// Every token purpose is signed with its own HMAC key derived with HKDF, so a
+// token minted for one purpose can never verify as another even if a claim
 // check is missed somewhere. The typ/claim checks below stay as defence in depth.
 // Changing the salt or an info string rotates the keys and invalidates every
 // outstanding token of that purpose.
@@ -16,8 +16,16 @@ const JWT_ALGORITHM = 'HS256'
 const HKDF_SALT = 'kashrut-jwt-v1'
 const TWO_FACTOR_PENDING_TTL = '5m'
 
+// CRM access and pending-2FA keys come from JWT_SECRET. The map access key
+// comes from MAP_JWT_SECRET when it is set, so a leak of either secret cannot
+// forge the other side's tokens and each can be rotated alone; unset, it comes
+// from JWT_SECRET exactly as before (docs/adr/0006-per-purpose-jwt-keys.md).
+function secretFor(purpose: JwtPurpose): string {
+  return purpose === 'map-access' ? env.MAP_JWT_SECRET ?? env.JWT_SECRET : env.JWT_SECRET
+}
+
 function deriveKey(purpose: JwtPurpose): KeyObject {
-  return createSecretKey(Buffer.from(hkdfSync('sha256', env.JWT_SECRET, HKDF_SALT, `kashrut:${purpose}`, 32)))
+  return createSecretKey(Buffer.from(hkdfSync('sha256', secretFor(purpose), HKDF_SALT, `kashrut:${purpose}`, 32)))
 }
 
 // Access tokens live ACCESS_TOKEN_TTL (default 15 minutes); the refresh
