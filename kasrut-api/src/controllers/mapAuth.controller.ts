@@ -128,7 +128,7 @@ export const mapAuthController = {
   register: asyncHandler(async (req, res) => {
     const parsed = registerSchema.safeParse(req.body)
     if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid registration payload. Password must be at least 8 chars with letters and digits.' })
+      res.status(400).json({ error: 'Invalid registration payload. Password must be at least 12 characters with letters and digits.' })
       return
     }
 

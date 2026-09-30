@@ -100,14 +100,17 @@ describe('map auth flows issue map-access tokens', () => {
   })
 
   it.each([
-    ['registration', '/api/map-auth/register', { firstName: 'Map', lastName: 'User', email: 'new@example.com', phone: '+972500000009' }],
-    ['a password reset', '/api/map-auth/password-reset/confirm', { token: 'r'.repeat(40) }],
-  ])('refuses a new password under 12 characters on %s', async (_label, url, body) => {
+    ['registration', '/api/map-auth/register', { firstName: 'Map', lastName: 'User', email: 'new@example.com', phone: '+972500000009' },
+      'Invalid registration payload. Password must be at least 12 characters with letters and digits.'],
+    ['a password reset', '/api/map-auth/password-reset/confirm', { token: 'r'.repeat(40) },
+      'Valid token and new password are required'],
+  ])('refuses a new password under 12 characters on %s', async (_label, url, body, error) => {
     mockRepo.hasValidPasswordResetToken.mockResolvedValue(true)
 
     const res = await request(app).post(url).send({ ...body, password: 'Passw0rd123' })
 
     expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error })
     expect(mockRepo.createPasswordUser).not.toHaveBeenCalled()
     expect(mockRepo.consumePasswordResetToken).not.toHaveBeenCalled()
   })
