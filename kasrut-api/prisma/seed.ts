@@ -49,9 +49,12 @@ async function main() {
   await prisma.inspection.deleteMany()
   await prisma.mashgiachHechsher.deleteMany()
   await prisma.restaurant.deleteMany()
+  // Users before mashgichim: deleting a mashgiach profile nulls its login's
+  // mashgiachId (ON DELETE SET NULL), which users_mashgiach_tenant_guard
+  // refuses for a mashgiach user, so a second seed run would fail.
+  await prisma.user.deleteMany()
   await prisma.mashgiach.deleteMany()
   await prisma.hechsher.deleteMany()
-  await prisma.user.deleteMany()
   await prisma.kashrutDocument.deleteMany()
   await prisma.rabbanut.deleteMany()
   await prisma.kashrutLevel.deleteMany()
@@ -73,8 +76,10 @@ async function main() {
     { id: 'u1', name: 'System Owner',    email: 'owner@kashrut.il', passwordHash: HASH.owner,       role: 'owner' },
     { id: 'u4', name: 'Авнер',           email: 'avner@kashrut.il', passwordHash: HASH.secondOwner, role: 'owner' },
     { id: 'u2', name: 'Admin Jerusalem', email: 'admin@jer.il',     passwordHash: HASH.rabbanut,    role: 'rabbanut',  rabbanutId: rb1.id },
-    { id: 'u3', name: 'Р. Коэн',         email: 'cohen@jer.il',     passwordHash: HASH.mashgiach,   role: 'mashgiach', rabbanutId: rb1.id },
   ] })
+  // The mashgiach login (u3) is created with the mashgichim below: the
+  // users_mashgiach_tenant_guard trigger refuses a mashgiach user without a
+  // mashgiach profile of its own rabbanut.
 
   // ── Hechsherim ─────────────────────────────────────────────────────────────
   await prisma.hechsher.createMany({ data: [
@@ -92,7 +97,7 @@ async function main() {
     prisma.mashgiach.create({ data: { id: 'm3', name: 'Р. Фридман', phone: '054-5551234', email: 'fridman@haifa.il',  area: 'Haifa',            active: true,  rabbanutId: rb2.id, hechsherim: { create: [{ hechsherId: 'h3' }] } } }),
     prisma.mashgiach.create({ data: { id: 'm4', name: 'Р. Берг',    phone: '058-7774321', email: 'berg@jer.il',       area: 'North District',   active: false, rabbanutId: rb1.id, hechsherim: { create: [{ hechsherId: 'h2' }] } } }),
   ])
-  await prisma.user.update({ where: { id: 'u3' }, data: { mashgiachId: m1.id } })
+  await prisma.user.create({ data: { id: 'u3', name: 'Р. Коэн', email: 'cohen@jer.il', passwordHash: HASH.mashgiach, role: 'mashgiach', rabbanutId: rb1.id, mashgiachId: m1.id } })
 
   // ── Restaurants ────────────────────────────────────────────────────────────
   await prisma.restaurant.createMany({ data: [
