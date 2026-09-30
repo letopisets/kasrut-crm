@@ -1,8 +1,11 @@
 import express from 'express'
 import request from 'supertest'
+import { redis } from '../lib/redis'
 import { consumeRateLimit, normalizeClientIp, rateLimit, resetRateLimitMemory } from '../middleware/rateLimit'
 
-jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
+jest.mock('../lib/redis', () => ({ redis: { status: 'end', eval: jest.fn() } }))
+
+const fakeRedis = redis as unknown as { status: string; eval: jest.Mock }
 
 describe('normalizeClientIp', () => {
   it.each([
@@ -125,5 +128,48 @@ describe('consumeRateLimit', () => {
     await consumeRateLimit(window, 'c')
     resetRateLimitMemory()
     expect((await consumeRateLimit(window, 'c')).allowed).toBe(true)
+  })
+})
+
+// rateLimit.redis.test.ts runs the script itself against a real Redis,
+// including a call that times out while the server still runs it.
+describe('consumeRateLimit with Redis', () => {
+  const window = { keyPrefix: 'test-redis', windowMs: 90_000, max: 2 }
+
+  beforeEach(() => {
+    fakeRedis.status = 'ready'
+    fakeRedis.eval.mockReset()
+    resetRateLimitMemory()
+  })
+
+  afterAll(() => {
+    fakeRedis.status = 'end'
+  })
+
+  it('counts and sets the window in one script call, and reports its remaining time', async () => {
+    fakeRedis.eval.mockResolvedValueOnce([3, 41_500])
+
+    const result = await consumeRateLimit(window, 'a')
+
+    expect(result).toEqual({ allowed: false, remaining: 0, retryAfter: 42 })
+    expect(fakeRedis.eval).toHaveBeenCalledTimes(1)
+    const [script, keys, key, windowMs] = fakeRedis.eval.mock.calls[0]
+    expect([keys, key, windowMs]).toEqual([1, 'rl:test-redis:a', 90_000])
+    // The expiry does not depend on this call being the one that created the
+    // key: any key without one gets it.
+    expect(script).toMatch(/PTTL[\s\S]*if ttl < 0 then[\s\S]*PEXPIRE/)
+  })
+
+  it('falls back to memory when the script call fails or times out', async () => {
+    fakeRedis.eval.mockRejectedValue(new Error('Command timed out'))
+
+    const results = [
+      await consumeRateLimit(window, 'b'),
+      await consumeRateLimit(window, 'b'),
+      await consumeRateLimit(window, 'b'),
+    ]
+
+    expect(results.map(r => r.allowed)).toEqual([true, true, false])
+    expect(results[2].retryAfter).toBeGreaterThan(80)
   })
 })

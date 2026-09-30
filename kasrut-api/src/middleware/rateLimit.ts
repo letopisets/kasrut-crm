@@ -87,12 +87,27 @@ function inMemoryCheck(key: string, windowMs: number, now: number): {
 }
 
 // ── Redis check ───────────────────────────────────────────────────────────────
-async function redisCheck(key: string, windowMs: number): Promise<number> {
-  const windowSec = Math.ceil(windowMs / 1000)
-  // INCR + EXPIRE is atomic enough for rate limiting (GETSET/Lua overkill here)
-  const count = await redis.incr(key)
-  if (count === 1) await redis.expire(key, windowSec)
-  return count
+// Counts one use and gives the window an expiry whenever the key has none, in
+// one atomic step. INCR followed by a separate EXPIRE sent only when INCR
+// returned 1 could leave a key without any expiry, blocking its bucket for
+// good once it reached `max`: a command that times out on the client (see
+// REDIS_COMMAND_TIMEOUT_MS) still runs on the server after a stall, so the
+// INCR that created the key could land with nobody left to send the EXPIRE.
+// Checking the TTL on every call also repairs a key left like that earlier.
+// KEYS[1] counter; ARGV[1] window in ms. Returns { count, ms until reset }.
+const WINDOW_SCRIPT = `
+local count = redis.call('INCR', KEYS[1])
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl < 0 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+  ttl = tonumber(ARGV[1])
+end
+return { count, ttl }
+`
+
+async function redisCheck(key: string, windowMs: number): Promise<{ count: number; resetInMs: number }> {
+  const [count, resetInMs] = await redis.eval(WINDOW_SCRIPT, 1, key, windowMs) as [number, number]
+  return { count: Number(count), resetInMs: Number(resetInMs) }
 }
 
 /** Bucket id of the request's client address (see normalizeClientIp). */
@@ -121,10 +136,9 @@ export async function consumeRateLimit(options: RateLimitWindow, bucket: string)
 
   try {
     if (redis.status === 'ready') {
-      count   = await redisCheck(key, options.windowMs)
-      // Approximate resetAt from TTL
-      const ttl = await redis.ttl(key)
-      resetAt = now + (ttl > 0 ? ttl * 1000 : options.windowMs)
+      const window = await redisCheck(key, options.windowMs)
+      count   = window.count
+      resetAt = now + window.resetInMs
     } else {
       throw new Error('not ready')
     }
