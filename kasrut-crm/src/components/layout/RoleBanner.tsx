@@ -1,7 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@/store'
 import { setRabbanutFilter as setRabbanutFilterAction } from '@/store/authSlice'
 import { useGetRabbanutsQuery } from '@/store/api/rabbanutApi'
-import { useGetMashgichimQuery } from '@/store/api/mashgichimApi'
 import { useGetRestaurantsQuery } from '@/store/api/restaurantsApi'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useLang } from '@/i18n/useLang'
@@ -19,16 +18,18 @@ export function RoleBanner() {
   const rabbanutFilter    = useAppSelector(s => s.auth.rabbanutFilter)
   const setRabbanutFilter = (id: string) => dispatch(setRabbanutFilterAction(id))
 
-  const { data: rabbanuts   = [] } = useGetRabbanutsQuery()
-  const { data: mashgichim  = [] } = useGetMashgichimQuery()
-  const { data: restaurants = [] } = useGetRestaurantsQuery()
+  // A mashgiach may not list mashgichim (GET /api/mashgichim is owner/rabbanut
+  // only), and its user id is not a mashgiach id anyway. The session already
+  // carries what the banner shows: the account's name and its mashgiachId.
+  const myMashgiachId = role === 'mashgiach' ? user?.mashgiachId : undefined
+  const { data: rabbanuts   = [] } = useGetRabbanutsQuery(undefined, { skip: role === 'mashgiach' })
+  const { data: restaurants = [] } = useGetRestaurantsQuery(undefined, { skip: !myMashgiachId })
   const t  = useLang()
   const rc = ROLE_COLORS[role]
 
   const myRabbanut  = rabbanuts.find(rb => rb.id === user?.rabbanutId)
-  const myMashgiach = mashgichim.find(m => m.id === user?.id)
-  const myRestCount = myMashgiach
-    ? restaurants.filter(r => r.mashgiachId === myMashgiach.id).length
+  const myRestCount = myMashgiachId
+    ? restaurants.filter(r => r.mashgiachId === myMashgiachId).length
     : 0
 
   return (
@@ -59,11 +60,11 @@ export function RoleBanner() {
           </>
         )}
 
-        {role === 'mashgiach' && myMashgiach && (
+        {role === 'mashgiach' && user && (
           <>
             <Typography component="span" sx={{ color: 'text.disabled', fontSize: 11 }}>·</Typography>
             <Typography component="span" sx={{ fontSize: 11, color: rc }}>
-              {myMashgiach.name} · {t.myEstablishments}: {myRestCount}
+              {user.name}{myMashgiachId && <> · {t.myEstablishments}: {myRestCount}</>}
             </Typography>
           </>
         )}
