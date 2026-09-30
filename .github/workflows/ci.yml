@@ -21,25 +21,30 @@ jobs:
   backend:
     name: Backend (kasrut-api)
     runs-on: ubuntu-latest
+    # A test that leaves a connection open makes jest hang instead of fail.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: kasrut-api
     # Throwaway servers for the opt-in suites that need the real driver
     # (*.postgres.test.ts, *.redis.test.ts): mocked suites cannot see what
-    # Postgres or Redis actually return.
+    # Postgres or Redis actually return. They listen on non-default host ports
+    # on purpose: the app's own clients default to localhost:5432/6379, and a
+    # live server there lets mocked suites open real connections (the Redis
+    # client then keeps jest from exiting; pg crashes it after teardown).
     services:
       postgres:
         image: postgres:16-alpine
         env:
           POSTGRES_PASSWORD: ci-postgres-password
           POSTGRES_DB: kasrut_ci
-        ports: ['5432:5432']
+        ports: ['5433:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d kasrut_ci"
           --health-interval 5s --health-timeout 5s --health-retries 20
       redis:
         image: redis:7-alpine
-        ports: ['6379:6379']
+        ports: ['6380:6379']
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 20
@@ -66,7 +71,7 @@ jobs:
           echo "ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Apply migrations and check drift (throwaway Postgres)
         env:
-          DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5432/kasrut_ci
+          DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5433/kasrut_ci
         run: |
           npx prisma migrate deploy
           # Exit 2 if the migrated database differs from schema.prisma.
@@ -76,8 +81,8 @@ jobs:
         env:
           NODE_ENV: test
           CORS_ORIGINS: http://localhost:5173
-          POSTGRES_TEST_DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5432/kasrut_ci
-          REDIS_TEST_URL: redis://localhost:6379
+          POSTGRES_TEST_DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5433/kasrut_ci
+          REDIS_TEST_URL: redis://localhost:6380
 
   crm:
     name: CRM (kasrut-crm)
