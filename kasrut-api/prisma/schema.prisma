@@ -113,6 +113,9 @@ model User {
   twoFactorSecret      String?
   twoFactorEnabled     Boolean   @default(false)
   twoFactorBackupCodes String[]  @default([])
+  // Last TOTP time step accepted for this account (RFC 6238 §5.2): a code is
+  // accepted at most once, and never one older than an accepted one.
+  twoFactorLastStep    Int?
   sessionVersion       Int       @default(0)
   passwordChangedAt    DateTime?
   createdAt            DateTime  @default(now())
@@ -522,4 +525,17 @@ model RefreshToken {
   @@index([mapUserId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+// Pending 2FA challenges (the jti of a 2fa-pending token) that already
+// produced a session. Single use is enforced in Postgres rather than Redis, so
+// signing in with 2FA (mandatory for owners) keeps working through a Redis
+// outage. Rows are purged once expiresAt, the pending token's own expiry,
+// has passed (lib/tokenPurge.ts).
+model TwoFactorChallenge {
+  jti       String   @id
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("two_factor_challenges")
 }

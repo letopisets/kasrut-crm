@@ -6,7 +6,7 @@ import { serializeUser } from '../serializers/user.serializer'
 import { signFullToken } from './auth.controller'
 import { asyncHandler } from '../lib/asyncHandler'
 import { checkTotpAttempt } from '../lib/twoFactorAttempts'
-import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
+import { claimTotpTimeStep, consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { recordSuccess, reserveAttempt, sendLoginLocked } from '../lib/loginThrottle'
 import { verifyTwoFactorPendingToken, type TwoFactorPendingPayload } from '../lib/jwt'
@@ -30,16 +30,44 @@ function hashBackupCodes(codes: string[]): Promise<string[]> {
 const { generateSecret, verifySync, generateURI } =
   require('otplib') as {
     generateSecret: () => string
-    verifySync:     (opts: { token: string; secret: string }) => { valid: boolean }
+    verifySync:     (opts: { token: string; secret: string }) => { valid: boolean; timeStep?: number }
     generateURI:    (opts: { strategy: string; issuer: string; label: string; secret: string }) => string
   }
 
 const APP_NAME = 'KashrutCRM'
+const TOTP_PERIOD_SEC = 30
+// Longest factor a client may send; anything longer is not a code at all.
+const MAX_FACTOR_LENGTH = 64
 
-function verifyCode(code: string, secret: string): boolean {
+function isFactor(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= MAX_FACTOR_LENGTH
+}
+
+function isPendingToken(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
+/**
+ * The TOTP time step `code` matches for `secret`, or null when it does not
+ * match. otplib reports the step; with its default tolerance (the current
+ * period only) that is the step at call time, used should a result lack it.
+ */
+function verifiedTimeStep(code: string, secret: string): number | null {
+  const currentStep = Math.floor(Date.now() / 1000 / TOTP_PERIOD_SEC)
   try {
-    return verifySync({ token: code, secret }).valid === true
-  } catch { return false }
+    const result = verifySync({ token: code, secret })
+    if (result.valid !== true) return null
+    return typeof result.timeStep === 'number' ? result.timeStep : currentStep
+  } catch { return null }
+}
+
+/**
+ * A code counts only once per account: true when `code` matches `secret` and
+ * its time step is later than any this account has used before.
+ */
+async function acceptTotp(userId: string, code: string, secret: string): Promise<boolean> {
+  const step = verifiedTimeStep(code, secret)
+  return step !== null && claimTotpTimeStep(userId, step)
 }
 
 async function verifyPendingToken(token: string): Promise<TwoFactorPendingPayload | null> {
@@ -104,8 +132,8 @@ export const twoFactorController = {
   enable: asyncHandler(async (req, res) => {
     if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
 
-    const { code } = req.body as { code?: string }
-    if (!code) { res.status(400).json({ error: 'Code required' }); return }
+    const { code } = req.body as { code?: unknown }
+    if (!isFactor(code)) { res.status(400).json({ error: 'Code required' }); return }
 
     const user = await usersRepo.findAuthById(req.user.sub)
     if (!user?.twoFactorSecret) { res.status(400).json({ error: 'Call /2fa/setup first' }); return }
@@ -114,7 +142,7 @@ export const twoFactorController = {
     // stolen session must not brute-force the code of a pending secret.
     const lock = await reserveAttempt('crm-2fa', user.id)
     if (lock.locked) { sendLoginLocked(res, lock); return }
-    if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
+    if (!await acceptTotp(user.id, code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
     await recordSuccess('crm-2fa', user.id)
 
     const plainCodes  = generateBackupCodes()
@@ -144,8 +172,8 @@ export const twoFactorController = {
       return
     }
 
-    const { code } = req.body as { code?: string }
-    if (!code) { res.status(400).json({ error: 'Code required' }); return }
+    const { code } = req.body as { code?: unknown }
+    if (!isFactor(code)) { res.status(400).json({ error: 'Code required' }); return }
 
     const user = await usersRepo.findAuthById(req.user.sub)
     if (!user?.twoFactorEnabled || !user.twoFactorSecret) {
@@ -155,7 +183,7 @@ export const twoFactorController = {
     // cannot brute-force the code to switch 2FA off.
     const lock = await reserveAttempt('crm-2fa', user.id)
     if (lock.locked) { sendLoginLocked(res, lock); return }
-    if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
+    if (!await acceptTotp(user.id, code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
     await recordSuccess('crm-2fa', user.id)
 
     const updated = await usersRepo.disableTwoFactor(req.user.sub)
@@ -167,8 +195,8 @@ export const twoFactorController = {
   }),
 
   verifyBackup: asyncHandler(async (req, res) => {
-    const { tempToken, backupCode } = req.body as { tempToken?: string; backupCode?: string }
-    if (!tempToken || !backupCode) {
+    const { tempToken, backupCode } = req.body as { tempToken?: unknown; backupCode?: unknown }
+    if (!isPendingToken(tempToken) || !isFactor(backupCode)) {
       res.status(400).json({ error: 'tempToken and backupCode required' }); return
     }
 
@@ -201,6 +229,9 @@ export const twoFactorController = {
 
     const challengeResult = await consumeTwoFactorChallenge(payload.jti, ttlSeconds)
     if (challengeResult === 'unavailable') {
+      // The backup code was right; only the store failed. Release the attempt
+      // reserved above, so retrying through an outage cannot lock the owner.
+      await recordSuccess('crm-2fa', user.id)
       res.status(503).json({ error: 'Authentication service temporarily unavailable' }); return
     }
     if (challengeResult === 'already_used') {
@@ -226,8 +257,10 @@ export const twoFactorController = {
   }),
 
   verify: asyncHandler(async (req, res) => {
-    const { tempToken, code } = req.body as { tempToken?: string; code?: string }
-    if (!tempToken || !code) { res.status(400).json({ error: 'tempToken and code required' }); return }
+    const { tempToken, code } = req.body as { tempToken?: unknown; code?: unknown }
+    if (!isPendingToken(tempToken) || !isFactor(code)) {
+      res.status(400).json({ error: 'tempToken and code required' }); return
+    }
 
     const payload = await verifyPendingToken(tempToken)
     if (!payload) {
@@ -254,10 +287,15 @@ export const twoFactorController = {
     if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
       res.status(401).json({ error: 'Unauthorized' }); return
     }
-    if (!verifyCode(code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
+    // A replayed code (already used by this account in its window) is refused
+    // like a wrong one.
+    if (!await acceptTotp(user.id, code, user.twoFactorSecret)) { res.status(400).json({ error: 'Invalid code' }); return }
 
     const challengeResult = await consumeTwoFactorChallenge(payload.jti, ttlSeconds)
     if (challengeResult === 'unavailable') {
+      // The code was right; only the store failed. Release the attempt
+      // reserved above, so retrying through an outage cannot lock the owner.
+      await recordSuccess('crm-2fa', user.id)
       res.status(503).json({ error: 'Authentication service temporarily unavailable' }); return
     }
     if (challengeResult === 'already_used') {

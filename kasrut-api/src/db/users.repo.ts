@@ -248,7 +248,8 @@ export const usersRepo = {
         if (!current || current.twoFactorEnabled) return null
         const updated = await tx.user.update({
           where: { id },
-          data: { twoFactorSecret: encrypt(secret), twoFactorBackupCodes: [] },
+          // A new secret starts a new code sequence: forget the old one's step.
+          data: { twoFactorSecret: encrypt(secret), twoFactorBackupCodes: [], twoFactorLastStep: null },
         })
         return toUser(updated)
       }, { isolationLevel: 'Serializable' })

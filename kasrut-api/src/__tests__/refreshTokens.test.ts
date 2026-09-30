@@ -37,7 +37,10 @@ jest.mock('../db/serviceLogs.repo', () => ({ serviceLogsRepo: { create: jest.fn(
 jest.mock('../lib/redis', () => ({ redis: { status: 'end' } }))
 jest.mock('../lib/tokenBlacklist')
 jest.mock('../lib/twoFactorAttempts', () => ({ checkTotpAttempt: jest.fn(async () => true) }))
-jest.mock('../lib/twoFactorChallenges', () => ({ consumeTwoFactorChallenge: jest.fn(async () => 'consumed') }))
+jest.mock('../lib/twoFactorChallenges', () => ({
+  consumeTwoFactorChallenge: jest.fn(async () => 'consumed'),
+  claimTotpTimeStep: jest.fn(async () => true),
+}))
 jest.mock('../services/mapOAuth.service', () => ({
   ...jest.requireActual('../services/mapOAuth.service'),
   verifyOAuthIdToken: jest.fn(),
@@ -540,6 +543,7 @@ describe('POST /api/auth/refresh', () => {
     }
   })
 
+  // 121 sequential requests: well past jest's 5 s default on a loaded machine.
   it('is rate limited per address', async () => {
     const ip = '192.0.2.77'
     const send = () => request(app).post('/api/auth/refresh').set('X-Forwarded-For', ip)
@@ -548,7 +552,7 @@ describe('POST /api/auth/refresh', () => {
     const limited = await send()
     expect(limited.status).toBe(429)
     expect(limited.headers['retry-after']).toBeDefined()
-  })
+  }, 60_000)
 })
 
 // ── CRM sign-in paths and logout ───────────────────────────────────────────

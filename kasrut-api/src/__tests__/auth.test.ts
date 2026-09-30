@@ -12,7 +12,7 @@ import {
 } from '../lib/jwt'
 import type { User } from '../models/types'
 import { checkTotpAttempt } from '../lib/twoFactorAttempts'
-import { consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
+import { claimTotpTimeStep, consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
 import { resetLoginThrottleMemory } from '../lib/loginThrottle'
 
@@ -35,12 +35,17 @@ jest.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,qr' }
 jest.mock('otplib', () => ({
   generateSecret: () => 'MOCKSECRET32',
   generateURI:    () => 'otpauth://totp/test',
-  verifySync:     ({ token }: { token: string }) => ({ valid: token === '123456' }),
+  // 123456 is the code of time step 1000, 654321 the code of the next one.
+  verifySync:     ({ token }: { token: string }) =>
+    token === '123456' ? { valid: true, timeStep: 1000 }
+      : token === '654321' ? { valid: true, timeStep: 1001 }
+        : { valid: false },
 }))
 
 const mockRepo = usersRepo as jest.Mocked<typeof usersRepo>
 const mockCheckTotpAttempt = jest.mocked(checkTotpAttempt)
 const mockConsumeChallenge = jest.mocked(consumeTwoFactorChallenge)
+const mockClaimTotpStep = jest.mocked(claimTotpTimeStep)
 const mockIsTokenBlacklisted = jest.mocked(isTokenBlacklisted)
 
 const baseUser: User = {
@@ -73,6 +78,7 @@ beforeEach(() => {
   mockRepo.verifyPassword.mockResolvedValue(true)
   mockCheckTotpAttempt.mockResolvedValue(true)
   mockConsumeChallenge.mockResolvedValue('consumed')
+  mockClaimTotpStep.mockResolvedValue(true)
   mockIsTokenBlacklisted.mockResolvedValue(false)
 })
 
@@ -383,6 +389,54 @@ describe('POST /api/auth/2fa/verify', () => {
     const res = await request(app).post('/api/auth/2fa/verify').send({})
     expect(res.status).toBe(400)
   })
+
+  it('claims the code\'s time step for the account before consuming the challenge', async () => {
+    mockRepo.findAuthById.mockResolvedValue({ ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' })
+
+    const res = await request(app)
+      .post('/api/auth/2fa/verify')
+      .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1', jti: 'step-1' }), code: '123456' })
+
+    expect(res.status).toBe(200)
+    expect(mockClaimTotpStep).toHaveBeenCalledWith('u1', 1000)
+    expect(mockClaimTotpStep.mock.invocationCallOrder[0])
+      .toBeLessThan(mockConsumeChallenge.mock.invocationCallOrder[0])
+  })
+
+  // RFC 6238 section 5.2: a code that already opened a session must not open
+  // a second one through a fresh password step within its 30 s window.
+  it('refuses a code whose time step this account already used, whatever the pending token', async () => {
+    mockRepo.findAuthById.mockResolvedValue({ ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' })
+    mockClaimTotpStep.mockResolvedValue(false)
+
+    const res = await request(app)
+      .post('/api/auth/2fa/verify')
+      .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1', jti: 'fresh-pending' }), code: '123456' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'Invalid code' })
+    expect(res.body).not.toHaveProperty('token')
+    expect(mockConsumeChallenge).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a number', { code: 123456 }],
+    ['an array', { code: ['123456'] }],
+    ['an object', { code: { $gt: '' } }],
+    ['an oversized string', { code: '1'.repeat(65) }],
+  ])('answers 400, not 500, for a code that is %s', async (_label, body) => {
+    const res = await request(app)
+      .post('/api/auth/2fa/verify')
+      .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1', jti: 'typed' }), ...body })
+
+    expect(res.status).toBe(400)
+    expect(mockRepo.findAuthById).not.toHaveBeenCalled()
+  })
+
+  it('answers 400 for a tempToken that is not a string', async () => {
+    const res = await request(app).post('/api/auth/2fa/verify').send({ tempToken: 42, code: '123456' })
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('POST /api/auth/2fa/verify-backup', () => {
@@ -424,6 +478,73 @@ describe('POST /api/auth/2fa/verify-backup', () => {
 
     expect(res.status).toBe(409)
     expect(res.body).not.toHaveProperty('token')
+  })
+
+  it.each([
+    ['a number', 12345678],
+    ['an array', ['A1B2C3D4E5']],
+    ['null', null],
+  ])('answers 400, not 500, for a backupCode that is %s', async (_label, backupCode) => {
+    const res = await request(app)
+      .post('/api/auth/2fa/verify-backup')
+      .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1', jti: 'typed-backup' }), backupCode })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'tempToken and backupCode required' })
+    expect(mockRepo.findAuthById).not.toHaveBeenCalled()
+  })
+})
+
+describe('2FA enable / disable input and replay', () => {
+  const tfUser: User = { ...baseUser, twoFactorEnabled: true, twoFactorSecret: 'MOCKSECRET32' }
+  let policy: jest.ReplaceProperty<boolean>
+  // Own addresses: earlier blocks spent the default address's 2FA budget.
+  let ip = 0
+  const from = () => `203.0.113.${++ip}`
+  beforeEach(() => { policy = jest.replaceProperty(env, 'REQUIRE_OWNER_2FA', false) })
+  afterEach(() => { policy.restore() })
+
+  it.each(['enable', 'disable'])('/2fa/%s answers 400 for a code that is not a string', async endpoint => {
+    mockRepo.findAuthById.mockResolvedValue(tfUser)
+    const res = await request(app)
+      .post(`/api/auth/2fa/${endpoint}`)
+      .set('X-Forwarded-For', from())
+      .set('Authorization', `Bearer ${makeToken(endpoint === 'disable' ? tfUser : baseUser)}`)
+      .send({ code: 123456 })
+
+    expect(res.status).toBe(400)
+    expect(mockClaimTotpStep).not.toHaveBeenCalled()
+    expect(mockRepo.enableTwoFactor).not.toHaveBeenCalled()
+    expect(mockRepo.disableTwoFactor).not.toHaveBeenCalled()
+  })
+
+  it('/2fa/enable refuses a replayed code', async () => {
+    mockRepo.findAuthById.mockResolvedValue({ ...baseUser, twoFactorSecret: 'MOCKSECRET32' })
+    mockClaimTotpStep.mockResolvedValue(false)
+
+    const res = await request(app)
+      .post('/api/auth/2fa/enable')
+      .set('X-Forwarded-For', from())
+      .set('Authorization', `Bearer ${makeToken()}`)
+      .send({ code: '123456' })
+
+    expect(res.status).toBe(400)
+    expect(mockClaimTotpStep).toHaveBeenCalledWith('u1', 1000)
+    expect(mockRepo.enableTwoFactor).not.toHaveBeenCalled()
+  })
+
+  it('/2fa/disable refuses a replayed code', async () => {
+    mockRepo.findAuthById.mockResolvedValue(tfUser)
+    mockClaimTotpStep.mockResolvedValue(false)
+
+    const res = await request(app)
+      .post('/api/auth/2fa/disable')
+      .set('X-Forwarded-For', from())
+      .set('Authorization', `Bearer ${makeToken(tfUser)}`)
+      .send({ code: '123456' })
+
+    expect(res.status).toBe(400)
+    expect(mockRepo.disableTwoFactor).not.toHaveBeenCalled()
   })
 })
 
@@ -665,6 +786,28 @@ describe('CRM 2FA throttling per account', () => {
     }
 
     expect((await verify('123456')).status).toBe(429)
+  }, SLOW_TEST_MS)
+
+  // A correct factor refused only because the challenge store failed must not
+  // count: retrying through an outage used to walk the owner into a lock
+  // that outlived the outage.
+  it('does not count a correct factor refused because the challenge store is unavailable', async () => {
+    const hash = await bcrypt.hash('A1B2C3D4E5', 4)
+    mockRepo.findAuthById.mockResolvedValue({ ...tfUser, twoFactorBackupCodes: [hash] })
+    mockConsumeChallenge.mockResolvedValue('unavailable')
+
+    for (let i = 0; i < 8; i += 1) {
+      const res = i % 2 === 0
+        ? await verify('123456')
+        : await request(app)
+          .post('/api/auth/2fa/verify-backup')
+          .set('X-Forwarded-For', nextIp())
+          .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1' }), backupCode: 'A1B2C3D4E5' })
+      expect(res.status).toBe(503)
+    }
+
+    mockConsumeChallenge.mockResolvedValue('consumed')
+    expect((await verify('123456')).status).toBe(200)
   }, SLOW_TEST_MS)
 
   it('clears the 2FA failure count after a successful verification', async () => {

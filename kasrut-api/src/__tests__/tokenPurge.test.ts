@@ -7,6 +7,7 @@ jest.mock('../lib/prisma', () => ({
     refreshToken: { deleteMany: jest.fn() },
     mapEmailVerificationToken: { deleteMany: jest.fn() },
     mapPasswordResetToken: { deleteMany: jest.fn() },
+    twoFactorChallenge: { deleteMany: jest.fn() },
   },
 }))
 
@@ -16,6 +17,7 @@ const db = prisma as unknown as {
   refreshToken: { deleteMany: jest.Mock }
   mapEmailVerificationToken: { deleteMany: jest.Mock }
   mapPasswordResetToken: { deleteMany: jest.Mock }
+  twoFactorChallenge: { deleteMany: jest.Mock }
 }
 
 const NOW = new Date('2026-09-30T03:00:00.000Z')
@@ -26,6 +28,7 @@ beforeEach(() => {
   db.refreshToken.deleteMany.mockResolvedValue({ count: 3 })
   db.mapEmailVerificationToken.deleteMany.mockResolvedValue({ count: 2 })
   db.mapPasswordResetToken.deleteMany.mockResolvedValue({ count: 1 })
+  db.twoFactorChallenge.deleteMany.mockResolvedValue({ count: 4 })
 })
 
 describe('mapCommunityRepo.purgeExpiredMapTokens', () => {
@@ -44,10 +47,12 @@ describe('purgeExpiredTokens', () => {
     const result = await purgeExpiredTokens(NOW)
 
     expect(result).toEqual({
-      deleted: { refresh_tokens: 3, map_email_verification_tokens: 2, map_password_reset_tokens: 1 },
+      deleted: { refresh_tokens: 3, map_email_verification_tokens: 2, map_password_reset_tokens: 1, two_factor_challenges: 4 },
       failed: {},
     })
     expect(db.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { expiresAt: { lte: NOW } } })
+    // A consumed 2FA challenge is dead weight once its pending token expired.
+    expect(db.twoFactorChallenge.deleteMany).toHaveBeenCalledWith({ where: { expiresAt: { lte: NOW } } })
     expect(MAP_TOKEN_PURGE_GRACE_MS).toBe(24 * 60 * 60 * 1000)
     expect(db.mapEmailVerificationToken.deleteMany).toHaveBeenCalledWith({ where: { expiresAt: { lt: MAP_CUTOFF } } })
   })
@@ -59,7 +64,7 @@ describe('purgeExpiredTokens', () => {
     const result = await purgeExpiredTokens(NOW)
 
     expect(result.failed).toEqual({ refresh_tokens: dbDown })
-    expect(result.deleted).toEqual({ map_email_verification_tokens: 2, map_password_reset_tokens: 1 })
+    expect(result.deleted).toEqual({ map_email_verification_tokens: 2, map_password_reset_tokens: 1, two_factor_challenges: 4 })
   })
 
   it('still purges refresh tokens when the map purge fails', async () => {
@@ -67,7 +72,16 @@ describe('purgeExpiredTokens', () => {
 
     const result = await purgeExpiredTokens(NOW)
 
-    expect(result.deleted).toEqual({ refresh_tokens: 3 })
+    expect(result.deleted).toEqual({ refresh_tokens: 3, two_factor_challenges: 4 })
     expect(Object.keys(result.failed)).toEqual(['map_tokens'])
+  })
+
+  it('still purges the rest when the 2FA challenge purge fails', async () => {
+    db.twoFactorChallenge.deleteMany.mockRejectedValueOnce(new Error('timeout'))
+
+    const result = await purgeExpiredTokens(NOW)
+
+    expect(result.deleted).toEqual({ refresh_tokens: 3, map_email_verification_tokens: 2, map_password_reset_tokens: 1 })
+    expect(Object.keys(result.failed)).toEqual(['two_factor_challenges'])
   })
 })

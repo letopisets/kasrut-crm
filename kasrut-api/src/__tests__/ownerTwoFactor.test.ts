@@ -9,6 +9,7 @@ import { authenticateJWT, TWO_FACTOR_SETUP_ALLOWLIST } from '../middleware/auth'
 import { serviceLogger } from '../middleware/serviceLogger'
 import { signCrmAccessToken } from '../lib/jwt'
 import { isTokenBlacklisted } from '../lib/tokenBlacklist'
+import { claimTotpTimeStep, consumeTwoFactorChallenge } from '../lib/twoFactorChallenges'
 import { resetLoginThrottleMemory } from '../lib/loginThrottle'
 import { serviceLogsRepo } from '../db/serviceLogs.repo'
 import type { User } from '../models/types'
@@ -138,6 +139,8 @@ beforeEach(() => {
   jest.clearAllMocks()
   resetLoginThrottleMemory()
   jest.mocked(isTokenBlacklisted).mockResolvedValue(false)
+  jest.mocked(claimTotpTimeStep).mockResolvedValue(true)
+  jest.mocked(consumeTwoFactorChallenge).mockResolvedValue('consumed')
   mockUsers.verifyPassword.mockResolvedValue(true)
   mockUsers.revokeSessions.mockResolvedValue(true)
   mockMashgichim.findAll.mockResolvedValue([])
