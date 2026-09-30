@@ -1,4 +1,5 @@
-import { withCache, invalidatePattern } from '../lib/cache'
+import { withCache, invalidateKeys, invalidatePattern } from '../lib/cache'
+import { invalidateMapCache, MAP_CACHE_KEYS } from '../lib/mapCache'
 import { redis } from '../lib/redis'
 
 jest.mock('../lib/redis', () => ({
@@ -112,6 +113,67 @@ describe('withCache', () => {
     await expect(pending).resolves.toBe('stale snapshot')
     expect(mockedRedis.setex).not.toHaveBeenCalled()
   })
+
+  it('does not let a post-invalidation caller join a pre-invalidation load', async () => {
+    mockedRedis.get.mockResolvedValue(null)
+    mockedRedis.setex.mockResolvedValue('OK')
+    mockedRedis.scan.mockResolvedValueOnce(['0', []])
+
+    let resolveStale!: (value: string) => void
+    const loader = jest.fn()
+      .mockImplementationOnce(() => new Promise<string>(resolve => { resolveStale = resolve }))
+      .mockResolvedValueOnce('fresh')
+
+    const before = withCache('map:options', 600, loader)
+    await Promise.resolve()
+    await invalidatePattern('map:*')
+    const after = withCache('map:options', 600, loader)
+    resolveStale('stale')
+
+    await expect(before).resolves.toBe('stale')
+    await expect(after).resolves.toBe('fresh')
+    expect(loader).toHaveBeenCalledTimes(2)
+    expect(mockedRedis.setex).toHaveBeenCalledTimes(1)
+    expect(mockedRedis.setex).toHaveBeenCalledWith('map:options', 600, JSON.stringify('fresh'))
+  })
+
+  it('returns but never stores a null result (unknown ids must not mint keys)', async () => {
+    mockedRedis.get.mockResolvedValueOnce(null)
+    const loader = jest.fn().mockResolvedValue(null)
+
+    await expect(withCache('map:restaurant:nope', 300, loader)).resolves.toBeNull()
+    expect(mockedRedis.setex).not.toHaveBeenCalled()
+  })
+})
+
+describe('invalidateKeys', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('deletes the named keys in one call', async () => {
+    await invalidateKeys('map:sitemap', 'map:options')
+    expect(mockedRedis.del).toHaveBeenCalledWith('map:sitemap', 'map:options')
+  })
+
+  it('blocks a load that started before it from writing back', async () => {
+    mockedRedis.get.mockResolvedValueOnce(null)
+    let resolveLoader!: (value: string) => void
+    const loader = jest.fn(() => new Promise<string>(resolve => { resolveLoader = resolve }))
+
+    const pending = withCache('map:sitemap', 3600, loader)
+    await Promise.resolve()
+    await invalidateKeys('map:sitemap')
+    resolveLoader('<urlset/>')
+
+    await expect(pending).resolves.toBe('<urlset/>')
+    expect(mockedRedis.setex).not.toHaveBeenCalled()
+  })
+
+  it('swallows redis errors silently', async () => {
+    mockedRedis.del.mockRejectedValueOnce(new Error('down'))
+    await expect(invalidateKeys('map:options')).resolves.toBeUndefined()
+  })
 })
 
 describe('invalidatePattern', () => {
@@ -139,5 +201,31 @@ describe('invalidatePattern', () => {
   it('swallows redis errors silently', async () => {
     mockedRedis.scan.mockRejectedValueOnce(new Error('down'))
     await expect(invalidatePattern('a:*')).resolves.toBeUndefined()
+  })
+
+  it('stops at the key cap', async () => {
+    const page = Array.from({ length: 200 }, (_, i) => `a:${i}`)
+    mockedRedis.scan.mockResolvedValue(['1', page])
+    await invalidatePattern('a:*')
+    // 25 pages x 200 keys = the 5,000-key cap; the cursor is then abandoned.
+    expect(mockedRedis.scan).toHaveBeenCalledTimes(25)
+    expect(mockedRedis.del).toHaveBeenCalledTimes(25)
+    mockedRedis.scan.mockReset()
+  })
+})
+
+describe('invalidateMapCache', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('drops the fixed public-map keys by name, then sweeps both namespaces', async () => {
+    mockedRedis.scan.mockResolvedValue(['0', []])
+    await invalidateMapCache()
+    expect(mockedRedis.del).toHaveBeenCalledWith('map:sitemap', 'map:options', 'map:hechsherim')
+    expect(Object.values(MAP_CACHE_KEYS).sort()).toEqual(['map:hechsherim', 'map:options', 'map:sitemap'])
+    const patterns = mockedRedis.scan.mock.calls.map(call => call[2])
+    expect(patterns.sort()).toEqual(['map:*', 'restaurants:*'])
+    mockedRedis.scan.mockReset()
   })
 })

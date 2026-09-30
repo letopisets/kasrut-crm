@@ -4,6 +4,7 @@ import { validate } from '../lib/validate'
 import { createRabbanutSchema, updateRabbanutSchema } from '../schemas'
 import { asyncHandler } from '../lib/asyncHandler'
 import { assertOwnsRabbanut, resolveScopeRabbanutId } from '../lib/rabbanutScope'
+import { invalidateMapCache } from '../lib/mapCache'
 
 export const rabbanutController = {
   list: asyncHandler(async (req, res) => {
@@ -34,18 +35,23 @@ export const rabbanutController = {
     const body = validate(updateRabbanutSchema, req.body)
     const r = await rabbanutRepo.update(req.params.id, body)
     if (!r) { res.status(404).json({ error: 'Not found' }); return }
+    // `active` decides whether the tenant's establishments are on the public
+    // map, so every rabbanut mutation drops the cached map responses.
+    await invalidateMapCache()
     res.json(serializeRabbanut(r))
   }),
 
   toggle: asyncHandler(async (req, res) => {
     const r = await rabbanutRepo.toggle(req.params.id)
     if (!r) { res.status(404).json({ error: 'Not found' }); return }
+    await invalidateMapCache()
     res.json(serializeRabbanut(r))
   }),
 
   remove: asyncHandler(async (req, res) => {
     const result = await rabbanutRepo.remove(req.params.id)
     if (result === 'not_found') { res.status(404).json({ error: 'Not found' }); return }
+    await invalidateMapCache()
     res.status(204).send()
   }),
 }

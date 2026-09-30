@@ -136,17 +136,34 @@ function applyBounds(where: Prisma.RestaurantWhereInput, bounds: MapBounds): Pri
   }
 }
 
+// A rabbanut switched off or removed in the CRM takes its whole tenant off the
+// public surface: its certificates no longer vouch for anything.
+function publicRabbanutWhere(): Prisma.RabbanutWhereInput {
+  return { active: true, deletedAt: null }
+}
+
+// Hechsherim have no soft-delete (removal is a hard delete, refused while
+// establishments still reference one), so `active` is their only switch.
+function publicHechsherWhere(): Prisma.HechsherWhereInput {
+  return { active: true }
+}
+
 // The public surface must only touch establishments that are (a) not
-// soft-deleted in the CRM and (b) still holding a valid certificate — so a
-// removed or expired teuda is never presented as kosher. Shared by the map
-// queries here AND the public community surface (reviews / suggestions in
-// mapCommunity.repo) so the visibility rule lives in exactly one place.
+// soft-deleted in the CRM, (b) still holding a valid certificate and (c)
+// certified by an active hechsher of an active, non-deleted rabbanut — so a
+// removed, expired or withdrawn teuda is never presented as kosher. Shared by
+// the map queries here AND the public community surface (reviews / suggestions
+// in mapCommunity.repo) so the visibility rule lives in exactly one place.
 // `expires` is a DATE at 00:00Z; `gte: now` keeps a cert visible through its
 // expiry day and hides it once past, matching calcStatus' 'critical' cutoff.
+// The hechsher's own rabbanut needs no separate check: the tenant triggers
+// keep it equal to the establishment's rabbanutId.
 export function publicRestaurantVisibilityWhere(): Prisma.RestaurantWhereInput {
   return {
     deletedAt: null,
     expires:   { gte: new Date() },
+    rabbanut:  publicRabbanutWhere(),
+    hechsher:  publicHechsherWhere(),
   }
 }
 
@@ -178,7 +195,9 @@ export function buildMapWhere(filter: MapFilter): Prisma.RestaurantWhereInput {
   if (hechsherTypes?.length) hechsherWhere.type = { in: hechsherTypes }
 
   if (Object.keys(hechsherWhere).length > 0) {
-    where.hechsher = hechsherWhere
+    // Merge into — never replace — the visibility predicate's hechsher clause,
+    // or a hechsher / level filter would bring inactive hechsherim back.
+    where.hechsher = { ...publicHechsherWhere(), ...hechsherWhere }
   }
 
   if (filter.bounds) {
@@ -224,8 +243,10 @@ export interface MapFilter {
 }
 
 export const mapRepo = {
+  // Only hechsherim that can still certify anything on the public map.
   async findHechsherim(): Promise<MapHechsherRow[]> {
     return await prisma.hechsher.findMany({
+      where: { ...publicHechsherWhere(), rabbanut: publicRabbanutWhere() },
       select: { id: true, name: true, shortName: true },
       orderBy: { name: 'asc' },
     })
@@ -233,7 +254,8 @@ export const mapRepo = {
 
   async findMapOptions(): Promise<MapOptionsRow> {
     // Same visibility rule as the map itself, so a city/hechsher/вид whose only
-    // establishments are deleted or expired never appears as a filter option.
+    // establishments are hidden (deleted, expired, inactive hechsher or
+    // rabbanut) never appears as a filter option.
     const visible = mappableRestaurantWhere()
     const [cityRows, hechsherRows, categoryRows] = await Promise.all([
       prisma.restaurant.findMany({
@@ -272,7 +294,7 @@ export const mapRepo = {
   },
 
   // Establishment ids + last-modified for the sitemap. Same visibility rule as
-  // the map, so removed/expired places aren't advertised to crawlers.
+  // the map, so hidden places aren't advertised to crawlers.
   async findSitemapEntries(limit = 45_000): Promise<{ id: string; updatedAt: Date }[]> {
     return prisma.restaurant.findMany({
       where: mappableRestaurantWhere(),
@@ -283,7 +305,7 @@ export const mapRepo = {
   },
 
   // Single establishment for a shared/deep link. Same visibility rule as the
-  // map, so a link to a removed or expired place 404s instead of showing it.
+  // map, so a link to a hidden place 404s instead of showing it.
   async findById(id: string): Promise<MapRestaurantRow | null> {
     const r = await prisma.restaurant.findFirst({
       where: { id, ...mappableRestaurantWhere() },

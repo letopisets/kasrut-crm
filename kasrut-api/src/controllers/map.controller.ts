@@ -6,6 +6,7 @@ import { govmapConfigured, searchGovmapPlaces, type PlacesLang } from '../lib/go
 import { looksLikeIsraeliAddress } from '../lib/geoValidation'
 import { serializeMapRestaurant, serializeMapRestaurantsPage } from '../serializers/map.serializer'
 import { withCache } from '../lib/cache'
+import { MAP_CACHE_KEYS } from '../lib/mapCache'
 import { asyncHandler } from '../lib/asyncHandler'
 import type { KashrutLevel, MapBounds, MapFilter, MapPoint, MapRestaurantRow } from '../db/map.repo'
 
@@ -274,17 +275,17 @@ export const mapController = {
   }),
 
   listHechsherim: asyncHandler(async (_req, res) => {
-    const data = await withCache('map:hechsherim', HECHSHERIM_CACHE_TTL, () => mapRepo.findHechsherim())
+    const data = await withCache(MAP_CACHE_KEYS.hechsherim, HECHSHERIM_CACHE_TTL, () => mapRepo.findHechsherim())
     res.json(data)
   }),
 
   listOptions: asyncHandler(async (_req, res) => {
-    const data = await withCache('map:options', MAP_OPTIONS_CACHE_TTL, () => mapRepo.findMapOptions())
+    const data = await withCache(MAP_CACHE_KEYS.options, MAP_OPTIONS_CACHE_TTL, () => mapRepo.findMapOptions())
     res.json(data)
   }),
 
   getSitemap: asyncHandler(async (_req, res) => {
-    const xml = await withCache('map:sitemap', SITEMAP_CACHE_TTL, async () =>
+    const xml = await withCache(MAP_CACHE_KEYS.sitemap, SITEMAP_CACHE_TTL, async () =>
       buildSitemapXml(await mapRepo.findSitemapEntries()))
     res.set('Content-Type', 'application/xml; charset=utf-8')
     res.set('Cache-Control', 'public, max-age=3600')

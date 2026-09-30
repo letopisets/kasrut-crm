@@ -1,8 +1,13 @@
 import { redis } from './redis'
+import { logger } from './logger'
 
 // Collapse concurrent misses for the same key inside this API process. This
 // prevents a burst from fanning out into identical database/upstream requests.
-const inFlightLoads = new Map<string, Promise<unknown>>()
+// Each flight remembers the generation it started in (see below): a caller
+// arriving after an invalidation must not join a load that may have read the
+// pre-mutation rows, so it starts a fresh one instead.
+interface InFlightLoad { generation: number; promise: Promise<unknown> }
+const inFlightLoads = new Map<string, InFlightLoad>()
 
 // Any invalidation advances this process-local generation. A loader captures
 // the generation before reading from the database and may populate Redis only
@@ -15,6 +20,9 @@ let cacheGeneration = 0
 /**
  * Read-through cache.
  * Falls back to fn() silently when Redis is unavailable.
+ * A null/undefined result is returned but never stored: misses (e.g. an
+ * unknown id) cost one indexed lookup, while caching them would let any
+ * client mint keys at will and bloat the namespaces invalidatePattern sweeps.
  * @param key  Cache key
  * @param ttl  Time-to-live in seconds
  * @param fn   Data-loader called on cache miss
@@ -28,15 +36,15 @@ export async function withCache<T>(key: string, ttl: number, fn: () => Promise<T
     // Redis down → continue to DB
   }
 
-  const existing = inFlightLoads.get(key) as Promise<T> | undefined
-  if (existing) return existing
+  const existing = inFlightLoads.get(key)
+  if (existing && existing.generation === cacheGeneration) return existing.promise as Promise<T>
 
+  const loadGeneration = cacheGeneration
   const pending = (async () => {
-    const loadGeneration = cacheGeneration
     const data = await fn()
 
     // ── try write ───────────────────────────────────────────────────────────
-    if (loadGeneration === cacheGeneration) {
+    if (data != null && loadGeneration === cacheGeneration) {
       try {
         await redis.setex(key, ttl, JSON.stringify(data))
       } catch {
@@ -47,13 +55,27 @@ export async function withCache<T>(key: string, ttl: number, fn: () => Promise<T
     return data
   })()
 
-  inFlightLoads.set(key, pending)
+  inFlightLoads.set(key, { generation: loadGeneration, promise: pending })
   try {
     return await pending
   } finally {
-    // Do not delete a newer flight if this promise somehow finishes after a
+    // Do not delete a newer flight if this promise finishes after a
     // replacement was installed for the same key.
-    if (inFlightLoads.get(key) === pending) inFlightLoads.delete(key)
+    if (inFlightLoads.get(key)?.promise === pending) inFlightLoads.delete(key)
+  }
+}
+
+/**
+ * Delete specific keys. For fixed keys that must go on every invalidation
+ * regardless of how large the surrounding namespace has grown.
+ */
+export async function invalidateKeys(...keys: string[]): Promise<void> {
+  cacheGeneration += 1
+  if (!keys.length) return
+  try {
+    await redis.del(...keys)
+  } catch {
+    // ignore
   }
 }
 
@@ -81,7 +103,11 @@ export async function invalidatePattern(pattern: string): Promise<void> {
       if (batch.length) {
         deletions.push(redis.del(...batch))
         total += batch.length
-        if (total >= MAX_INVALIDATE_KEYS) break
+        if (total >= MAX_INVALIDATE_KEYS) {
+          // Keys the sweep did not reach live on until their TTL expires.
+          logger.warn({ pattern, deleted: total }, 'cache invalidation hit the key cap; remaining keys expire by TTL')
+          break
+        }
       }
     } while (cursor !== '0')
     if (deletions.length) await Promise.all(deletions)

@@ -16,10 +16,12 @@ now have shareable `/r/:id` URLs (see the deep-link work) but no crawlable conte
 **Phase 1 (shipped) — discovery + social previews, no SSR:**
 
 - **Dynamic sitemap from the DB.** `GET /api/map/sitemap.xml` lists `/` and every
-  visible establishment `/r/:id` (same visibility rule as the map — no removed or
-  expired places), cached 1 h. It is reachable on the map host via the existing
-  `/api` proxy, so no nginx change was needed. `robots.txt` `Allow`s that one path
-  under an otherwise-`Disallow`ed `/api/` and declares the sitemap.
+  visible establishment `/r/:id` (same visibility rule as the map — no removed,
+  expired or withdrawn places: an inactive or deleted rabbanut, or an inactive
+  hechsher, hides its establishments), cached 1 h. It is reachable on the map
+  host via the existing `/api` proxy, so no nginx change was needed. `robots.txt`
+  `Allow`s that one path under an otherwise-`Disallow`ed `/api/` and declares the
+  sitemap.
 - **Head/OG/JSON-LD.** `index.html` gains `og:image` (+ `twitter:card=summary_large_image`),
   `og:locale:alternate` for he/en, and a JSON-LD `@graph` (Organization + WebSite +
   WebApplication). A branded 1200×630 `og-image.svg` ships in `public/`.
