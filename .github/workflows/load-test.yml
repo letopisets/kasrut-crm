@@ -17,7 +17,7 @@ jobs:
     # Skip nightly runs if no production URL is configured
     if: github.event_name == 'workflow_dispatch' || vars.PRODUCTION_API_URL != ''
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install k6
         run: |
