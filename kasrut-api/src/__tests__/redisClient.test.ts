@@ -1,4 +1,5 @@
 import fs from 'fs'
+import net from 'net'
 import path from 'path'
 import type { redis as RedisClient } from '../lib/redis'
 
@@ -58,4 +59,48 @@ describe('Redis client', () => {
 
     expect(offenders).toEqual(['src/lib/redis.ts'])
   })
+})
+
+// A Redis that accepts the connection and answers the ready check, then stops
+// answering: what a paused container or a stalled fork looks like to the API.
+function startSilentRedis(): Promise<{ server: net.Server; port: number }> {
+  const info = '# Server\r\nloading:0\r\n'
+  const server = net.createServer(socket => {
+    socket.on('data', chunk => {
+      // Only the connection handshake (CLIENT SETINFO, then the INFO ready
+      // check) is answered, in order; every later command hangs.
+      for (const [, name] of chunk.toString('latin1').matchAll(/\*\d+\r\n\$\d+\r\n([A-Za-z]+)\r\n/g)) {
+        const command = name.toLowerCase()
+        if (command === 'client') socket.write('+OK\r\n')
+        else if (command === 'info') socket.write(`$${info.length}\r\n${info}\r\n`)
+      }
+    })
+    socket.on('error', () => { /* the client hangs up at the end */ })
+  })
+  return new Promise(resolve => {
+    server.listen(0, '127.0.0.1', () => resolve({ server, port: (server.address() as net.AddressInfo).port }))
+  })
+}
+
+describe('Redis client against an unresponsive server', () => {
+  it('fails a command after the command timeout instead of waiting forever', async () => {
+    const { server, port } = await startSilentRedis()
+    const client = loadClient(`redis://127.0.0.1:${port}`)
+    try {
+      await client.connect()
+      expect(client.status).toBe('ready')
+
+      const started = Date.now()
+      await expect(client.get('any-key')).rejects.toThrow(/timed out/i)
+      const elapsed = Date.now() - started
+      expect(elapsed).toBeGreaterThanOrEqual(400)
+      expect(elapsed).toBeLessThan(3000)
+      // Still 'ready': callers that only check the status would not notice,
+      // which is why the timeout has to come from the client.
+      expect(client.status).toBe('ready')
+    } finally {
+      client.disconnect()
+      await new Promise(resolve => server.close(resolve))
+    }
+  }, 10_000)
 })
