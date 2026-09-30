@@ -11,6 +11,7 @@ import {
 import {
   useLoginMutation,
   useVerify2faMutation,
+  useVerify2faBackupMutation,
   useSetup2faMutation,
   useEnable2faMutation,
   useDisable2faMutation,
@@ -33,12 +34,13 @@ export function useAuthController() {
 
   const [loginMut,   { isLoading: loginLoading,   error: loginError   }] = useLoginMutation()
   const [verify2faMut,{ isLoading: verifyLoading,  error: verifyError  }] = useVerify2faMutation()
+  const [verifyBackupMut, { isLoading: backupLoading, error: backupError }] = useVerify2faBackupMutation()
   const [setup2faMut, { isLoading: setupLoading,   error: setupError   }] = useSetup2faMutation()
   const [enable2faMut,{ isLoading: enableLoading,  error: enableError  }] = useEnable2faMutation()
   const [disable2faMut,{isLoading: disableLoading, error: disableError }] = useDisable2faMutation()
   const [logoutMut] = useLogoutMutation()
 
-  const isLoading = loginLoading || verifyLoading
+  const isLoading = loginLoading || verifyLoading || backupLoading
 
   const login = async (email: string, password: string) => {
     const result = await loginMut({ email, password }).unwrap()
@@ -57,6 +59,15 @@ export function useAuthController() {
     const result = await verify2faMut({ tempToken: pendingTempToken, code }).unwrap()
     dispatch(setUser({ user: result.user, token: result.token }))
     navigate('/dashboard', { replace: true })
+  }
+
+  // Signs in with a one-time backup code; resolves to how many are left.
+  const verify2faBackup = async (backupCode: string): Promise<number | null> => {
+    if (!pendingTempToken) return null
+    const result = await verifyBackupMut({ tempToken: pendingTempToken, backupCode }).unwrap()
+    dispatch(setUser({ user: result.user, token: result.token }))
+    navigate('/dashboard', { replace: true })
+    return result.backupCodesRemaining
   }
 
   const cancelTwoFactor = () => {
@@ -95,10 +106,10 @@ export function useAuthController() {
 
   return {
     user, token, role, perm,
-    isLoading, error: loginError ?? verifyError,
+    isLoading, error: loginError ?? verifyError ?? backupError,
     twoFactorPending, pendingTempToken,
     twoFactorSetupRequired, backupCodes,
-    login, verify2fa, cancelTwoFactor,
+    login, verify2fa, verify2faBackup, cancelTwoFactor,
     setup2fa, setupLoading, setupError,
     enable2fa, enableLoading, enableError, acknowledgeBackupCodes,
     disable2fa, disableLoading, disableError,

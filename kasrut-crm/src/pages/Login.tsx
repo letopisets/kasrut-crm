@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/store'
 import { setLang as setLangAction, type Lang } from '@/store/langSlice'
 import { useLang } from '@/i18n/useLang'
 import { isTooManyAttempts } from '@/lib/isTooManyAttempts'
+import { showSnackbar } from '@/store/uiSlice'
 import { alpha } from '@mui/material/styles'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
@@ -16,6 +17,12 @@ import CircularProgress from '@mui/material/CircularProgress'
 
 const LANGS: Lang[] = ['en', 'ru', 'he']
 const PRIMARY = '#E8C96D'
+// Backup codes are 10 hex characters; a pasted copy may carry spaces or dashes.
+const BACKUP_CODE_MAX_LENGTH = 64
+
+function normaliseBackupCode(value: string): string {
+  return value.replace(/[\s-]+/g, '')
+}
 
 function extractError(err: unknown, tooManyAttempts: string): string | null {
   if (!err) return null
@@ -97,7 +104,7 @@ export default function Login() {
   const navigate = useNavigate()
   const {
     user, login, isLoading, twoFactorSetupRequired,
-    twoFactorPending, verify2fa, cancelTwoFactor, error,
+    twoFactorPending, verify2fa, verify2faBackup, cancelTwoFactor, error,
   } = useAuthController()
   const dispatch = useAppDispatch()
   const lang     = useAppSelector(s => s.lang.lang)
@@ -110,6 +117,9 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [totpError,setTotpError]= useState('')
+  // The 2FA step takes either the authenticator code or a one-time backup code.
+  const [useBackup, setUseBackup]   = useState(false)
+  const [backupCode, setBackupCode] = useState('')
 
   useEffect(() => {
     if (user) navigate(twoFactorSetupRequired ? '/setup-2fa' : '/dashboard', { replace: true })
@@ -118,8 +128,33 @@ export default function Login() {
   const handleLogin = async () => {
     if (!email || !password) return
     setTotpCode('')
+    setBackupCode('')
+    setUseBackup(false)
     setTotpError('')
     try { await login(email, password) } catch { /* handled by RTK */ }
+  }
+
+  const toggleBackup = () => {
+    setUseBackup(v => !v)
+    setTotpCode('')
+    setBackupCode('')
+    setTotpError('')
+  }
+
+  const handleVerifyBackup = async () => {
+    const code = normaliseBackupCode(backupCode)
+    if (!code) return
+    try {
+      setTotpError('')
+      const remaining = await verify2faBackup(code)
+      if (remaining !== null) {
+        const message = (tf?.backupCodeUsed ?? 'Signed in with a backup code. Backup codes left: {count}.')
+          .replace('{count}', String(remaining))
+        dispatch(showSnackbar({ message, severity: 'warning' }))
+      }
+    } catch (err) {
+      setTotpError(isTooManyAttempts(err) ? tooManyAttempts : (tf?.invalidBackupCode ?? 'Invalid backup code'))
+    }
   }
 
   const handleVerify = async () => {
@@ -168,33 +203,65 @@ export default function Login() {
             {tf?.title ?? 'Two-Factor Authentication'}
           </Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary', textAlign: 'center' }}>
-            {tf?.subtitle ?? 'Enter the code from your authenticator app'}
+            {useBackup
+              ? (tf?.backupSubtitle ?? 'Enter one of your backup codes')
+              : (tf?.subtitle ?? 'Enter the code from your authenticator app')}
           </Typography>
 
-          <TextField
-            fullWidth
-            value={totpCode}
-            onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
-            onKeyDown={e => e.key === 'Enter' && void handleVerify()}
-            slotProps={{
-              htmlInput: {
-                inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
-                style: {
-                  fontSize: 28, fontWeight: 700, letterSpacing: 12,
-                  textAlign: 'center', padding: '14px 16px',
+          {useBackup ? (
+            <TextField
+              fullWidth
+              value={backupCode}
+              onChange={e => setBackupCode(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && void handleVerifyBackup()}
+              slotProps={{
+                htmlInput: {
+                  maxLength: BACKUP_CODE_MAX_LENGTH,
+                  autoComplete: 'one-time-code', autoCapitalize: 'characters', spellCheck: false,
+                  'aria-label': tf?.backupSubtitle ?? 'Enter one of your backup codes',
+                  style: {
+                    fontSize: 22, fontWeight: 700, letterSpacing: 4,
+                    textAlign: 'center', padding: '14px 16px',
+                    fontFamily: 'monospace',
+                  },
                 },
-              },
-            }}
-            placeholder={tf?.codePlaceholder ?? '000000'}
-            autoFocus
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                '& fieldset': { borderWidth: 2, borderColor: '#252840' },
-                '&.Mui-focused fieldset': { borderColor: '#E8C96D' },
-              },
-              '& input::placeholder': { letterSpacing: 8, fontSize: 22, color: '#50526A' },
-            }}
-          />
+              }}
+              placeholder={tf?.backupPlaceholder ?? 'A1B2C3D4E5'}
+              autoFocus
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderWidth: 2, borderColor: '#252840' },
+                  '&.Mui-focused fieldset': { borderColor: '#E8C96D' },
+                },
+                '& input::placeholder': { letterSpacing: 4, fontSize: 18, color: '#50526A' },
+              }}
+            />
+          ) : (
+            <TextField
+              fullWidth
+              value={totpCode}
+              onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={e => e.key === 'Enter' && void handleVerify()}
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6,
+                  style: {
+                    fontSize: 28, fontWeight: 700, letterSpacing: 12,
+                    textAlign: 'center', padding: '14px 16px',
+                  },
+                },
+              }}
+              placeholder={tf?.codePlaceholder ?? '000000'}
+              autoFocus
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderWidth: 2, borderColor: '#252840' },
+                  '&.Mui-focused fieldset': { borderColor: '#E8C96D' },
+                },
+                '& input::placeholder': { letterSpacing: 8, fontSize: 22, color: '#50526A' },
+              }}
+            />
+          )}
 
           {(totpError || error) && (
             <Alert severity="error" sx={{ width: '100%', fontSize: 12 }}>
@@ -205,8 +272,8 @@ export default function Login() {
           <Button
             fullWidth
             variant="contained"
-            onClick={() => void handleVerify()}
-            disabled={isLoading || totpCode.length !== 6}
+            onClick={() => void (useBackup ? handleVerifyBackup() : handleVerify())}
+            disabled={isLoading || (useBackup ? !normaliseBackupCode(backupCode) : totpCode.length !== 6)}
             sx={{ py: 1.5, fontSize: 15, fontWeight: 600 }}
           >
             {isLoading ? <CircularProgress size={18} color="inherit" /> : (tf?.verifyBtn ?? 'Verify')}
@@ -214,7 +281,17 @@ export default function Login() {
 
           <Button
             variant="text"
-            onClick={() => { setTotpCode(''); setTotpError(''); cancelTwoFactor() }}
+            onClick={toggleBackup}
+            sx={{ fontSize: 13 }}
+          >
+            {useBackup
+              ? (tf?.useAuthenticator ?? 'Use the authenticator app')
+              : (tf?.useBackupCode ?? 'Use a backup code')}
+          </Button>
+
+          <Button
+            variant="text"
+            onClick={() => { setTotpCode(''); setBackupCode(''); setUseBackup(false); setTotpError(''); cancelTwoFactor() }}
             sx={{ color: 'text.secondary', fontSize: 13 }}
           >
             {tf?.backToLogin ?? '← Back'}

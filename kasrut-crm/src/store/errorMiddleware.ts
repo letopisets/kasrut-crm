@@ -6,7 +6,7 @@ import { isTwoFactorSetupRequiredError } from '@/lib/twoFactorErrors'
 // does the review-delete dialog, so a global toast on top would be
 // redundant/confusing (and would show the server's untranslated text).
 const SILENCED_ENDPOINTS = new Set([
-  'login', 'logout', 'verify2fa', 'setup2fa', 'enable2fa', 'disable2fa',
+  'login', 'logout', 'verify2fa', 'verify2faBackup', 'setup2fa', 'enable2fa', 'disable2fa',
   'deleteReview',
 ])
 

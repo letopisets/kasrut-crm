@@ -300,6 +300,12 @@ const ru: Translations = {
     backupCodesCopied: 'Скопировано',
     backupCodesDone:  'Коды сохранены',
     wrongPassword:    'Неверный пароль',
+    useBackupCode:    'Войти с резервным кодом',
+    useAuthenticator: 'Ввести код из приложения',
+    backupSubtitle:   'Введите один из резервных кодов',
+    backupPlaceholder: 'A1B2C3D4E5',
+    invalidBackupCode: 'Неверный резервный код',
+    backupCodeUsed:   'Вход выполнен по резервному коду. Осталось резервных кодов: {count}. Если приложения-аутентификатора у вас больше нет, попросите системного администратора сбросить двухфакторную аутентификацию.',
   },
 }
 

@@ -217,7 +217,9 @@ export const twoFactorController = {
     const user = await usersRepo.findAuthById(payload.sub)
     if (!user || !user.twoFactorEnabled) { res.status(401).json({ error: 'Unauthorized' }); return }
 
-    const normalised = backupCode.trim().toUpperCase()
+    // Codes are issued as upper-case hex; a copy may come back lower-cased or
+    // split into groups with spaces or dashes.
+    const normalised = backupCode.replace(/[\s-]+/g, '').toUpperCase()
     const matchIndex = await findBackupCodeIndex(normalised, user.twoFactorBackupCodes)
     if (matchIndex === -1) { res.status(400).json({ error: 'Invalid backup code' }); return }
 

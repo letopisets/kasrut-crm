@@ -41,6 +41,13 @@ export const authApi = baseApi.injectEndpoints({
     verify2fa: build.mutation<{ user: User; token: string }, { tempToken: string; code: string }>({
       query: (body) => ({ url: '/auth/2fa/verify', method: 'POST', body, ...WITH_COOKIE }),
     }),
+    // A one-time backup code instead of the authenticator code.
+    verify2faBackup: build.mutation<
+      { user: User; token: string; backupCodesRemaining: number },
+      { tempToken: string; backupCode: string }
+    >({
+      query: (body) => ({ url: '/auth/2fa/verify-backup', method: 'POST', body, ...WITH_COOKIE }),
+    }),
     setup2fa: build.mutation<{ secret: string; qrDataUrl: string }, { password: string }>({
       query: (body) => ({ url: '/auth/2fa/setup', method: 'POST', body }),
     }),
@@ -58,6 +65,7 @@ export const {
   useGetMeQuery,
   useLogoutMutation,
   useVerify2faMutation,
+  useVerify2faBackupMutation,
   useSetup2faMutation,
   useEnable2faMutation,
   useDisable2faMutation,

@@ -446,6 +446,26 @@ describe('POST /api/auth/2fa/verify-backup', () => {
     expectCrmSessionToken(res.body.token)
   })
 
+  it('accepts a code copied with spaces or dashes and reports the codes left', async () => {
+    const hash = await bcrypt.hash('A1B2C3D4E5', 4)
+    const other = await bcrypt.hash('FFFFFFFFFF', 4)
+    mockRepo.findAuthById.mockResolvedValue({
+      ...baseUser,
+      twoFactorEnabled: true,
+      twoFactorSecret: 'MOCKSECRET32',
+      twoFactorBackupCodes: [other, hash],
+    })
+    mockRepo.consumeBackupCode.mockResolvedValue(true)
+
+    const res = await request(app)
+      .post('/api/auth/2fa/verify-backup')
+      .send({ tempToken: signTwoFactorPendingToken({ sub: 'u1', jti: 'spaced-backup' }), backupCode: ' a1b2c-3d4 e5 ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.backupCodesRemaining).toBe(1)
+    expect(mockRepo.consumeBackupCode).toHaveBeenCalledWith('u1', [other, hash], [other])
+  })
+
   it('does not issue a token when another request changed the backup-code set', async () => {
     const hash = await bcrypt.hash('A1B2C3D4E5', 4)
     const tfUser: User = {

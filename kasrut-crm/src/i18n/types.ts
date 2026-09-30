@@ -292,5 +292,11 @@ export interface Translations {
     backupCodesCopied: string
     backupCodesDone: string
     wrongPassword: string
+    useBackupCode: string
+    useAuthenticator: string
+    backupSubtitle: string
+    backupPlaceholder: string
+    invalidBackupCode: string
+    backupCodeUsed: string
   }
 }

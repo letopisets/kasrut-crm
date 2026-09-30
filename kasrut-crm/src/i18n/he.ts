@@ -300,6 +300,12 @@ const he: Translations = {
     backupCodesCopied: 'הועתק',
     backupCodesDone:  'שמרתי את הקודים',
     wrongPassword:    'סיסמה שגויה',
+    useBackupCode:    'כניסה עם קוד גיבוי',
+    useAuthenticator: 'שימוש באפליקציית האימות',
+    backupSubtitle:   'הכנס אחד מקודי הגיבוי שלך',
+    backupPlaceholder: 'A1B2C3D4E5',
+    invalidBackupCode: 'קוד גיבוי שגוי',
+    backupCodeUsed:   'נכנסת באמצעות קוד גיבוי. קודי גיבוי שנותרו: {count}. אם אין לך עוד גישה לאפליקציית האימות, בקש ממנהל המערכת לאפס את האימות הדו-שלבי.',
   },
 }
 

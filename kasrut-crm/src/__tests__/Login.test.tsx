@@ -7,7 +7,9 @@ import Login from '@/pages/Login'
 // ── Controller mock ────────────────────────────────────────────────────────
 const mockLogin           = vi.fn()
 const mockVerify2fa       = vi.fn()
+const mockVerify2faBackup = vi.fn()
 const mockCancelTwoFactor = vi.fn()
+const mockDispatch        = vi.fn()
 
 let ctrl = {
   user:             null as null | { id: string },
@@ -22,12 +24,13 @@ vi.mock('@/controllers/useAuthController', () => ({
     ...ctrl,
     login:           mockLogin,
     verify2fa:       mockVerify2fa,
+    verify2faBackup: mockVerify2faBackup,
     cancelTwoFactor: mockCancelTwoFactor,
   }),
 }))
 
 vi.mock('@/store', () => ({
-  useAppDispatch: () => vi.fn(),
+  useAppDispatch: () => mockDispatch,
   useAppSelector: (sel: (s: { lang: { lang: string } }) => unknown) =>
     sel({ lang: { lang: 'en' } }),
 }))
@@ -50,6 +53,12 @@ vi.mock('@/i18n/useLang', () => ({
       verifyBtn:       'Verify',
       backToLogin:     '← Back',
       codeMustBe6:     'Enter 6-digit code',
+      useBackupCode:     'Use a backup code',
+      useAuthenticator:  'Use the authenticator app',
+      backupSubtitle:    'Enter one of your backup codes',
+      backupPlaceholder: 'A1B2C3D4E5',
+      invalidBackupCode: 'Invalid backup code',
+      backupCodeUsed:    'Backup codes left: {count}.',
     },
   }),
 }))
@@ -182,5 +191,63 @@ describe('Login page — 2FA lockout', () => {
     fireEvent.change(screen.getByPlaceholderText('000000'), { target: { value: '123456' } })
     fireEvent.click(screen.getByText('Verify'))
     await waitFor(() => expect(screen.getByText('Locked out (i18n)')).toBeDefined())
+  })
+})
+
+describe('Login page — backup code', () => {
+  function switchToBackup() {
+    ctrl.twoFactorPending = true
+    renderLogin()
+    fireEvent.click(screen.getByText('Use a backup code'))
+    return screen.getByPlaceholderText('A1B2C3D4E5') as HTMLInputElement
+  }
+
+  it('takes a 10-character hex code as typed, letters included', () => {
+    const input = switchToBackup()
+    expect(screen.getByText('Enter one of your backup codes')).toBeDefined()
+    fireEvent.change(input, { target: { value: 'a1b2c3d4e5' } })
+    expect(input.value).toBe('a1b2c3d4e5')
+    expect(input.maxLength).toBe(64)
+  })
+
+  it('sends the code without spaces or dashes to verify2faBackup, never to verify2fa', async () => {
+    mockVerify2faBackup.mockResolvedValueOnce(7)
+    const input = switchToBackup()
+    fireEvent.change(input, { target: { value: ' A1B2 C3D4-E5 ' } })
+    fireEvent.click(screen.getByText('Verify'))
+    await waitFor(() => expect(mockVerify2faBackup).toHaveBeenCalledWith('A1B2C3D4E5'))
+    expect(mockVerify2fa).not.toHaveBeenCalled()
+  })
+
+  it('tells the user how many backup codes are left', async () => {
+    mockVerify2faBackup.mockResolvedValueOnce(3)
+    const input = switchToBackup()
+    fireEvent.change(input, { target: { value: 'A1B2C3D4E5' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: { message: 'Backup codes left: 3.', severity: 'warning' },
+    })))
+  })
+
+  it('shows the backup-code error when the code is refused', async () => {
+    mockVerify2faBackup.mockRejectedValueOnce({ status: 400, data: { error: 'Invalid backup code' } })
+    const input = switchToBackup()
+    fireEvent.change(input, { target: { value: 'FFFFFFFFFF' } })
+    fireEvent.click(screen.getByText('Verify'))
+    await waitFor(() => expect(screen.getByText('Invalid backup code')).toBeDefined())
+  })
+
+  it('shows the lockout message on 429', async () => {
+    mockVerify2faBackup.mockRejectedValueOnce({ status: 429, data: { error: 'Too many attempts. Try again later.' } })
+    const input = switchToBackup()
+    fireEvent.change(input, { target: { value: 'FFFFFFFFFF' } })
+    fireEvent.click(screen.getByText('Verify'))
+    await waitFor(() => expect(screen.getByText('Locked out (i18n)')).toBeDefined())
+  })
+
+  it('switches back to the authenticator code', () => {
+    switchToBackup()
+    fireEvent.click(screen.getByText('Use the authenticator app'))
+    expect(screen.getByPlaceholderText('000000')).toBeDefined()
   })
 })

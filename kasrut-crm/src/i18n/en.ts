@@ -300,6 +300,12 @@ const en: Translations = {
     backupCodesCopied: 'Copied',
     backupCodesDone:  'I have saved these codes',
     wrongPassword:    'Wrong password',
+    useBackupCode:    'Use a backup code',
+    useAuthenticator: 'Use the authenticator app',
+    backupSubtitle:   'Enter one of your backup codes',
+    backupPlaceholder: 'A1B2C3D4E5',
+    invalidBackupCode: 'Invalid backup code',
+    backupCodeUsed:   'Signed in with a backup code. Backup codes left: {count}. If you no longer have your authenticator app, ask the system administrator to reset two-factor authentication.',
   },
 }
 
