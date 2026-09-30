@@ -8,6 +8,7 @@ import { rabbanutRepo } from '../db/rabbanuts.repo'
 import { usersRepo } from '../db/users.repo'
 import { withCache } from '../lib/cache'
 import {
+  applyWriteScope,
   assertOwnsRabbanut,
   ForbiddenScopeError,
   resolveScopeRabbanutId,
@@ -70,6 +71,31 @@ const rabbanut = (id: string): Rabbanut => ({
 
 const fakeReq = (user?: Partial<{ role: Role; rabbanutId: string }>) =>
   ({ user }) as unknown as Request
+
+describe('applyWriteScope', () => {
+  it('passes an owner body through unchanged', () => {
+    expect(applyWriteScope(fakeReq({ role: 'owner' }), { name: 'x', rabbanutId: 'rb_any' }))
+      .toEqual({ name: 'x', rabbanutId: 'rb_any' })
+  })
+
+  it("pins a rabbanut's writes to its own tenant and refuses a foreign one", () => {
+    const body: { name: string; rabbanutId?: string } = { name: 'x' }
+    expect(applyWriteScope(fakeReq({ role: 'rabbanut', rabbanutId: 'rb_a' }), body))
+      .toEqual({ name: 'x', rabbanutId: 'rb_a' })
+    expect(() => applyWriteScope(fakeReq({ role: 'rabbanut', rabbanutId: 'rb_a' }), { rabbanutId: 'rb_b' }))
+      .toThrow(ForbiddenScopeError)
+    expect(() => applyWriteScope(fakeReq({ role: 'rabbanut' }), {})).toThrow(ForbiddenScopeError)
+  })
+
+  // Tenant writes are owner/rabbanut only; the helper no longer relies on each
+  // route's requireRole to keep a mashgiach (or an unauthenticated call) out.
+  it.each([
+    ['a mashgiach', fakeReq({ role: 'mashgiach', rabbanutId: 'rb_a' })],
+    ['no user', fakeReq()],
+  ])('fails closed for %s', (_label, req) => {
+    expect(() => applyWriteScope(req, { rabbanutId: 'rb_a' })).toThrow(ForbiddenScopeError)
+  })
+})
 
 describe('rabbanutScope read helpers', () => {
   it('owner resolves to the requested filter (undefined = all tenants)', () => {

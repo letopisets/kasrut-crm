@@ -46,12 +46,16 @@ export function resolveScopeRabbanutId(
 }
 
 /** Force a rabbanut user's writes onto their own rabbanutId. Owner passes
- *  through unchanged. Throws if a rabbanut tries to set a different id. */
+ *  through unchanged. Throws if a rabbanut tries to set a different id, and
+ *  for any other caller (a mashgiach, or no user at all): tenant writes are
+ *  owner/rabbanut only, so this fails closed even if a route's requireRole
+ *  is ever widened by mistake. */
 export function applyWriteScope<T extends { rabbanutId?: string }>(
   req: Request,
   body: T,
 ): T & { rabbanutId?: string } {
-  if (req.user?.role !== 'rabbanut') return body
+  if (req.user?.role === 'owner') return body
+  if (req.user?.role !== 'rabbanut') throw new ForbiddenScopeError()
 
   if (!req.user.rabbanutId) throw new ForbiddenScopeError()
 

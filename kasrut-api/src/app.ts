@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -39,6 +40,12 @@ export function createApp() {
   // Structured console logging for warnings/errors. Platform audit events are stored by serviceLogger.
   app.use(pinoHttp({
     logger,
+    // The id serviceLogger resolved and echoed in x-request-id (it runs
+    // first), so a console line and its service_logs row share one id.
+    genReqId: (_req, res) => {
+      const id = res.getHeader('x-request-id')
+      return typeof id === 'string' && id ? id : randomUUID()
+    },
     customLogLevel: (_req, res, err) => {
       if (err || res.statusCode >= 500) return 'error'
       if (res.statusCode >= 400) return 'warn'
@@ -46,7 +53,7 @@ export function createApp() {
     },
     autoLogging: { ignore: req => req.url === '/health' || req.url?.startsWith('/api/docs') === true },
     serializers: {
-      req: req => ({ method: req.method, url: req.url }),
+      req: req => ({ id: req.id, method: req.method, url: req.url }),
       res: res => ({ statusCode: res.statusCode }),
     },
   }))

@@ -20,7 +20,10 @@ redis.on('error', (e: Error) => {
 })
 
 if (!isTest) {
-  redis.on('connect', () => console.log('[Redis] connected'))
+  // 'ready', not 'connect': 'connect' fires on every TCP (re)connect, before
+  // AUTH, so a wrong REDIS_PASSWORD printed "connected" every couple of
+  // seconds. 'ready' means authenticated and usable.
+  redis.on('ready', () => console.log('[Redis] ready'))
   /** Attempt connection in background; failures are swallowed */
   redis.connect().catch(() => { /* will be logged by the error handler above */ })
 }

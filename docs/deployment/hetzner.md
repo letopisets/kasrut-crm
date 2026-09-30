@@ -328,10 +328,10 @@ at once — it is a security incident, not a cold cache:
 - `/health` returns 503 with `"redis":"error"`, so the api turns (unhealthy) and
   compose will not start the map, CRM or nginx that depend on it.
 
-Do not judge it by the api log: ioredis reconnects in a loop and logs
-`[Redis] connected` on every attempt (before the password is checked), while
-`[Redis] unavailable — running without cache: WRONGPASS …` appears only once
-per process. `/health` is the check.
+The api logs `[Redis] ready` only once Redis has accepted the password, so
+with a mismatch that line never appears (ioredis keeps reconnecting quietly),
+and `[Redis] unavailable — running without cache: WRONGPASS …` is logged only
+once per process. `/health` is the check.
 
 To rotate the password, change `REDIS_PASSWORD` in `.env.hetzner` and recreate
 both services together: `$DC up -d redis api`.
