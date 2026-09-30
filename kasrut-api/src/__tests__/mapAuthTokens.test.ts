@@ -32,7 +32,7 @@ const mockIsTokenBlacklisted = jest.mocked(isTokenBlacklisted)
 const mockVerifyOAuthIdToken = jest.mocked(verifyOAuthIdToken)
 
 const app = createApp()
-const PASSWORD = 'Passw0rd123'
+const PASSWORD = 'Passw0rd1234'
 
 const mapUser: MapAuthUserRow = {
   id:             'map-user-1',
@@ -96,6 +96,19 @@ describe('map auth flows issue map-access tokens', () => {
 
     expect(res.status).toBe(201)
     await expectMapSessionToken(res.body.token)
+  })
+
+  it.each([
+    ['registration', '/api/map-auth/register', { firstName: 'Map', lastName: 'User', email: 'new@example.com', phone: '+972500000009' }],
+    ['a password reset', '/api/map-auth/password-reset/confirm', { token: 'r'.repeat(40) }],
+  ])('refuses a new password under 12 characters on %s', async (_label, url, body) => {
+    mockRepo.hasValidPasswordResetToken.mockResolvedValue(true)
+
+    const res = await request(app).post(url).send({ ...body, password: 'Passw0rd123' })
+
+    expect(res.status).toBe(400)
+    expect(mockRepo.createPasswordUser).not.toHaveBeenCalled()
+    expect(mockRepo.consumePasswordResetToken).not.toHaveBeenCalled()
   })
 
   it('OAuth sign-in', async () => {

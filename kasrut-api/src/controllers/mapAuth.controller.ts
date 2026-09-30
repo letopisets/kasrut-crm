@@ -46,8 +46,11 @@ const oauthSchema = z.object({
   idToken: z.string().min(20),
 })
 
+// New map passwords (registration, reset): 12+ characters, as for CRM
+// accounts. Sign-in accepts any length, so older 8-character passwords keep
+// working until they are reset.
 const passwordSchema = z.string()
-  .min(8)
+  .min(12)
   .max(128)
   .refine(value => /[A-Za-z]/.test(value) && /\d/.test(value), {
     message: 'Password must contain letters and digits',

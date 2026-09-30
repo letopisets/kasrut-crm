@@ -56,7 +56,7 @@ const mockMapUsers = jest.mocked(mapCommunityRepo)
 const CRM_COOKIE = 'kashrut_crm_rt'
 const MAP_COOKIE = 'kashrut_map_rt'
 const THIRTY_DAYS_SEC = 30 * 24 * 60 * 60
-const PASSWORD = 'Passw0rd123'
+const PASSWORD = 'Passw0rd1234'
 
 const crmUser: User = {
   id: 'u1', name: 'Rabbanut Admin', email: 'admin@test.il', passwordHash: 'hash',

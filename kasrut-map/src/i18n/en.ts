@@ -133,9 +133,9 @@ const en: MapTranslations = {
   oauthError: 'Failed to sign in. Check OAuth settings and try again.',
   wrongCredentials: 'Incorrect email or password.',
   tooManyAttempts: 'Too many attempts. Try again later.',
-  registerError: 'Failed to register. Password must be at least 8 characters with letters and numbers.',
+  registerError: 'Failed to register. Password must be at least 12 characters with letters and numbers.',
   resetRequestError: 'Failed to create password reset request.',
-  resetConfirmError: 'Reset code is invalid or expired. Password must be at least 8 characters with letters and numbers.',
+  resetConfirmError: 'Reset code is invalid or expired. Password must be at least 12 characters with letters and numbers.',
 
   emailField: 'Email',
   passwordField: 'Password',
@@ -145,7 +145,7 @@ const en: MapTranslations = {
   firstName: 'First name',
   lastName: 'Last name',
   phoneField: 'Phone',
-  passwordHint: 'At least 8 characters, letters and numbers',
+  passwordHint: 'At least 12 characters, letters and numbers',
   registerBtn: 'Register',
 
   sendCodeTo: 'Where to send the code',

@@ -44,8 +44,8 @@ export const loginSchema = z.object({
 const userFieldsSchema = z.object({
   name:       z.string().min(1).max(100).trim(),
   email,
-  // CRM accounts hold tenant data: 12+ chars (the map's public accounts keep
-  // their own, shorter rule in mapAuth.controller). Login accepts any length.
+  // 12+ chars, as for new map passwords (mapAuth.controller). Login accepts
+  // any length, so older shorter passwords keep working.
   password:   z.string().min(12).max(128),
   role,
   rabbanutId: id.optional(),

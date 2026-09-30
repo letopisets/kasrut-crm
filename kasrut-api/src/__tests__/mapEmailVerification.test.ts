@@ -40,7 +40,7 @@ const mockIsTokenBlacklisted = jest.mocked(isTokenBlacklisted)
 const mockServiceLog = jest.mocked(serviceLogsRepo.create)
 
 const app = createApp()
-const PASSWORD = 'Passw0rd123'
+const PASSWORD = 'Passw0rd1234'
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const unverifiedUser: MapAuthUserRow = {
